@@ -1,0 +1,39 @@
+name: Bug report
+description: Report a reproducible Kanban Ledger problem
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Remove private board content before posting.
+  - type: input
+    id: version
+    attributes:
+      label: Kanban Ledger version
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: input
+    id: vscode
+    attributes:
+      label: VS Code version and operating system
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      description: Include the smallest board shape that reproduces the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation output
+      description: Result of Kanban Ledger: Validate Board Bundle.

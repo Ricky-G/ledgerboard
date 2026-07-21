@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run privacy:scan
+      - run: npm run test
+      - run: npm run compile
+      - run: xvfb-run -a npm run test:integration
+      - run: npm run vsix
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kanban-ledger-vsix
+          path: '*.vsix'
+          if-no-files-found: error
