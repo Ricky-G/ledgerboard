@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <meta name="theme-color" content="#f4f5f2">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src {{cspSource}}; script-src 'nonce-{{nonce}}'; img-src {{cspSource}} data:; font-src {{cspSource}};">
+    <title>LedgerBoard</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='8' fill='%2317202a'/%3E%3Cpath d='M0 54h64v10H0z' fill='%23e24a35'/%3E%3Ctext x='32' y='39' text-anchor='middle' font-family='Arial' font-size='22' font-weight='700' fill='white'%3EAO%3C/text%3E%3C/svg%3E">
+    <link rel="stylesheet" href="{{stylesUri}}">
+  </head>
+  <body>
+    <div class="app-shell" id="appShell" data-density="comfortable">
+      <header class="topbar">
+        <div class="brand-block">
+          <div class="brand-mark" aria-hidden="true">AO</div>
+          <div>
+            <p class="eyebrow" id="workspaceName">Workspace</p>
+            <h1 id="boardTitle">LedgerBoard</h1>
+          </div>
+        </div>
+
+        <nav class="view-switcher" aria-label="Application views">
+          <button class="view-tab is-active" type="button" data-view="board" aria-pressed="true">
+            Board
+          </button>
+          <button class="view-tab" type="button" data-view="settings" aria-pressed="false">
+            Entities &amp; appearance
+          </button>
+          <button class="view-tab" type="button" data-view="analytics" aria-pressed="false">
+            Analytics
+          </button>
+        </nav>
+
+        <div class="topbar-actions">
+          <div class="save-state" id="saveState" data-state="idle" aria-live="polite">
+            <span class="save-state-icon" id="saveStateIcon" aria-hidden="true">•</span>
+            <span class="save-state-copy">
+              <strong id="saveStateLabel">Not connected</strong>
+              <small id="saveStateDetail">Open the repository</small>
+            </span>
+          </div>
+          <div class="connection-state" id="connectionState" data-state="offline">
+            <span class="status-dot" aria-hidden="true"></span>
+            <span id="connectionLabel">Folder not connected</span>
+          </div>
+          <button class="icon-button" id="reloadButton" type="button" title="Reload Markdown files" aria-label="Reload Markdown files" disabled>
+            ↻
+          </button>
+          <button class="secondary-button" id="connectButton" type="button">
+            Switch board
+          </button>
+          <button class="primary-button" id="saveButton" type="button" disabled>
+            Save now
+          </button>
+        </div>
+      </header>
+
+      <main>
+        <section class="board-view" id="boardView" aria-labelledby="boardTitle">
+          <div class="command-strip">
+            <div class="search-control">
+              <span aria-hidden="true">⌕</span>
+              <label class="visually-hidden" for="searchInput">Search cards</label>
+              <input id="searchInput" type="search" placeholder="Search outcomes, details, or IDs" autocomplete="off">
+            </div>
+
+            <label class="select-control">
+              <span>Entity</span>
+              <select id="areaFilter">
+                <option value="">All entities</option>
+              </select>
+            </label>
+
+            <label class="select-control compact-select">
+              <span>Priority</span>
+              <select id="priorityFilter">
+                <option value="">All</option>
+                <option value="P1">P1</option>
+                <option value="P2">P2</option>
+                <option value="P3">P3</option>
+                <option value="P4">P4</option>
+              </select>
+            </label>
+
+            <div class="board-stats" aria-label="Board summary">
+              <div><strong id="activeCount">0</strong><span>active</span></div>
+              <div><strong id="blockedCount">0</strong><span>waiting</span></div>
+              <div><strong id="doingCount">0/3</strong><span>in progress</span></div>
+            </div>
+
+            <button class="primary-button add-outcome-button" id="addCardButton" type="button" disabled>
+              <span aria-hidden="true">+</span>
+              New outcome
+            </button>
+          </div>
+
+          <div class="mobile-column-tabs" id="mobileColumnTabs" aria-label="Board columns"></div>
+
+          <div class="board-canvas" id="boardCanvas">
+            <div class="welcome-panel" id="welcomePanel">
+              <div class="welcome-signal" aria-hidden="true">
+                <span></span><span></span><span></span><span></span><span></span>
+              </div>
+              <p class="eyebrow">Markdown-powered</p>
+              <h2 id="welcomeTitle">Your delivery board, directly on the repository.</h2>
+              <p id="welcomeCopy">
+                Open a LedgerBoard bundle to load <strong>BOARD.md</strong>,
+                <strong>KANBAN-CONFIG.md</strong>, and <strong>KANBAN-HISTORY.md</strong>.
+              </p>
+              <button class="primary-button large-button" id="welcomeConnectButton" type="button">
+                Choose board folder
+              </button>
+              <p class="browser-note" id="browserNote">
+                Files stay in your workspace and remain readable without this extension.
+              </p>
+            </div>
+            <div class="kanban-board" id="kanbanBoard" aria-label="Kanban board"></div>
+          </div>
+        </section>
+
+        <section class="settings-view" id="settingsView" hidden aria-labelledby="settingsTitle">
+          <div class="settings-heading">
+            <div>
+              <p class="eyebrow">Board configuration</p>
+              <h2 id="settingsTitle">Entities &amp; appearance</h2>
+              <p>Entity identity and board presentation are persisted in KANBAN-CONFIG.md.</p>
+            </div>
+            <button class="primary-button" id="settingsSaveButton" type="button" disabled>
+              Save now
+            </button>
+          </div>
+
+          <div class="settings-layout" id="settingsContent">
+            <section class="settings-section" aria-labelledby="workspaceSettingsTitle">
+              <div class="section-number" aria-hidden="true">01</div>
+              <div class="settings-section-content">
+                <h3 id="workspaceSettingsTitle">Workspace identity</h3>
+                <p>These labels appear in the board header and browser title.</p>
+                <div class="field-grid">
+                  <label class="field">
+                    <span>Workspace name</span>
+                    <input id="configWorkspaceName" type="text" maxlength="60">
+                  </label>
+                  <label class="field">
+                    <span>Board title</span>
+                    <input id="configBoardTitle" type="text" maxlength="80">
+                  </label>
+                  <label class="field">
+                    <span>Timezone</span>
+                    <input id="configTimezone" type="text" maxlength="60">
+                  </label>
+                </div>
+              </div>
+            </section>
+
+            <section class="settings-section" aria-labelledby="appearanceSettingsTitle">
+              <div class="section-number" aria-hidden="true">02</div>
+              <div class="settings-section-content">
+                <h3 id="appearanceSettingsTitle">Appearance</h3>
+                <p>Keep the board quiet, legible, and quick to scan.</p>
+                <div class="field-grid appearance-fields">
+                  <label class="field color-field">
+                    <span>Action color</span>
+                    <span class="color-input-wrap">
+                      <input id="configAccent" type="color">
+                      <output id="configAccentValue">#e24a35</output>
+                    </span>
+                  </label>
+                  <fieldset class="field density-field">
+                    <legend>Card density</legend>
+                    <div class="segmented-control">
+                      <label><input type="radio" name="density" value="comfortable"><span>Comfortable</span></label>
+                      <label><input type="radio" name="density" value="compact"><span>Compact</span></label>
+                    </div>
+                  </fieldset>
+                </div>
+              </div>
+            </section>
+
+            <section class="settings-section entity-settings-section" aria-labelledby="entitySettingsTitle">
+              <div class="section-number" aria-hidden="true">03</div>
+              <div class="settings-section-content">
+                <div class="entity-heading-row">
+                  <div>
+                    <h3 id="entitySettingsTitle">Entities</h3>
+                    <p>Every card uses its `area` value to pick up an entity name and color.</p>
+                  </div>
+                  <button class="secondary-button" id="addEntityButton" type="button">
+                    <span aria-hidden="true">+</span>
+                    Add entity
+                  </button>
+                </div>
+                <div class="entity-list-header" aria-hidden="true">
+                  <span>Color</span><span>Entity name</span><span>Area ID</span><span></span>
+                </div>
+                <div class="entity-list" id="entityList"></div>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="analytics-view" id="analyticsView" hidden aria-labelledby="analyticsTitle">
+          <div class="analytics-heading">
+            <div>
+              <p class="eyebrow">Operational signal</p>
+              <h2 id="analyticsTitle">Analytics</h2>
+              <p id="analyticsCoverage">Current board state with transition history.</p>
+            </div>
+            <label class="select-control analytics-range-control">
+              <span>Activity range</span>
+              <select id="analyticsRange">
+                <option value="7">Last 7 days</option>
+                <option value="30" selected>Last 30 days</option>
+                <option value="90">Last 90 days</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="metric-grid" aria-label="Board metrics">
+            <article class="metric-tile">
+              <span>Active outcomes</span>
+              <strong id="metricActive">0</strong>
+              <small>Not yet completed</small>
+            </article>
+            <article class="metric-tile">
+              <span>Completed</span>
+              <strong id="metricDone">0</strong>
+              <small>Current Done total</small>
+            </article>
+            <article class="metric-tile">
+              <span>Completion</span>
+              <strong id="metricCompletion">0%</strong>
+              <small>Done / all outcomes</small>
+            </article>
+            <article class="metric-tile">
+              <span>Active entities</span>
+              <strong id="metricEntities">0</strong>
+              <small>Entities with open work</small>
+            </article>
+            <article class="metric-tile">
+              <span id="metricCompletedLabel">Completed · 30d</span>
+              <strong id="metricCompletedRange">0</strong>
+              <small>Recorded transitions to Done</small>
+            </article>
+            <article class="metric-tile">
+              <span>Median cycle</span>
+              <strong id="metricCycle">—</strong>
+              <small>Created to Done, when known</small>
+            </article>
+          </div>
+
+          <div class="analytics-grid">
+            <section class="analytics-panel status-panel" aria-labelledby="statusChartTitle">
+              <div class="analytics-panel-heading">
+                <div>
+                  <p class="eyebrow">Current state</p>
+                  <h3 id="statusChartTitle">Work by status</h3>
+                </div>
+                <strong id="statusTotal">0 outcomes</strong>
+              </div>
+              <div id="statusChart" class="status-chart"></div>
+            </section>
+
+            <section class="analytics-panel priority-panel" aria-labelledby="priorityChartTitle">
+              <div class="analytics-panel-heading">
+                <div>
+                  <p class="eyebrow">Active work</p>
+                  <h3 id="priorityChartTitle">Priority mix</h3>
+                </div>
+              </div>
+              <div id="priorityChart" class="priority-chart"></div>
+            </section>
+
+            <section class="analytics-panel activity-panel" aria-labelledby="activityChartTitle">
+              <div class="analytics-panel-heading">
+                <div>
+                  <p class="eyebrow">Flow over time</p>
+                  <h3 id="activityChartTitle">Activity &amp; throughput</h3>
+                </div>
+                <span class="chart-key"><i></i> Events <i></i> Completed</span>
+              </div>
+              <div id="activityChart" class="activity-chart" aria-label="Daily activity chart"></div>
+            </section>
+
+            <section class="analytics-panel entity-panel" aria-labelledby="entityChartTitle">
+              <div class="analytics-panel-heading">
+                <div>
+                  <p class="eyebrow">Active portfolio</p>
+                  <h3 id="entityChartTitle">Work by entity</h3>
+                </div>
+              </div>
+              <div id="entityChart" class="entity-chart"></div>
+            </section>
+
+            <section class="analytics-panel recent-panel" aria-labelledby="recentActivityTitle">
+              <div class="analytics-panel-heading">
+                <div>
+                  <p class="eyebrow">Append-only ledger</p>
+                  <h3 id="recentActivityTitle">Recent activity</h3>
+                </div>
+                <span id="historyEventCount">0 events</span>
+              </div>
+              <div id="recentActivity" class="recent-activity"></div>
+            </section>
+          </div>
+        </section>
+      </main>
+
+      <footer class="statusbar">
+        <span id="statusMessage">Open the repository to begin.</span>
+        <span class="unsaved-indicator" id="unsavedIndicator" hidden>
+          <span aria-hidden="true"></span> Unsaved changes
+        </span>
+        <span id="lastLoadedLabel"></span>
+      </footer>
+    </div>
+
+    <dialog class="card-dialog" id="cardDialog">
+      <form method="dialog" id="cardForm">
+        <div class="dialog-header">
+          <div>
+            <p class="eyebrow" id="cardDialogEyebrow">New outcome</p>
+            <h2 id="cardDialogTitle">Add an outcome</h2>
+          </div>
+          <button class="icon-button close-dialog-button" type="button" data-close-dialog title="Close" aria-label="Close">×</button>
+        </div>
+
+        <div class="dialog-body">
+          <input id="cardId" type="hidden">
+          <label class="field full-field">
+            <span>Outcome title</span>
+            <input id="cardTitle" type="text" maxlength="140" required autofocus>
+          </label>
+          <label class="field full-field">
+            <span>Brief description</span>
+            <textarea id="cardDescription" rows="3" maxlength="360" placeholder="What does done look like, and why does this matter?"></textarea>
+          </label>
+
+          <div class="dialog-field-grid">
+            <label class="field">
+              <span>Entity</span>
+              <select id="cardArea" required></select>
+            </label>
+            <label class="field">
+              <span>Status</span>
+              <select id="cardColumn"></select>
+            </label>
+            <label class="field">
+              <span>Priority</span>
+              <select id="cardPriority">
+                <option value="P1">P1 · Critical</option>
+                <option value="P2">P2 · This week</option>
+                <option value="P3">P3 · Soon</option>
+                <option value="P4">P4 · Someday</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div class="dialog-footer">
+          <button class="danger-button" id="deleteCardButton" type="button" hidden>Delete</button>
+          <span class="dialog-spacer"></span>
+          <button class="secondary-button" type="button" data-close-dialog>Cancel</button>
+          <button class="primary-button" id="submitCardButton" type="submit">Add outcome</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
+
+    <script nonce="{{nonce}}" src="{{modelUri}}"></script>
+    <script nonce="{{nonce}}" src="{{appUri}}"></script>
+  </body>
+</html>
