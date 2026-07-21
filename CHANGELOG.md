@@ -2,6 +2,12 @@
 
 All notable changes to LedgerBoard are documented here.
 
+## [0.2.1] - 2026-07-22
+
+### Fixed
+
+- Remove the invalid Getting Started walkthrough contribution so the extension manifest validates cleanly in supported VS Code versions.
+
 ## [0.2.0] - 2026-07-22
 
 ### Added

@@ -2,7 +2,7 @@
   "name": "ledgerboard",
   "displayName": "LedgerBoard",
   "description": "Local-first Markdown Kanban with conflict-safe autosave, actionable validation, safe formatting repair, and append-only analytics.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "publisher": "ricky-g",
   "license": "MIT",
   "icon": "images/icon.png",
@@ -66,35 +66,6 @@
         "title": "Open Board Standard",
         "category": "LedgerBoard",
         "icon": "$(book)"
-      }
-    ],
-    "walkthroughs": [
-      {
-        "id": "ledgerBoard.gettingStarted",
-        "title": "Get started with LedgerBoard",
-        "description": "Create a local-first Markdown board, open it visually, and validate its durable file contract.",
-        "steps": [
-          {
-            "id": "ledgerBoard.initialize",
-            "title": "Initialize the Markdown bundle",
-            "description": "Run [Initialize Board in Folder](command:ledgerBoard.initializeBoard) to create only the missing board, configuration, and history files."
-          },
-          {
-            "id": "ledgerBoard.open",
-            "title": "Open the visual board",
-            "description": "Run [Open Board](command:ledgerBoard.openBoard), then add and move outcomes while Markdown remains authoritative."
-          },
-          {
-            "id": "ledgerBoard.validate",
-            "title": "Validate and repair formatting",
-            "description": "Run [Validate Board Bundle](command:ledgerBoard.validateBoard). Formatting-only issues can be repaired with [Normalize BOARD.md Formatting](command:ledgerBoard.normalizeBoard)."
-          },
-          {
-            "id": "ledgerBoard.standard",
-            "title": "Use the public board standard",
-            "description": "Open the [Board Standard](command:ledgerBoard.openStandard) for the exact Markdown contract and coding-agent prompt."
-          }
-        ]
       }
     ],
     "menus": {
