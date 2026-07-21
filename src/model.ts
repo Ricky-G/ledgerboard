@@ -62,8 +62,42 @@ export interface HistoryEvent {
   changes?: string[];
 }
 
+export interface BoardDiagnostic {
+  code: string;
+  severity: 'error' | 'warning';
+  message: string;
+  line: number | null;
+  card?: string;
+  cards?: string[];
+  field?: string;
+  found?: number;
+}
+
+export interface BoardSourceAnalysis {
+  source: string;
+  board: BoardDocument | null;
+  canonicalSource: string | null;
+  newline: string;
+  diagnostics: BoardDiagnostic[];
+  errors: BoardDiagnostic[];
+  warnings: BoardDiagnostic[];
+  isCanonical: boolean;
+  canNormalize: boolean;
+}
+
+export interface BundleValidationResult {
+  board: BoardDocument;
+  config: KanbanConfig;
+  historyEvents: HistoryEvent[];
+  cardCount: number;
+  diagnostics: BoardDiagnostic[];
+  warnings: BoardDiagnostic[];
+}
+
 interface BoardModelApi {
   COLUMNS: Array<{ id: ColumnId; label: string }>;
+  analyzeBoardSource(markdown: string): BoardSourceAnalysis;
+    normalizeBoardSource(markdown: string): { source: string; diagnostics: BoardDiagnostic[]; changed: boolean };
   appendHistory(markdown: string, events: HistoryEvent[]): string;
   createBaselineEvents(document: BoardDocument, at: string): HistoryEvent[];
   createDefaultConfig(): KanbanConfig;
@@ -73,6 +107,7 @@ interface BoardModelApi {
   parseHistory(markdown: string): { source: string; newline: string; events: HistoryEvent[] };
   serializeBoard(document: BoardDocument): string;
   serializeConfig(markdown: string, config: KanbanConfig): string;
+    validateBundleSources(boardSource: string, configSource: string, historySource: string): BundleValidationResult;
   validateBoard(document: BoardDocument): true;
   validateConfig(config: KanbanConfig): true;
 }

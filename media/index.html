@@ -109,9 +109,14 @@
                 Open a LedgerBoard bundle to load <strong>BOARD.md</strong>,
                 <strong>KANBAN-CONFIG.md</strong>, and <strong>KANBAN-HISTORY.md</strong>.
               </p>
-              <button class="primary-button large-button" id="welcomeConnectButton" type="button">
-                Choose board folder
-              </button>
+              <div class="welcome-actions">
+                <button class="primary-button large-button" id="welcomeConnectButton" type="button">
+                  Choose board folder
+                </button>
+                <button class="secondary-button large-button" id="welcomeNormalizeButton" type="button" hidden>
+                  Normalize formatting
+                </button>
+              </div>
               <p class="browser-note" id="browserNote">
                 Files stay in your workspace and remain readable without this extension.
               </p>

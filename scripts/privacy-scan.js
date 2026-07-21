@@ -73,7 +73,8 @@ function checkHashedTerms(relativePath, content) {
 }
 
 function isExpectedDocumentation(relativePath, label) {
-  return (label === 'actual board file' && relativePath === 'BOARD-STANDARDS.md')
+  return (label === 'actual board file'
+      && (relativePath === 'BOARD-STANDARDS.md' || /^test\/.*\.test\.js$/i.test(relativePath)))
     || (label === 'email address' && relativePath === 'package-lock.json');
 }
 

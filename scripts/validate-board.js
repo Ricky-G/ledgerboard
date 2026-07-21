@@ -11,19 +11,10 @@ try {
   const boardSource = read('BOARD.md');
   const configSource = read('KANBAN-CONFIG.md');
   const historySource = read('KANBAN-HISTORY.md');
-  const board = model.parseBoard(boardSource);
-  const config = model.parseConfig(configSource);
-  const history = model.parseHistory(historySource);
-  const cards = board.columns.flatMap((column) => column.cards);
-  const entityIds = new Set(config.entities.map((entity) => entity.id));
-  const missing = [...new Set(cards.map((card) => card.area).filter((area) => !entityIds.has(area)))];
+  const result = model.validateBundleSources(boardSource, configSource, historySource);
 
-  if (missing.length > 0) throw new Error(`Missing entity configuration: ${missing.join(', ')}.`);
-  if (model.serializeBoard(board) !== boardSource) {
-    throw new Error('BOARD.md does not round-trip exactly. Keep descriptions on one physical line and line endings consistent.');
-  }
-
-  console.log(`Kanban bundle valid: ${cards.length} cards, ${config.entities.length} entities, ${history.events.length} history events`);
+  console.log(`Kanban bundle valid: ${result.cardCount} cards, ${result.config.entities.length} entities, ${result.historyEvents.length} history events`);
+  result.warnings.forEach((warning) => console.warn(`Warning: ${warning.message}`));
 } catch (error) {
   console.error(`Kanban bundle invalid: ${error instanceof Error ? error.message : String(error)}`);
   process.exitCode = 1;

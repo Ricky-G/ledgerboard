@@ -15,6 +15,7 @@ Use Node 22 LTS and a current VS Code release.
 
 ```powershell
 npm ci
+npm run privacy:scan
 npm run test
 npm run compile
 npm run test:integration

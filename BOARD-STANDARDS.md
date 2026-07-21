@@ -115,6 +115,29 @@ Formatting rules:
 - Use `[x]` only in `Done`; use `[ ]` in every other column.
 - Do not add due dates, owners, source fields, labels, estimates, tags, URLs, or other inline fields.
 - Put essential context in the one-line description.
+- Separate every pair of adjacent cards with exactly one blank physical line.
+
+Correct adjacent cards:
+
+```markdown
+- [ ] AO-001 — First outcome · P1 · area:client-a
+  - **Description:** First description.
+
+- [ ] AO-002 — Second outcome · P2 · area:client-a
+  - **Description:** Second description.
+```
+
+Incorrect: no blank physical line between cards:
+
+```markdown
+- [ ] AO-001 — First outcome · P1 · area:client-a
+  - **Description:** First description.
+- [ ] AO-002 — Second outcome · P2 · area:client-a
+  - **Description:** Second description.
+```
+
+LedgerBoard reports both card IDs and the second card's line. Run **LedgerBoard: Normalize BOARD.md
+Formatting** to fix missing or extra separator lines safely.
 
 ### Card title quality
 
@@ -181,6 +204,26 @@ Description rules:
 - Do not add `Next`, `Owner`, `Evidence`, `Artifact`, `Due`, or other detail fields.
 
 Keeping descriptions on one physical line is required for byte-for-byte round-trip behavior.
+
+Incorrect: a description continued onto another physical line:
+
+```markdown
+- [ ] AO-001 — Prepare architecture review · P2 · area:client-a
+    - **Description:** Consolidate the current decisions and risks
+      before recommending the next step.
+```
+
+LedgerBoard refuses to normalize this automatically because joining arbitrary lines could change
+meaning. Replace the line break with a space, then validate again.
+
+### Line endings and normalization
+
+- Use LF or CRLF consistently throughout `BOARD.md`.
+- Mixed line endings produce a specific line-numbered diagnostic.
+- **Normalize BOARD.md Formatting** can safely standardize line endings and card separators.
+- Normalization never changes card IDs, titles, descriptions, priorities, areas, status, or history.
+- Unsupported custom detail fields are preserved and reported as warnings because the visual editor
+  cannot edit them.
 
 ### Empty columns
 
@@ -319,10 +362,11 @@ When an agent creates or updates a bundle, it must follow this sequence:
 6. Choose a valid priority and status using explicit evidence; when uncertain, use `Inbox` and `P3`.
 7. Add missing entities to `KANBAN-CONFIG.md` before using them.
 8. Preserve existing cards, descriptions, entity IDs, colors, and all prior history events.
-9. Enforce the Doing WIP limit of three.
-10. Write the three files atomically where possible.
-11. Run the validation command below.
-12. Do not report completion unless validation succeeds.
+9. Separate adjacent cards with exactly one blank physical line.
+10. Enforce the Doing WIP limit of three.
+11. Write the three files atomically where possible.
+12. Run the validation command below.
+13. Do not report completion unless validation succeeds.
 
 Do not invent work, completion, priorities, entity assignments, or transition timestamps.
 
@@ -356,16 +400,17 @@ PROCESS
    - [ ] AO-NNN — Outcome title · P1|P2|P3|P4 · area:<entity-id>
 8. Description is the only optional detail and must be one physical Markdown line:
        - **Description:** Concise context.
-9. Keep Doing at three cards or fewer.
-10. Use checked boxes only in Done.
-11. Allocate monotonic IDs by scanning both current cards and history. Never reuse an ID.
-12. Ensure every card area resolves to a stable entity in KANBAN-CONFIG.md. New configuration uses
+9. Separate every pair of adjacent cards with exactly one blank physical line.
+10. Keep Doing at three cards or fewer.
+11. Use checked boxes only in Done.
+12. Allocate monotonic IDs by scanning both current cards and history. Never reuse an ID.
+13. Ensure every card area resolves to a stable entity in KANBAN-CONFIG.md. New configuration uses
     `entities`, not `customers`.
-13. For a new/imported board with unknown transition history, append baseline events using the actual
+14. For a new/imported board with unknown transition history, append baseline events using the actual
     current timestamp. For updates, append created, moved, updated, or deleted events. Never rewrite
     prior history and never infer historical timestamps.
-14. Do not add due dates, owners, source fields, estimates, tags, or other card metadata.
-15. Validate the completed bundle with the command in BOARD-STANDARDS.md.
+15. Do not add due dates, owners, source fields, estimates, tags, or other card metadata.
+16. Validate the completed bundle with the command in BOARD-STANDARDS.md.
 
 SOURCE MATERIAL
 <paste or identify the task source here>
@@ -397,6 +442,9 @@ Kanban bundle valid: <card-count> cards, <entity-count> entities, <event-count> 
 - Renaming or reordering a required H2 column.
 - Adding fields after `area:<entity-id>` on the card line.
 - Using multiline descriptions. Keep each description on one physical line.
+- Omitting the one blank physical line required between adjacent cards.
+- Adding two or more blank physical lines between adjacent cards.
+- Mixing LF and CRLF line endings in one `BOARD.md`.
 - Using priorities other than P1–P4.
 - Leaving `<!-- empty -->` in a column that contains cards.
 - Assigning an area that has no matching entity in the config.

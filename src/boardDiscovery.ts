@@ -10,6 +10,8 @@ export interface ValidBoardCandidate {
 export interface InvalidBoardCandidate {
   repository: BoardRepository;
   message: string;
+  canNormalize: boolean;
+  line: number | null;
 }
 
 export interface BoardDiscoveryResult {
@@ -29,7 +31,7 @@ export async function discoverBoardRepositories(
   const configFiles = await vscode.workspace.findFiles(
     '**/KANBAN-CONFIG.md',
     '**/{.git,node_modules,.vscode-test}/**',
-    100,
+    1_000,
   );
   const roots = uniqueUris(configFiles.map((uri) => vscode.Uri.joinPath(uri, '..')));
   const repositories = await existingRepositories(roots);
@@ -37,32 +39,41 @@ export async function discoverBoardRepositories(
 }
 
 async function existingRepositories(roots: vscode.Uri[]): Promise<BoardRepository[]> {
-  const repositories: BoardRepository[] = [];
-  for (const root of uniqueUris(roots)) {
+  const repositories = await Promise.all(uniqueUris(roots).map(async (root) => {
     const repository = new BoardRepository(root);
-    if (await repository.exists()) {
-      repositories.push(repository);
-    }
-  }
-  return repositories;
+    return await repository.exists(2_000) ? repository : null;
+  }));
+  return repositories.filter((repository): repository is BoardRepository => repository !== null);
 }
 
 async function validateRepositories(
   repositories: BoardRepository[],
   scope: BoardDiscoveryResult['scope'],
 ): Promise<BoardDiscoveryResult> {
-  const valid: ValidBoardCandidate[] = [];
-  const invalid: InvalidBoardCandidate[] = [];
-
-  for (const repository of repositories) {
+  const results = await Promise.all(repositories.map(async (repository) => {
     try {
-      valid.push({ repository, validation: repository.validate(await repository.read()) });
+      return {
+        valid: { repository, validation: repository.validate(await repository.readFromDisk()) },
+        invalid: null,
+      };
     } catch (error) {
-      invalid.push({ repository, message: errorMessage(error) });
+      return {
+        valid: null,
+        invalid: {
+          repository,
+          message: errorMessage(error),
+          canNormalize: Boolean(error && typeof error === 'object' && 'canNormalize' in error && error.canNormalize),
+          line: error && typeof error === 'object' && 'line' in error && typeof error.line === 'number' ? error.line : null,
+        },
+      };
     }
-  }
+  }));
 
-  return { valid, invalid, scope };
+  return {
+    valid: results.map((result) => result.valid).filter((item): item is ValidBoardCandidate => item !== null),
+    invalid: results.map((result) => result.invalid).filter((item): item is InvalidBoardCandidate => item !== null),
+    scope,
+  };
 }
 
 function uniqueUris(uris: vscode.Uri[]): vscode.Uri[] {

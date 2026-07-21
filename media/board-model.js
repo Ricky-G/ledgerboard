@@ -5,7 +5,7 @@
     module.exports = api;
   }
 
-  root.CsaBoardModel = api;
+  root.LedgerBoardModel = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, function createBoardModel() {
   "use strict";
 
@@ -24,6 +24,11 @@
     DETAIL_FIELDS.map((field) => [field.label.toLowerCase(), field.key]),
   );
   const HISTORY_EVENTS = new Set(["baseline", "created", "moved", "updated", "deleted"]);
+  const SAFE_NORMALIZATION_CODES = new Set([
+    "card-separator",
+    "mixed-line-endings",
+    "noncanonical-formatting",
+  ]);
 
   function parseBoard(markdown) {
     if (typeof markdown !== "string") {
@@ -50,6 +55,254 @@
     const document = { source: markdown, newline, lines, columns };
     validateBoard(document);
     return document;
+  }
+
+  function analyzeBoardSource(markdown) {
+    if (typeof markdown !== "string") {
+      throw new TypeError("Board content must be a string.");
+    }
+
+    const diagnostics = [];
+    const lineEndings = inspectLineEndings(markdown);
+    if (lineEndings.mixed) {
+      diagnostics.push(createDiagnostic(
+        "mixed-line-endings",
+        "error",
+        `BOARD.md uses mixed line endings near line ${lineEndings.firstMixedLine}. Run LedgerBoard: Normalize BOARD.md Formatting.`,
+        lineEndings.firstMixedLine,
+      ));
+    }
+
+    const parseSource = normalizeLineEndings(markdown, lineEndings.preferred);
+    let board;
+    try {
+      board = parseBoard(parseSource);
+    } catch (error) {
+      diagnostics.push(createDiagnostic(
+        "board-parse",
+        "error",
+        error.message || String(error),
+      ));
+      return buildAnalysis(markdown, null, null, diagnostics, lineEndings.preferred);
+    }
+
+    diagnostics.push(...inspectCardLayout(parseSource));
+    const canonicalSource = serializeBoard(board);
+    if (canonicalSource !== parseSource && !diagnostics.some((item) => item.severity === "error")) {
+      const difference = firstLineDifference(parseSource, canonicalSource);
+      diagnostics.push(createDiagnostic(
+        "noncanonical-formatting",
+        "error",
+        `BOARD.md differs from canonical formatting near line ${difference.line}. Expected ${quoteLine(difference.expected)} but found ${quoteLine(difference.actual)}. Run LedgerBoard: Normalize BOARD.md Formatting.`,
+        difference.line,
+      ));
+    }
+
+    return buildAnalysis(markdown, board, canonicalSource, diagnostics, lineEndings.preferred);
+  }
+
+  function validateBundleSources(boardSource, configSource, historySource) {
+    const analysis = analyzeBoardSource(boardSource);
+    if (analysis.errors.length > 0) {
+      throw diagnosticError(analysis);
+    }
+
+    const config = parseConfig(configSource);
+    const history = parseHistory(historySource);
+    const cards = analysis.board.columns.flatMap((column) => column.cards);
+    const entityIds = new Set(config.entities.map((entity) => entity.id));
+    const missing = [...new Set(cards.map((card) => card.area).filter((area) => !entityIds.has(area)))];
+    if (missing.length > 0) {
+      throw new Error(`Missing entity configuration: ${missing.join(", ")}.`);
+    }
+
+    return {
+      board: analysis.board,
+      config,
+      historyEvents: history.events,
+      cardCount: cards.length,
+      diagnostics: analysis.diagnostics,
+      warnings: analysis.warnings,
+    };
+  }
+
+  function normalizeBoardSource(markdown) {
+    const analysis = analyzeBoardSource(markdown);
+    if (!analysis.board || !analysis.canNormalize) {
+      throw diagnosticError(analysis);
+    }
+    return {
+      source: analysis.canonicalSource,
+      diagnostics: analysis.diagnostics,
+      changed: analysis.canonicalSource !== markdown,
+    };
+  }
+
+  function inspectLineEndings(markdown) {
+    const styles = [];
+    let line = 1;
+    for (let index = 0; index < markdown.length; index += 1) {
+      if (markdown[index] === "\r" && markdown[index + 1] === "\n") {
+        styles.push({ style: "crlf", line });
+        index += 1;
+        line += 1;
+      } else if (markdown[index] === "\n") {
+        styles.push({ style: "lf", line });
+        line += 1;
+      } else if (markdown[index] === "\r") {
+        styles.push({ style: "cr", line });
+        line += 1;
+      }
+    }
+
+    const counts = styles.reduce((result, item) => {
+      result[item.style] = (result[item.style] || 0) + 1;
+      return result;
+    }, {});
+    const used = Object.keys(counts);
+    const preferredStyle = (counts.crlf || 0) > (counts.lf || 0) ? "crlf" : "lf";
+    const firstMixed = styles.find((item) => item.style !== preferredStyle);
+    return {
+      mixed: used.length > 1 || used.includes("cr"),
+      preferred: preferredStyle === "crlf" ? "\r\n" : "\n",
+      firstMixedLine: firstMixed?.line || 1,
+    };
+  }
+
+  function normalizeLineEndings(markdown, newline) {
+    return markdown.replace(/\r\n|\r|\n/g, "\n").replace(/\n/g, newline);
+  }
+
+  function inspectCardLayout(markdown) {
+    const lines = markdown.split(/\r?\n/);
+    const diagnostics = [];
+    const headings = findColumnHeadings(lines);
+
+    headings.forEach((heading, columnIndex) => {
+      const nextHeading = headings[columnIndex + 1];
+      const sectionLimit = nextHeading ? nextHeading.headingIndex : lines.length;
+      const separatorIndex = findSeparator(lines, heading.headingIndex + 1, sectionLimit);
+      const sectionEnd = separatorIndex === -1 ? sectionLimit : separatorIndex;
+      const cardStarts = [];
+      for (let lineIndex = heading.headingIndex + 1; lineIndex < sectionEnd; lineIndex += 1) {
+        if (CARD_PATTERN.test(lines[lineIndex])) cardStarts.push(lineIndex);
+      }
+
+      for (let cardIndex = 0; cardIndex < cardStarts.length; cardIndex += 1) {
+        const cardStart = cardStarts[cardIndex];
+        const nextCardStart = cardStarts[cardIndex + 1] ?? sectionEnd;
+        const cardId = lines[cardStart].match(CARD_PATTERN)?.[2] || "card";
+        inspectCardDetails(lines, cardStart, nextCardStart, cardId, diagnostics);
+
+        if (cardIndex > 0) {
+          const previousId = lines[cardStarts[cardIndex - 1]].match(CARD_PATTERN)?.[2] || "previous card";
+          let blankLines = 0;
+          for (let lineIndex = cardStart - 1; lineIndex >= 0 && lines[lineIndex].trim() === ""; lineIndex -= 1) {
+            blankLines += 1;
+          }
+          if (blankLines !== 1) {
+            diagnostics.push(createDiagnostic(
+              "card-separator",
+              "error",
+              `Cards ${previousId} and ${cardId} must be separated by exactly one blank physical line near line ${cardStart + 1}; found ${blankLines}. Run LedgerBoard: Normalize BOARD.md Formatting.`,
+              cardStart + 1,
+              { cards: [previousId, cardId], found: blankLines },
+            ));
+          }
+        }
+      }
+    });
+    return diagnostics;
+  }
+
+  function inspectCardDetails(lines, cardStart, nextCardStart, cardId, diagnostics) {
+    let previousDetailWasDescription = false;
+    for (let lineIndex = cardStart + 1; lineIndex < nextCardStart; lineIndex += 1) {
+      const line = lines[lineIndex];
+      if (line.trim() === "") {
+        previousDetailWasDescription = false;
+        continue;
+      }
+      const detailMatch = line.match(DETAIL_PATTERN);
+      if (detailMatch) {
+        const label = detailMatch[1].trim();
+        previousDetailWasDescription = label.toLowerCase() === "description";
+        if (!previousDetailWasDescription) {
+          diagnostics.push(createDiagnostic(
+            "unsupported-detail",
+            "warning",
+            `${cardId} has unsupported detail field "${label}" on line ${lineIndex + 1}. LedgerBoard preserves it but cannot edit it visually.`,
+            lineIndex + 1,
+            { card: cardId, field: label },
+          ));
+        }
+        continue;
+      }
+      if (/^\s+\S/.test(line)) {
+        diagnostics.push(createDiagnostic(
+          "multiline-description",
+          "error",
+          `Description for ${cardId} must stay on one physical line; continuation found on line ${lineIndex + 1}.`,
+          lineIndex + 1,
+          { card: cardId },
+        ));
+      } else if (previousDetailWasDescription || line.trim()) {
+        diagnostics.push(createDiagnostic(
+          "unsupported-card-content",
+          "error",
+          `${cardId} has unsupported content on line ${lineIndex + 1}. Card details must use one indented Description line.`,
+          lineIndex + 1,
+          { card: cardId },
+        ));
+      }
+      previousDetailWasDescription = false;
+    }
+  }
+
+  function buildAnalysis(source, board, canonicalSource, diagnostics, newline) {
+    const errors = diagnostics.filter((item) => item.severity === "error");
+    const warnings = diagnostics.filter((item) => item.severity === "warning");
+    return {
+      source,
+      board,
+      canonicalSource,
+      newline,
+      diagnostics,
+      errors,
+      warnings,
+      isCanonical: errors.length === 0 && canonicalSource === source,
+      canNormalize: Boolean(board) && errors.every((item) => SAFE_NORMALIZATION_CODES.has(item.code)),
+    };
+  }
+
+  function createDiagnostic(code, severity, message, line, data = {}) {
+    return { code, severity, message, line: line || null, ...data };
+  }
+
+  function diagnosticError(analysis) {
+    const first = analysis.errors[0];
+    const error = new Error(first?.message || "BOARD.md is invalid.");
+    error.code = first?.code || "board-invalid";
+    error.line = first?.line || null;
+    error.diagnostics = analysis.diagnostics;
+    error.canNormalize = analysis.canNormalize;
+    return error;
+  }
+
+  function firstLineDifference(actual, expected) {
+    const actualLines = actual.split(/\r?\n/);
+    const expectedLines = expected.split(/\r?\n/);
+    const length = Math.max(actualLines.length, expectedLines.length);
+    for (let index = 0; index < length; index += 1) {
+      if (actualLines[index] !== expectedLines[index]) {
+        return { line: index + 1, actual: actualLines[index], expected: expectedLines[index] };
+      }
+    }
+    return { line: 1, actual: actualLines[0], expected: expectedLines[0] };
+  }
+
+  function quoteLine(line) {
+    return line === undefined ? "end of file" : JSON.stringify(line);
   }
 
   function findColumnHeadings(lines) {
@@ -93,7 +346,7 @@
         cardStarts.push(lineIndex);
       } else if (lines[lineIndex].trim() === "<!-- empty -->") {
         emptyMarkerIndex = lineIndex;
-      } else if (/^- \[[ xX]\] AO-/.test(lines[lineIndex])) {
+      } else if (/^- \[[^\]]*\] AO-/.test(lines[lineIndex])) {
         throw new Error(`Invalid card format on line ${lineIndex + 1}.`);
       }
     }
@@ -320,7 +573,7 @@
       throw new Error("Card or target column was not found.");
     }
     if (target.id === "doing" && source.column.id !== "doing" && target.cards.length >= 3) {
-      throw new Error("Doing already has three cards. Finish something before starting more.");
+      throw new Error("Doing already has three outcomes. Finish something before starting more.");
     }
 
     source.column.cards.splice(source.cardIndex, 1);
@@ -661,6 +914,7 @@
 
   return {
     COLUMNS,
+    analyzeBoardSource,
     appendHistory,
     buildAnalytics,
     createCard,
@@ -670,11 +924,13 @@
     findCard,
     moveCard,
     nextCardId,
+    normalizeBoardSource,
     parseBoard,
     parseConfig,
     parseHistory,
     serializeBoard,
     serializeConfig,
+    validateBundleSources,
     validateBoard,
     validateConfig,
   };

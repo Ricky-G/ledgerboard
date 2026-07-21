@@ -2,6 +2,33 @@
 
 All notable changes to LedgerBoard are documented here.
 
+## [0.2.0] - 2026-07-22
+
+### Added
+
+- Shared, line-numbered diagnostics for card separators, multiline descriptions, mixed line endings,
+	unsupported details, missing entities, and first source/serialized differences.
+- **Normalize BOARD.md Formatting** command with confirmation and conflict detection.
+- Actionable normalization directly from the webview load-error state.
+- Visible badges for custom Markdown detail fields preserved outside the visual editor.
+- Performance budgets for 1,000-card validation, 10,000-event analytics, and multi-root discovery.
+
+### Changed
+
+- Require exactly one blank physical line between adjacent cards.
+- Centralize CLI and Extension Host bundle validation in the shared model.
+- Parallelize initialization, existence checks, and candidate validation.
+- Prefer direct filesystem reads during discovery and cache the active board for common commands.
+- Add progress feedback while initializing or discovering boards.
+- Expand model, CLI, and Extension Host regression coverage.
+
+### Fixed
+
+- Report adjacent cards without a separator using both card IDs and the exact line instead of a
+	misleading generic round-trip error.
+- Reject malformed checkbox markers instead of silently ignoring card-like lines.
+- Preserve semantic history when normalizing formatting.
+
 ## [0.1.1] - 2026-07-21
 
 ### Fixed

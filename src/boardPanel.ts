@@ -109,11 +109,18 @@ export class BoardPanel implements vscode.Disposable {
         case 'selectBoard':
           await vscode.commands.executeCommand('ledgerBoard.openBoard');
           break;
+        case 'normalize':
+          await vscode.commands.executeCommand('ledgerBoard.normalizeBoard');
+          break;
       }
     } catch (error) {
       const messageText = errorMessage(error);
       const messageType = message.type === 'save' ? 'saveError' : 'loadError';
-      await this.panel.webview.postMessage({ type: messageType, message: messageText });
+      await this.panel.webview.postMessage({
+        type: messageType,
+        message: messageText,
+        canNormalize: Boolean(error && typeof error === 'object' && 'canNormalize' in error && error.canNormalize),
+      });
       if (messageType === 'loadError') {
         void vscode.window.showErrorMessage(`LedgerBoard could not load ${this.repository.name}: ${messageText}`);
       }

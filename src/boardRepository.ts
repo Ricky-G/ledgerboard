@@ -1,6 +1,6 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { boardModel, type BoardDocument, type HistoryEvent, type KanbanConfig } from './model';
+import { boardModel, type BoardDiagnostic, type BoardDocument, type HistoryEvent, type KanbanConfig } from './model';
 import {
   BOARD_FILE,
   BOARD_TEMPLATE,
@@ -26,6 +26,8 @@ export interface BundleValidation {
   config: KanbanConfig;
   historyEvents: HistoryEvent[];
   cardCount: number;
+  diagnostics: BoardDiagnostic[];
+  warnings: BoardDiagnostic[];
 }
 
 export interface SaveRequest {
@@ -61,22 +63,23 @@ export class BoardRepository {
     const created: string[] = [];
     const preserved: string[] = [];
 
-    for (const fileName of BUNDLE_FILES) {
+    const results = await Promise.all(BUNDLE_FILES.map(async (fileName) => {
       const target = this.uri(fileName);
       if (await fileExists(target)) {
-        preserved.push(fileName);
+        return { fileName, created: false };
       } else {
         await vscode.workspace.fs.writeFile(target, encoder.encode(templates[fileName]));
-        created.push(fileName);
+        return { fileName, created: true };
       }
-    }
+    }));
+    results.forEach((result) => (result.created ? created : preserved).push(result.fileName));
 
-    this.validate(await this.read());
+    this.validate(await this.readFromDisk());
     return { created, preserved };
   }
 
-  public async exists(): Promise<boolean> {
-    const results = await Promise.all(BUNDLE_FILES.map((fileName) => fileExists(this.uri(fileName))));
+  public async exists(timeoutMs?: number): Promise<boolean> {
+    const results = await Promise.all(BUNDLE_FILES.map((fileName) => fileExists(this.uri(fileName), timeoutMs)));
     return results.every(Boolean);
   }
 
@@ -89,27 +92,32 @@ export class BoardRepository {
     };
   }
 
-  public validate(bundle: BoardBundle): BundleValidation {
-    const board = boardModel.parseBoard(bundle.boardSource);
-    const config = boardModel.parseConfig(bundle.configSource);
-    const history = boardModel.parseHistory(bundle.historySource);
-    const entityIds = new Set(config.entities.map((entity) => entity.id));
-    const cards = board.columns.flatMap((column) => column.cards);
-    const missing = [...new Set(cards.map((card) => card.area).filter((area) => !entityIds.has(area)))];
-
-    if (missing.length > 0) {
-      throw new Error(`Missing entity configuration: ${missing.join(', ')}.`);
-    }
-    if (boardModel.serializeBoard(board) !== bundle.boardSource) {
-      throw new Error('BOARD.md does not round-trip exactly. Keep descriptions on one physical line and line endings consistent.');
-    }
-
+  public async readFromDisk(): Promise<BoardBundle> {
+    const contents = await Promise.all(BUNDLE_FILES.map((fileName) => vscode.workspace.fs.readFile(this.uri(fileName))));
     return {
-      board,
-      config,
-      historyEvents: history.events,
-      cardCount: cards.length,
+      boardSource: decoder.decode(contents[0]),
+      configSource: decoder.decode(contents[1]),
+      historySource: decoder.decode(contents[2]),
     };
+  }
+
+  public validate(bundle: BoardBundle): BundleValidation {
+    return boardModel.validateBundleSources(bundle.boardSource, bundle.configSource, bundle.historySource);
+  }
+
+  public async normalizeBoard(expectedSource?: string): Promise<{ changed: boolean; diagnostics: BoardDiagnostic[] }> {
+    const current = await this.read();
+    if (expectedSource !== undefined && current.boardSource !== expectedSource) {
+      throw new Error(`${BOARD_FILE} changed outside LedgerBoard. Reload before normalizing.`);
+    }
+
+    const normalized = boardModel.normalizeBoardSource(current.boardSource);
+    if (!normalized.changed) {
+      return { changed: false, diagnostics: normalized.diagnostics };
+    }
+
+    await this.applyChanges(new Map([[BOARD_FILE, normalized.source]]));
+    return { changed: true, diagnostics: normalized.diagnostics };
   }
 
   public async save(request: SaveRequest): Promise<SaveResult> {
@@ -185,12 +193,31 @@ export async function readUtf8(uri: vscode.Uri): Promise<string> {
   return decoder.decode(await vscode.workspace.fs.readFile(uri));
 }
 
-async function fileExists(uri: vscode.Uri): Promise<boolean> {
+async function fileExists(uri: vscode.Uri, timeoutMs?: number): Promise<boolean> {
+  const operation = (async () => {
+    try {
+      await vscode.workspace.fs.stat(uri);
+      return true;
+    } catch (error) {
+      if (error instanceof vscode.FileSystemError && error.code === 'FileNotFound') {return false;}
+      throw error;
+    }
+  })();
+  return timeoutMs === undefined ? operation : withTimeout(operation, timeoutMs, false);
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
   try {
-    await vscode.workspace.fs.stat(uri);
-    return true;
-  } catch (error) {
-    if (error instanceof vscode.FileSystemError && error.code === 'FileNotFound') {return false;}
-    throw error;
+    return await Promise.race([
+      promise,
+      new Promise<T>((resolve) => {
+        timer = setTimeout(() => resolve(fallback), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
   }
 }

@@ -803,6 +803,13 @@ main {
   background: var(--danger);
 }
 
+.welcome-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
 .welcome-panel[hidden] {
   display: none;
 }
@@ -2029,4 +2036,11 @@ dialog::backdrop {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
   }
+}
+
+.card-custom-detail {
+  margin-left: auto;
+  color: var(--warning);
+  font-size: 10px;
+  font-weight: 700;
 }

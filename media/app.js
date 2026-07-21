@@ -1,7 +1,7 @@
 (function startKanbanApp() {
   "use strict";
 
-  const model = window.CsaBoardModel;
+  const model = window.LedgerBoardModel;
   const vscode = acquireVsCodeApi();
   const BOARD_FILE = "BOARD.md";
   const CONFIG_FILE = "KANBAN-CONFIG.md";
@@ -61,7 +61,7 @@
       "searchInput", "areaFilter", "priorityFilter", "activeCount", "blockedCount",
       "doingCount", "addCardButton", "mobileColumnTabs", "boardCanvas", "welcomePanel",
       "welcomeTitle", "welcomeCopy",
-      "welcomeConnectButton", "browserNote", "kanbanBoard", "settingsSaveButton",
+      "welcomeConnectButton", "welcomeNormalizeButton", "browserNote", "kanbanBoard", "settingsSaveButton",
       "settingsContent", "configWorkspaceName", "configBoardTitle", "configTimezone",
       "configAccent", "configAccentValue", "entityList", "addEntityButton",
       "statusMessage", "unsavedIndicator", "lastLoadedLabel", "cardDialog", "cardForm",
@@ -83,6 +83,7 @@
   function bindEvents() {
     elements.connectButton.addEventListener("click", connectRepository);
     elements.welcomeConnectButton.addEventListener("click", connectRepository);
+    elements.welcomeNormalizeButton.addEventListener("click", () => vscode.postMessage({ type: "normalize" }));
     elements.reloadButton.addEventListener("click", reloadRepository);
     elements.saveButton.addEventListener("click", () => persistChanges({ manual: true }));
     elements.settingsSaveButton.addEventListener("click", () => persistChanges({ manual: true }));
@@ -199,6 +200,12 @@
     state.saveQueued = false;
 
     elements.welcomePanel.hidden = true;
+    elements.welcomePanel.dataset.state = "ready";
+    elements.welcomeTitle.textContent = "Your delivery board, directly on the repository.";
+    elements.welcomeCopy.innerHTML = "Open a LedgerBoard bundle to load <strong>BOARD.md</strong>, <strong>KANBAN-CONFIG.md</strong>, and <strong>KANBAN-HISTORY.md</strong>.";
+    elements.welcomeConnectButton.textContent = "Choose board folder";
+    elements.welcomeNormalizeButton.hidden = true;
+    elements.browserNote.textContent = "Files stay in your workspace and remain readable without this extension.";
     elements.connectButton.textContent = rootName;
     elements.connectionState.dataset.state = "online";
     elements.connectionLabel.textContent = `${BOARD_FILE} connected`;
@@ -228,7 +235,7 @@
     } else if (message.type === "saveError") {
       failSave(message.message);
     } else if (message.type === "loadError") {
-      showLoadError(message.message);
+      showLoadError(message.message, message.canNormalize);
     } else if (message.type === "externalChange") {
       handleExternalChange(message.fileName);
     } else if (message.type === "openNewCard" && state.board) {
@@ -236,7 +243,7 @@
     }
   }
 
-  function showLoadError(message) {
+  function showLoadError(message, canNormalize = false) {
     clearAutosaveTimer();
     state.board = null;
     state.historyEvents = [];
@@ -251,6 +258,7 @@
     elements.welcomeTitle.textContent = "This board could not be loaded.";
     elements.welcomeCopy.textContent = message || "The Markdown bundle is invalid.";
     elements.welcomeConnectButton.textContent = "Choose another board";
+    elements.welcomeNormalizeButton.hidden = !canNormalize;
     elements.browserNote.textContent = "Fix the reported Markdown issue, then reload, or choose a different board folder.";
     elements.reloadButton.disabled = false;
     elements.addCardButton.disabled = true;
@@ -405,6 +413,17 @@
     priority.dataset.priority = card.priority;
     priority.textContent = card.priority;
     footer.append(priority);
+    const customDetailCount = card.rawDetailLines.filter((line) => {
+      const match = line.match(/^\s{4}- \*\*([^*]+):\*\*/);
+      return match && match[1].trim().toLowerCase() !== "description";
+    }).length;
+    if (customDetailCount > 0) {
+      const custom = document.createElement("span");
+      custom.className = "card-custom-detail";
+      custom.textContent = `${customDetailCount} custom`;
+      custom.title = `${customDetailCount} custom detail field(s) are preserved in Markdown but not editable here.`;
+      footer.append(custom);
+    }
     button.append(footer);
 
     button.addEventListener("click", () => {

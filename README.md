@@ -8,6 +8,15 @@ append-only analytics without an account, database, server, or proprietary expor
 
 ![LedgerBoard board](images/board.png)
 
+## What's new in 0.2.0
+
+- Exact, line-numbered diagnostics for card separators, multiline descriptions, mixed line endings,
+  missing entities, malformed checkboxes, and first source/serialized differences.
+- Safe **Normalize BOARD.md Formatting** workflow in the Command Palette and load-error screen.
+- Faster initialization and multi-root discovery with parallel direct file reads, bounded probes,
+  active-board reuse, and visible progress.
+- 34 automated model, CLI, performance, and Extension Host tests, plus browser smoke coverage.
+
 ## Why LedgerBoard
 
 - **Markdown stays authoritative.** Review every change in Git and edit the files with any text editor.
@@ -32,8 +41,8 @@ KANBAN-CONFIG.md
 KANBAN-HISTORY.md
 ```
 
-Run **LedgerBoard: Open Board** whenever you want to return. In a multi-root workspace, Kanban
-Ledger discovers compatible bundles and lets you choose one.
+Run **LedgerBoard: Open Board** whenever you want to return. In a multi-root workspace, LedgerBoard
+checks workspace roots first, validates candidates in parallel, and lets you choose when needed.
 
 ## Features
 
@@ -71,6 +80,7 @@ completion dates.
 | **LedgerBoard: Open Board** | Discover and open a board in the workspace |
 | **LedgerBoard: Add Outcome** | Open the board directly in the new-outcome dialog |
 | **LedgerBoard: Validate Board Bundle** | Validate syntax, entities, WIP, history, and round-trip safety |
+| **LedgerBoard: Normalize BOARD.md Formatting** | Safely fix card separators and mixed line endings |
 | **LedgerBoard: Open Board Standard** | Open the complete format and agent-generation contract |
 
 You can also right-click a folder in Explorer and choose **Initialize Board in Folder**.
@@ -87,6 +97,45 @@ A card is deliberately small:
 Status is the section containing the card. Description is the only optional detail. The full,
 versioned contract is in [BOARD-STANDARDS.md](BOARD-STANDARDS.md), including a ready-to-paste prompt
 for coding agents that generate compatible boards.
+
+Adjacent cards require exactly one blank physical line:
+
+```markdown
+- [ ] AO-001 — First outcome · P1 · area:project-alpha
+    - **Description:** First description.
+
+- [ ] AO-002 — Second outcome · P2 · area:project-alpha
+    - **Description:** Second description.
+```
+
+Descriptions remain one physical line. LedgerBoard reports exact card IDs and line numbers for
+separator, multiline-description, mixed-line-ending, and first-difference errors.
+
+## Troubleshooting
+
+### Board does not open
+
+Run **LedgerBoard: Validate Board Bundle**. The error identifies the first actionable issue. If the
+issue is formatting-only, choose **Normalize formatting**. Semantic problems such as missing entities,
+duplicate IDs, or multiline descriptions must be corrected in Markdown.
+
+### Formatting normalization
+
+**Normalize BOARD.md Formatting** previews the issues and asks for confirmation. It fixes only safe,
+non-semantic formatting: missing/extra blank separator lines and mixed line endings. It does not add
+history events or modify card content.
+
+### Large or multi-root workspaces
+
+LedgerBoard checks root bundles before recursive discovery, probes roots in parallel, reads candidate
+files directly, and bounds slow filesystem probes. Common commands reuse the active board rather than
+rescanning the workspace.
+
+## Intentional limitations
+
+LedgerBoard deliberately does not provide subtasks, due dates, owners, estimates, multiline
+descriptions, cloud synchronization, or a mobile client. Those constraints keep the Markdown contract
+small, deterministic, reviewable in Git, and durable without the extension.
 
 ## Privacy and Trust
 
