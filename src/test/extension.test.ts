@@ -7,6 +7,11 @@ import { BoardRepository } from '../boardRepository';
 import { boardModel } from '../model';
 import { BOARD_FILE } from '../templates';
 
+async function removeFixture(uri: vscode.Uri): Promise<void> {
+	await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+	await vscode.workspace.fs.delete(uri, { recursive: true, useTrash: false });
+}
+
 suite('Extension Test Suite', function () {
 	this.timeout(30_000);
 
@@ -67,7 +72,7 @@ suite('Extension Test Suite', function () {
 				/changed outside LedgerBoard/,
 			);
 		} finally {
-			await vscode.workspace.fs.delete(root, { recursive: true, useTrash: false });
+			await removeFixture(root);
 		}
 	});
 
@@ -99,7 +104,7 @@ suite('Extension Test Suite', function () {
 				/Description for AO-001 must stay on one physical line/,
 			);
 		} finally {
-			await vscode.workspace.fs.delete(root, { recursive: true, useTrash: false });
+			await removeFixture(root);
 		}
 	});
 
@@ -142,7 +147,7 @@ suite('Extension Test Suite', function () {
 				/changed outside LedgerBoard/,
 			);
 		} finally {
-			await vscode.workspace.fs.delete(root, { recursive: true, useTrash: false });
+			await removeFixture(root);
 		}
 	});
 
@@ -175,7 +180,7 @@ suite('Extension Test Suite', function () {
 			assert.equal(discovery.valid[0].repository.root.toString(), root.toString());
 			assert.equal(discovery.invalid.length, 0);
 		} finally {
-			await vscode.workspace.fs.delete(root, { recursive: true, useTrash: false });
+			await removeFixture(root);
 		}
 	});
 
@@ -200,7 +205,7 @@ suite('Extension Test Suite', function () {
 			assert.ok(discovery.invalid[0].line && discovery.invalid[0].line > 0);
 			assert.match(discovery.invalid[0].message, /Cards AO-001 and AO-002/);
 		} finally {
-			await vscode.workspace.fs.delete(root, { recursive: true, useTrash: false });
+			await removeFixture(root);
 		}
 	});
 
@@ -222,7 +227,7 @@ suite('Extension Test Suite', function () {
 			assert.equal(discovery.invalid.length, 0);
 			assert.ok(durationMs < 5_000, `Discovery took ${Math.round(durationMs)}ms; budget is 5000ms.`);
 		} finally {
-			await vscode.workspace.fs.delete(parent, { recursive: true, useTrash: false });
+			await removeFixture(parent);
 		}
 	});
 });
