@@ -23,15 +23,16 @@ Do not rename the three board data files. The extension opens those fixed names.
 ## Non-negotiable rules
 
 1. `BOARD.md` is authoritative for current cards and status.
-2. `KANBAN-CONFIG.md` defines board labels, appearance, and the entity color palette.
+2. `KANBAN-CONFIG.md` defines board labels, appearance, people, and the entity color palette.
 3. `KANBAN-HISTORY.md` is an append-only semantic event ledger used by Analytics.
 4. Keep the five board columns in the exact order and spelling shown below.
 5. Use the exact one-line card grammar. Additional inline fields are invalid.
-6. Description is the only optional detail field and must stay on one physical Markdown line.
+6. Description and Assignee are the optional detail fields and must each stay on one physical Markdown line.
 7. Every card's `area` must match an entity ID in `KANBAN-CONFIG.md`.
-8. Card IDs are unique, monotonic, and never reused.
-9. `Doing` has a hard WIP limit of three cards.
-10. Never invent historical transition times. Use `baseline` when only current state is known.
+8. Every non-empty Assignee must match a person ID in `KANBAN-CONFIG.md`.
+9. Card IDs are unique, monotonic, and never reused.
+10. `Doing` has a hard WIP limit of three cards.
+11. Never invent historical transition times. Use `baseline` when only current state is known.
 
 ## `BOARD.md` contract
 
@@ -95,11 +96,12 @@ Done card:
 - [x] AO-002 — Publish final design document · P2 · area:client-b
 ```
 
-Optional description:
+Optional details:
 
 ```markdown
 - [ ] AO-003 — Confirm workspace prerequisites · P1 · area:project-alpha
     - **Description:** Confirm identity, network, access, and environment prerequisites with the delivery team.
+    - **Assignee:** alex-smith
 ```
 
 The grammar is exactly:
@@ -113,7 +115,7 @@ Formatting rules:
 - Use the Unicode em dash `—` between the ID and title.
 - Use the Unicode middle dot `·` around priority and area.
 - Use `[x]` only in `Done`; use `[ ]` in every other column.
-- Do not add due dates, owners, source fields, labels, estimates, tags, URLs, or other inline fields.
+- Do not add due dates, source fields, labels, estimates, tags, URLs, or other inline fields.
 - Put essential context in the one-line description.
 - Separate every pair of adjacent cards with exactly one blank physical line.
 
@@ -187,23 +189,25 @@ Status is represented only by the section containing the card:
 - Never reuse an ID, including after deletion.
 - Use at least three digits: `AO-001`, `AO-035`, `AO-103`.
 
-### Description
+### Card details
 
-`Description` is the only supported optional card detail field:
+`Description` and `Assignee` are the supported optional card detail fields:
 
 ```markdown
     - **Description:** Document the required controls and review them with the delivery team.
+    - **Assignee:** alex-smith
 ```
 
-Description rules:
+Detail rules:
 
 - Indent the detail line with exactly four spaces.
-- Use the label `**Description:**` exactly.
-- Keep the complete description on one physical Markdown line.
+- Use the labels `**Description:**` and `**Assignee:**` exactly.
+- Keep each complete detail value on one physical Markdown line.
 - Replace source line breaks with spaces.
+- The Assignee value is a person ID from `KANBAN-CONFIG.md`; omit the line for unassigned work.
 - Do not add `Next`, `Owner`, `Evidence`, `Artifact`, `Due`, or other detail fields.
 
-Keeping descriptions on one physical line is required for byte-for-byte round-trip behavior.
+Keeping detail values on one physical line is required for byte-for-byte round-trip behavior.
 
 Incorrect: a description continued onto another physical line:
 
@@ -221,7 +225,7 @@ meaning. Replace the line break with a space, then validate again.
 - Use LF or CRLF consistently throughout `BOARD.md`.
 - Mixed line endings produce a specific line-numbered diagnostic.
 - **Normalize BOARD.md Formatting** can safely standardize line endings and card separators.
-- Normalization never changes card IDs, titles, descriptions, priorities, areas, status, or history.
+- Normalization never changes card IDs, titles, descriptions, assignees, priorities, areas, status, or history.
 - Unsupported custom detail fields are preserved and reported as warnings because the visual editor
   cannot edit them.
 
@@ -266,6 +270,13 @@ the board can represent customers, projects, teams, products, or any other group
       "name": "Client A",
       "color": "#7257b5"
     }
+  ],
+  "people": [
+    {
+      "id": "alex-smith",
+      "name": "Alex Smith",
+      "color": "#2e6ea6"
+    }
   ]
 }
 ```
@@ -282,6 +293,15 @@ Entity rules:
 - Preserve existing IDs when updating a board because cards and history reference them.
 - `density` is `comfortable` or `compact`.
 - Use the IANA timezone appropriate for the board, for example `Etc/UTC`.
+
+People rules:
+
+- `id` follows the same lowercase letters, numbers, and hyphens rule as entity IDs.
+- IDs are unique and stable within the people directory.
+- `name` is the person's display name in the editor, filters, and card avatar.
+- `color` is a six-digit hexadecimal color used for the person's avatar.
+- Every non-empty `Assignee` value in `BOARD.md` must resolve to one person.
+- Existing configuration without `people` is valid and loads with an empty people directory.
 
 Older configuration using `customers` can be read and migrated by the current parser, but new board
 bundles must use `entities`.
@@ -334,6 +354,15 @@ Updated:
     {"at":"<actual ISO timestamp>","card":"AO-035","event":"updated","to":"next","changes":["title","description","priority","area"],"area":"client-a","priority":"P1","title":"Updated outcome title"}
 ```
 
+Assignment changed:
+
+```text
+    {"at":"<actual ISO timestamp>","card":"AO-035","event":"updated","to":"next","changes":["assignee"],"previousAssignee":"alex-smith","assignee":"sam-lee","area":"client-a","priority":"P1","title":"Updated outcome title"}
+```
+
+For unassignment, set `assignee` to `null`. If an actor identity is available, include it as an
+`actor` string. LedgerBoard does not invent an actor when the local environment does not provide one.
+
 Deleted:
 
 ```text
@@ -346,6 +375,7 @@ History rules:
 - Use the actual current ISO 8601 timestamp with UTC offset.
 - Valid status values are `inbox`, `next`, `doing`, `blocked`, and `done`.
 - Include only fields that actually changed in an `updated.changes` array.
+- Assignment changes include `previousAssignee` and `assignee`; either value can be `null`.
 - A direct Markdown mutation must append the corresponding semantic event at the same time.
 - The visual application automatically appends events when it saves changes.
 - Never invent past timestamps from email dates, file dates, Git history, or narrative text.
@@ -360,8 +390,8 @@ When an agent creates or updates a bundle, it must follow this sequence:
 4. Dedupe proposed outcomes against the complete board.
 5. Normalize vague task text into observable outcome titles.
 6. Choose a valid priority and status using explicit evidence; when uncertain, use `Inbox` and `P3`.
-7. Add missing entities to `KANBAN-CONFIG.md` before using them.
-8. Preserve existing cards, descriptions, entity IDs, colors, and all prior history events.
+7. Add missing entities and people to `KANBAN-CONFIG.md` before using them.
+8. Preserve existing cards, descriptions, assignees, IDs, colors, and all prior history events.
 9. Separate adjacent cards with exactly one blank physical line.
 10. Enforce the Doing WIP limit of three.
 11. Write the three files atomically where possible.
@@ -398,25 +428,28 @@ PROCESS
 6. Use only the exact columns Inbox, Next, Doing `(WIP <= 3)`, Review / Blocked, and Done.
 7. Use exactly this card grammar:
    - [ ] AO-NNN — Outcome title · P1|P2|P3|P4 · area:<entity-id>
-8. Description is the only optional detail and must be one physical Markdown line:
+8. Description and Assignee are optional details and must each be one physical Markdown line:
        - **Description:** Concise context.
+       - **Assignee:** <person-id>
 9. Separate every pair of adjacent cards with exactly one blank physical line.
 10. Keep Doing at three cards or fewer.
 11. Use checked boxes only in Done.
 12. Allocate monotonic IDs by scanning both current cards and history. Never reuse an ID.
 13. Ensure every card area resolves to a stable entity in KANBAN-CONFIG.md. New configuration uses
     `entities`, not `customers`.
-14. For a new/imported board with unknown transition history, append baseline events using the actual
+14. Ensure every Assignee value resolves to a stable person in the `people` configuration array.
+15. For a new/imported board with unknown transition history, append baseline events using the actual
     current timestamp. For updates, append created, moved, updated, or deleted events. Never rewrite
-    prior history and never infer historical timestamps.
-15. Do not add due dates, owners, source fields, estimates, tags, or other card metadata.
-16. Validate the completed bundle with the command in BOARD-STANDARDS.md.
+    prior history and never infer historical timestamps. Record previous and new person IDs for
+    assignment changes.
+16. Do not add due dates, source fields, estimates, tags, or other card metadata.
+17. Validate the completed bundle with the command in BOARD-STANDARDS.md.
 
 SOURCE MATERIAL
 <paste or identify the task source here>
 
-Return a concise summary of cards added or changed, entities added, history events appended, and the
-validation result. Do not claim success unless validation passes.
+Return a concise summary of cards added or changed, people or entities added, history events appended,
+and the validation result. Do not claim success unless validation passes.
 ```
 
 ## Validation
@@ -433,7 +466,7 @@ npm run validate:board -- "$BoardFolder"
 Expected result:
 
 ```text
-Kanban bundle valid: <card-count> cards, <entity-count> entities, <event-count> history events
+Kanban bundle valid: <card-count> cards, <entity-count> entities, <person-count> people, <event-count> history events
 ```
 
 ## Common failure modes
@@ -441,13 +474,14 @@ Kanban bundle valid: <card-count> cards, <entity-count> entities, <event-count> 
 - Using a different filename such as `tasks.md` instead of `BOARD.md`.
 - Renaming or reordering a required H2 column.
 - Adding fields after `area:<entity-id>` on the card line.
-- Using multiline descriptions. Keep each description on one physical line.
+- Using multiline detail values. Keep each Description and Assignee value on one physical line.
 - Omitting the one blank physical line required between adjacent cards.
 - Adding two or more blank physical lines between adjacent cards.
 - Mixing LF and CRLF line endings in one `BOARD.md`.
 - Using priorities other than P1–P4.
 - Leaving `<!-- empty -->` in a column that contains cards.
 - Assigning an area that has no matching entity in the config.
+- Assigning a person ID that has no matching entry in the people directory.
 - Creating config with `customers` instead of canonical `entities`.
 - Reusing or renumbering card IDs.
 - Putting more than three cards in Doing.

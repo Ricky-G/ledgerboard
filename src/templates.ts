@@ -7,7 +7,7 @@ export const BUNDLE_FILES = [BOARD_FILE, CONFIG_FILE, HISTORY_FILE] as const;
 
 export const BOARD_TEMPLATE = `# Kanban Board
 
-> Markdown is the source of truth. Status is the column. Description is the only optional detail field.
+> Markdown is the source of truth. Status is the column. Description and Assignee are optional detail fields.
 > **Card format:** \`AO-NNN — Outcome title · P1|P2|P3|P4 · area:<entity-id>\`
 > **Doing WIP limit: 3.**
 
@@ -54,6 +54,7 @@ Append-only semantic event ledger for LedgerBoard.
 - Events use the actual ISO timestamp at which a change is saved.
 - Existing event rows must never be edited, reordered, or deleted.
 - A baseline means “observed in this state,” not created at that time.
+- Assignment updates record previous and new person IDs. Actor is included only when available.
 
 ## Events
 `;
@@ -65,7 +66,7 @@ export function createConfigTemplate(workspaceName: string, timezone: string): s
   config.workspace.timezone = timezone;
   return boardModel.serializeConfig('', config).replace(
     'Managed by the local Kanban page.',
-    'Authoritative entity palette and appearance settings for LedgerBoard.',
+    'Authoritative people directory, entity palette, and appearance settings for LedgerBoard.',
   );
 }
 

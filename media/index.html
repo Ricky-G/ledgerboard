@@ -26,7 +26,7 @@
             Board
           </button>
           <button class="view-tab" type="button" data-view="settings" aria-pressed="false">
-            Entities &amp; appearance
+            People &amp; entities
           </button>
           <button class="view-tab" type="button" data-view="analytics" aria-pressed="false">
             Analytics
@@ -70,6 +70,14 @@
               <span>Entity</span>
               <select id="areaFilter">
                 <option value="">All entities</option>
+              </select>
+            </label>
+
+            <label class="select-control">
+              <span>Assignee</span>
+              <select id="assigneeFilter">
+                <option value="">Anyone</option>
+                <option value="__unassigned__">Unassigned</option>
               </select>
             </label>
 
@@ -129,8 +137,8 @@
           <div class="settings-heading">
             <div>
               <p class="eyebrow">Board configuration</p>
-              <h2 id="settingsTitle">Entities &amp; appearance</h2>
-              <p>Entity identity and board presentation are persisted in KANBAN-CONFIG.md.</p>
+              <h2 id="settingsTitle">People, entities &amp; appearance</h2>
+              <p>People, entity identity, and board presentation are persisted in KANBAN-CONFIG.md.</p>
             </div>
             <button class="primary-button" id="settingsSaveButton" type="button" disabled>
               Save now
@@ -184,8 +192,28 @@
               </div>
             </section>
 
-            <section class="settings-section entity-settings-section" aria-labelledby="entitySettingsTitle">
+            <section class="settings-section people-settings-section" aria-labelledby="peopleSettingsTitle">
               <div class="section-number" aria-hidden="true">03</div>
+              <div class="settings-section-content">
+                <div class="people-heading-row">
+                  <div>
+                    <h3 id="peopleSettingsTitle">People</h3>
+                    <p>Add the names that can own work. Assignments stay optional for every outcome.</p>
+                  </div>
+                  <button class="secondary-button" id="addPersonButton" type="button">
+                    <span aria-hidden="true">+</span>
+                    Add person
+                  </button>
+                </div>
+                <div class="people-list-header" aria-hidden="true">
+                  <span>Color</span><span>Person name</span><span>Person ID</span><span></span>
+                </div>
+                <div class="people-list" id="peopleList"></div>
+              </div>
+            </section>
+
+            <section class="settings-section entity-settings-section" aria-labelledby="entitySettingsTitle">
+              <div class="section-number" aria-hidden="true">04</div>
               <div class="settings-section-content">
                 <div class="entity-heading-row">
                   <div>
@@ -347,6 +375,10 @@
             <label class="field">
               <span>Entity</span>
               <select id="cardArea" required></select>
+            </label>
+            <label class="field">
+              <span>Assignee</span>
+              <select id="cardAssignee"></select>
             </label>
             <label class="field">
               <span>Status</span>

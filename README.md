@@ -3,8 +3,9 @@
 Your Kanban board should survive the tool that displays it.
 
 LedgerBoard is a local-first VS Code board whose source of truth is three readable Markdown files.
-It adds a polished drag-and-drop workflow, generic entity palettes, conflict-safe autosave, and
-append-only analytics without an account, database, server, or proprietary export.
+It adds a polished drag-and-drop workflow, named task assignees, generic entity palettes,
+conflict-safe autosave, and append-only analytics without an account, database, server,
+or proprietary export.
 
 ![LedgerBoard board](images/board.png)
 
@@ -30,7 +31,7 @@ append-only analytics without an account, database, server, or proprietary expor
 
 1. Open a folder in VS Code.
 2. Run **LedgerBoard: Initialize Board in Folder** from the Command Palette.
-3. Add outcomes, drag cards between columns, and configure entities and colors.
+3. Add people and entities, assign outcomes, and drag cards between columns.
 4. Commit the resulting Markdown diff when you are ready.
 
 Initialization creates only missing files and never overwrites an existing one:
@@ -51,15 +52,19 @@ checks workspace roots first, validates candidates in parallel, and lets you cho
 - Inbox, Next, Doing, Review / Blocked, and Done workflow
 - Hard three-card Doing WIP limit
 - P1-P4 priorities
-- Search and entity/priority filters
+- Search and entity, assignee, and priority filters
 - Responsive desktop and narrow-editor layouts
 - One-second autosave with visible pending, saving, saved, and blocked states
 
-### Entities and appearance
+### People, entities, and appearance
+
+Add people by name in the **People & entities** view, then optionally assign an outcome in its editor.
+Assigned people appear on cards with compact avatars and can be used to filter the board. Assigning,
+reassigning, and clearing an assignee writes the previous and new person IDs to the history ledger.
 
 Every card has an `area` linked to a generic entity. An entity can be a project, account, product,
 team, department, or any grouping that makes the board useful. Names and colors live in
-`KANBAN-CONFIG.md`, alongside the board title, timezone, accent, and density.
+`KANBAN-CONFIG.md`, alongside the people directory, board title, timezone, accent, and density.
 
 ### Analytics
 
@@ -92,9 +97,10 @@ A card is deliberately small:
 ```markdown
 - [ ] AO-001 — Prepare the architecture review · P2 · area:project-alpha
     - **Description:** Consolidate the decisions, risks, and recommended next steps.
+    - **Assignee:** alex-smith
 ```
 
-Status is the section containing the card. Description is the only optional detail. The full,
+Status is the section containing the card. Description and Assignee are optional details. The full,
 versioned contract is in [BOARD-STANDARDS.md](BOARD-STANDARDS.md), including a ready-to-paste prompt
 for coding agents that generate compatible boards.
 
@@ -133,7 +139,7 @@ rescanning the workspace.
 
 ## Intentional limitations
 
-LedgerBoard deliberately does not provide subtasks, due dates, owners, estimates, multiline
+LedgerBoard deliberately does not provide subtasks, due dates, estimates, multiline
 descriptions, cloud synchronization, or a mobile client. Those constraints keep the Markdown contract
 small, deterministic, reviewable in Git, and durable without the extension.
 
@@ -154,6 +160,13 @@ As always, review source-control changes before sharing a board that may contain
 There are no external runtime dependencies.
 
 ## Development
+
+### Copilot canvas preview
+
+The project extension in `.github/extensions/ledgerboard-preview` registers a **LedgerBoard preview**
+canvas whenever this repository is opened in the Copilot app. It serves the current `media` assets
+directly from the checked-out branch against isolated sample data, so UI changes can be tested without
+modifying a real board. Use **Reload UI** after editing assets and **Reset data** to restore the fixture.
 
 ```powershell
 npm ci

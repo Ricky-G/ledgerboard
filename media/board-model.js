@@ -19,7 +19,10 @@
 
   const CARD_PATTERN = /^- \[([ xX])\] (AO-\d{3,}) — (.+) · (P[1-4]) · area:([a-z0-9][a-z0-9-]*)$/;
   const DETAIL_PATTERN = /^\s{4}- \*\*([^*]+):\*\*\s*(.*)$/;
-  const DETAIL_FIELDS = [{ key: "description", label: "Description" }];
+  const DETAIL_FIELDS = [
+    { key: "description", label: "Description" },
+    { key: "assignee", label: "Assignee" },
+  ];
   const DETAIL_KEY_BY_LABEL = new Map(
     DETAIL_FIELDS.map((field) => [field.label.toLowerCase(), field.key]),
   );
@@ -114,6 +117,13 @@
     const missing = [...new Set(cards.map((card) => card.area).filter((area) => !entityIds.has(area)))];
     if (missing.length > 0) {
       throw new Error(`Missing entity configuration: ${missing.join(", ")}.`);
+    }
+    const personIds = new Set(config.people.map((person) => person.id));
+    const missingPeople = [...new Set(cards
+      .map((card) => card.detailValues.assignee)
+      .filter((assignee) => assignee && !personIds.has(assignee)))];
+    if (missingPeople.length > 0) {
+      throw new Error(`Missing person configuration: ${missingPeople.join(", ")}.`);
     }
 
     return {
@@ -216,18 +226,18 @@
   }
 
   function inspectCardDetails(lines, cardStart, nextCardStart, cardId, diagnostics) {
-    let previousDetailWasDescription = false;
+    let previousDetailLabel = "";
     for (let lineIndex = cardStart + 1; lineIndex < nextCardStart; lineIndex += 1) {
       const line = lines[lineIndex];
       if (line.trim() === "") {
-        previousDetailWasDescription = false;
+        previousDetailLabel = "";
         continue;
       }
       const detailMatch = line.match(DETAIL_PATTERN);
       if (detailMatch) {
         const label = detailMatch[1].trim();
-        previousDetailWasDescription = label.toLowerCase() === "description";
-        if (!previousDetailWasDescription) {
+        previousDetailLabel = label;
+        if (!DETAIL_KEY_BY_LABEL.has(label.toLowerCase())) {
           diagnostics.push(createDiagnostic(
             "unsupported-detail",
             "warning",
@@ -239,23 +249,24 @@
         continue;
       }
       if (/^\s+\S/.test(line)) {
+        const field = previousDetailLabel || "Detail";
         diagnostics.push(createDiagnostic(
-          "multiline-description",
+          `multiline-${field.toLowerCase()}`,
           "error",
-          `Description for ${cardId} must stay on one physical line; continuation found on line ${lineIndex + 1}.`,
+          `${field} for ${cardId} must stay on one physical line; continuation found on line ${lineIndex + 1}.`,
           lineIndex + 1,
-          { card: cardId },
+          { card: cardId, field },
         ));
-      } else if (previousDetailWasDescription || line.trim()) {
+      } else if (previousDetailLabel || line.trim()) {
         diagnostics.push(createDiagnostic(
           "unsupported-card-content",
           "error",
-          `${cardId} has unsupported content on line ${lineIndex + 1}. Card details must use one indented Description line.`,
+          `${cardId} has unsupported content on line ${lineIndex + 1}. Card details must use indented Description or Assignee lines.`,
           lineIndex + 1,
           { card: cardId },
         ));
       }
-      previousDetailWasDescription = false;
+      previousDetailLabel = "";
     }
   }
 
@@ -424,7 +435,7 @@
   }
 
   function emptyDetailValues() {
-    return { description: "" };
+    return { description: "", assignee: "" };
   }
 
   function serializeBoard(document) {
@@ -641,20 +652,30 @@
     if (!HISTORY_EVENTS.has(event.event)) {
       throw new Error(`History event${location} has an unsupported type.`);
     }
+    ["assignee", "previousAssignee"].forEach((field) => {
+      if (event[field] !== undefined && event[field] !== null
+        && !/^[a-z0-9][a-z0-9-]*$/.test(event[field])) {
+        throw new Error(`History event${location} has an invalid ${field}.`);
+      }
+    });
+    if (event.actor !== undefined && (typeof event.actor !== "string" || !event.actor.trim())) {
+      throw new Error(`History event${location} has an invalid actor.`);
+    }
+    if (event.event === "updated" && event.changes?.includes("assignee")
+      && (!Object.hasOwn(event, "previousAssignee") || !Object.hasOwn(event, "assignee"))) {
+      throw new Error(`Assignment history event${location} requires previousAssignee and assignee.`);
+    }
     return true;
   }
 
   function createBaselineEvents(document, at) {
     validateBoard(document);
-    return document.columns.flatMap((column) => column.cards.map((card) => ({
+    return document.columns.flatMap((column) => column.cards.map((card) => historyEvent(
       at,
-      card: card.id,
-      event: "baseline",
-      to: column.id,
-      area: card.area,
-      priority: card.priority,
-      title: card.title,
-    })));
+      card,
+      "baseline",
+      { to: column.id },
+    )));
   }
 
   function diffBoardEvents(before, after, at) {
@@ -683,10 +704,14 @@
       if (previous.card.detailValues.description !== current.card.detailValues.description) changes.push("description");
       if (previous.card.area !== current.card.area) changes.push("area");
       if (previous.card.priority !== current.card.priority) changes.push("priority");
+      const previousAssignee = previous.card.detailValues.assignee || null;
+      const assignee = current.card.detailValues.assignee || null;
+      if (previousAssignee !== assignee) changes.push("assignee");
       if (changes.length > 0) {
         events.push(historyEvent(at, current.card, "updated", {
           to: current.columnId,
           changes,
+          ...(previousAssignee !== assignee ? { previousAssignee, assignee } : {}),
         }));
       }
     });
@@ -713,6 +738,7 @@
       card: card.id,
       event,
       ...extra,
+      ...(card.detailValues.assignee ? { assignee: card.detailValues.assignee } : {}),
       area: card.area,
       priority: card.priority,
       title: card.title,
@@ -864,21 +890,32 @@
     if (!Array.isArray(config.entities)) {
       throw new Error("Configuration requires an entities array.");
     }
+    if (!Array.isArray(config.people)) {
+      throw new Error("Configuration requires a people array.");
+    }
 
-    const ids = new Set();
-    config.entities.forEach((entity) => {
-      if (!/^[a-z0-9][a-z0-9-]*$/.test(entity.id || "")) {
-        throw new Error(`Invalid entity ID: ${entity.id || "empty"}.`);
-      }
-      if (ids.has(entity.id)) {
-        throw new Error(`Duplicate entity ID: ${entity.id}.`);
-      }
-      if (!/^#[0-9a-f]{6}$/i.test(entity.color || "")) {
-        throw new Error(`Invalid color for ${entity.id}.`);
-      }
-      ids.add(entity.id);
-    });
+    validateDirectory(config.entities, "entity", false);
+    validateDirectory(config.people, "person", true);
     return true;
+  }
+
+  function validateDirectory(items, type, requireName) {
+    const ids = new Set();
+    items.forEach((item) => {
+      if (!/^[a-z0-9][a-z0-9-]*$/.test(item.id || "")) {
+        throw new Error(`Invalid ${type} ID: ${item.id || "empty"}.`);
+      }
+      if (ids.has(item.id)) {
+        throw new Error(`Duplicate ${type} ID: ${item.id}.`);
+      }
+      if (requireName && (typeof item.name !== "string" || !item.name.trim())) {
+        throw new Error(`Invalid name for ${item.id}.`);
+      }
+      if (!/^#[0-9a-f]{6}$/i.test(item.color || "")) {
+        throw new Error(`Invalid color for ${item.id}.`);
+      }
+      ids.add(item.id);
+    });
   }
 
   function normalizeConfig(config) {
@@ -889,6 +926,9 @@
     const normalized = { ...config };
     if (!Array.isArray(normalized.entities) && Array.isArray(normalized.customers)) {
       normalized.entities = normalized.customers;
+    }
+    if (!Array.isArray(normalized.people)) {
+      normalized.people = [];
     }
     delete normalized.customers;
     return normalized;
@@ -909,6 +949,7 @@
       entities: [
         { id: "meta", name: "Internal", color: "#167d74" },
       ],
+      people: [],
     };
   }
 

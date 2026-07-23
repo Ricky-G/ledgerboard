@@ -13,7 +13,7 @@ try {
   const historySource = read('KANBAN-HISTORY.md');
   const result = model.validateBundleSources(boardSource, configSource, historySource);
 
-  console.log(`Kanban bundle valid: ${result.cardCount} cards, ${result.config.entities.length} entities, ${result.historyEvents.length} history events`);
+  console.log(`Kanban bundle valid: ${result.cardCount} cards, ${result.config.entities.length} entities, ${result.config.people.length} people, ${result.historyEvents.length} history events`);
   result.warnings.forEach((warning) => console.warn(`Warning: ${warning.message}`));
 } catch (error) {
   console.error(`Kanban bundle invalid: ${error instanceof Error ? error.message : String(error)}`);

@@ -58,15 +58,15 @@
       "metricCompletion", "metricEntities", "metricCompletedLabel", "metricCompletedRange",
       "metricCycle", "statusTotal", "statusChart", "priorityChart", "activityChart",
       "entityChart", "historyEventCount", "recentActivity",
-      "searchInput", "areaFilter", "priorityFilter", "activeCount", "blockedCount",
+      "searchInput", "areaFilter", "assigneeFilter", "priorityFilter", "activeCount", "blockedCount",
       "doingCount", "addCardButton", "mobileColumnTabs", "boardCanvas", "welcomePanel",
       "welcomeTitle", "welcomeCopy",
       "welcomeConnectButton", "welcomeNormalizeButton", "browserNote", "kanbanBoard", "settingsSaveButton",
       "settingsContent", "configWorkspaceName", "configBoardTitle", "configTimezone",
-      "configAccent", "configAccentValue", "entityList", "addEntityButton",
+      "configAccent", "configAccentValue", "peopleList", "addPersonButton", "entityList", "addEntityButton",
       "statusMessage", "unsavedIndicator", "lastLoadedLabel", "cardDialog", "cardForm",
       "cardDialogEyebrow", "cardDialogTitle", "cardId", "cardTitle", "cardDescription",
-      "cardArea", "cardColumn", "cardPriority", "deleteCardButton", "submitCardButton", "toastRegion",
+      "cardArea", "cardAssignee", "cardColumn", "cardPriority", "deleteCardButton", "submitCardButton", "toastRegion",
     ];
     return Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
   }
@@ -90,8 +90,10 @@
     elements.addCardButton.addEventListener("click", () => openCardDialog(null, "inbox"));
     elements.searchInput.addEventListener("input", renderBoard);
     elements.areaFilter.addEventListener("change", renderBoard);
+    elements.assigneeFilter.addEventListener("change", renderBoard);
     elements.priorityFilter.addEventListener("change", renderBoard);
     elements.analyticsRange.addEventListener("change", renderAnalytics);
+    elements.addPersonButton.addEventListener("click", addPerson);
     elements.addEntityButton.addEventListener("click", addEntity);
 
     document.querySelectorAll(".view-tab").forEach((button) => {
@@ -280,11 +282,13 @@
   }
 
   function renderAll() {
-    renderBoard();
     renderSettings();
-    renderAnalytics();
     populateAreaFilter();
+    populateAssigneeFilter();
     populateEntityOptions();
+    populatePersonOptions();
+    renderBoard();
+    renderAnalytics();
   }
 
   function renderBoard() {
@@ -299,6 +303,7 @@
     elements.mobileColumnTabs.replaceChildren();
     const query = elements.searchInput.value.trim().toLowerCase();
     const area = elements.areaFilter.value;
+    const assignee = elements.assigneeFilter.value;
     const priority = elements.priorityFilter.value;
 
     state.board.columns.forEach((column, columnIndex) => {
@@ -340,7 +345,7 @@
 
       let visibleCount = 0;
       column.cards.forEach((card) => {
-        const visible = cardMatches(card, query, area, priority);
+        const visible = cardMatches(card, query, area, assignee, priority);
         const cardElement = createCardElement(card);
         if (!visible) {
           cardElement.classList.add("is-filtered-out");
@@ -373,13 +378,17 @@
 
   function createCardElement(card) {
     const entity = getEntity(card.area);
+    const person = card.detailValues.assignee ? getPerson(card.detailValues.assignee) : null;
     const button = document.createElement("button");
     button.type = "button";
     button.className = "kanban-card";
     button.draggable = true;
     button.dataset.cardId = card.id;
     button.style.setProperty("--entity-color", entity.color);
-    button.setAttribute("aria-label", `${card.id}, ${card.title}, ${entity.name}, ${card.priority}`);
+    button.setAttribute(
+      "aria-label",
+      `${card.id}, ${card.title}, ${entity.name}, ${person ? `assigned to ${person.name}` : "unassigned"}, ${card.priority}`,
+    );
 
     const topline = document.createElement("div");
     topline.className = "card-topline";
@@ -413,9 +422,21 @@
     priority.dataset.priority = card.priority;
     priority.textContent = card.priority;
     footer.append(priority);
+    if (person) {
+      const assignee = document.createElement("span");
+      assignee.className = "card-assignee";
+      assignee.style.setProperty("--person-color", person.color);
+      const avatar = document.createElement("span");
+      avatar.className = "person-avatar";
+      avatar.textContent = initials(person.name);
+      const name = document.createElement("span");
+      name.textContent = person.name;
+      assignee.append(avatar, name);
+      footer.append(assignee);
+    }
     const customDetailCount = card.rawDetailLines.filter((line) => {
       const match = line.match(/^\s{4}- \*\*([^*]+):\*\*/);
-      return match && match[1].trim().toLowerCase() !== "description";
+      return match && !["description", "assignee"].includes(match[1].trim().toLowerCase());
     }).length;
     if (customDetailCount > 0) {
       const custom = document.createElement("span");
@@ -506,8 +527,14 @@
     });
   }
 
-  function cardMatches(card, query, area, priority) {
+  function cardMatches(card, query, area, assignee, priority) {
     if (area && card.area !== area) {
+      return false;
+    }
+    if (assignee === "__unassigned__" && card.detailValues.assignee) {
+      return false;
+    }
+    if (assignee && assignee !== "__unassigned__" && card.detailValues.assignee !== assignee) {
       return false;
     }
     if (priority && card.priority !== priority) {
@@ -518,6 +545,7 @@
     }
     const haystack = [
       card.id, card.title, card.area, card.priority,
+      card.detailValues.assignee ? getPerson(card.detailValues.assignee).name : "",
       ...Object.values(card.detailValues),
     ].join(" ").toLowerCase();
     return haystack.includes(query);
@@ -578,12 +606,78 @@
     elements.cardArea.value = selected || state.config.entities[0]?.id || "";
   }
 
+  function populateAssigneeFilter() {
+    const selected = elements.assigneeFilter.value;
+    const assignees = new Set(state.config.people.map((person) => person.id));
+    if (state.board) {
+      state.board.columns.flatMap((column) => column.cards).forEach((card) => {
+        if (card.detailValues.assignee) assignees.add(card.detailValues.assignee);
+      });
+    }
+    elements.assigneeFilter.replaceChildren();
+    const anyone = document.createElement("option");
+    anyone.value = "";
+    anyone.textContent = "Anyone";
+    const unassigned = document.createElement("option");
+    unassigned.value = "__unassigned__";
+    unassigned.textContent = "Unassigned";
+    elements.assigneeFilter.append(anyone, unassigned);
+    [...assignees]
+      .sort((left, right) => getPerson(left).name.localeCompare(getPerson(right).name))
+      .forEach((personId) => {
+        const option = document.createElement("option");
+        option.value = personId;
+        option.textContent = getPerson(personId).name;
+        elements.assigneeFilter.append(option);
+      });
+    elements.assigneeFilter.value = selected === "__unassigned__" || assignees.has(selected) ? selected : "";
+  }
+
+  function populatePersonOptions() {
+    const selected = elements.cardAssignee.value;
+    elements.cardAssignee.replaceChildren();
+    const unassigned = document.createElement("option");
+    unassigned.value = "";
+    unassigned.textContent = "Unassigned";
+    elements.cardAssignee.append(unassigned);
+    state.config.people.forEach((person) => {
+      const option = document.createElement("option");
+      option.value = person.id;
+      option.textContent = person.name;
+      elements.cardAssignee.append(option);
+    });
+    if (selected && !state.config.people.some((person) => person.id === selected)) {
+      const option = document.createElement("option");
+      option.value = selected;
+      option.textContent = `${humanizeArea(selected)} (not configured)`;
+      elements.cardAssignee.append(option);
+    }
+    elements.cardAssignee.value = selected;
+  }
+
   function getEntity(area) {
     return state.config.entities.find((entity) => entity.id === area) || {
       id: area,
       name: humanizeArea(area),
       color: "#7d8890",
     };
+  }
+
+  function getPerson(personId) {
+    return state.config.people.find((person) => person.id === personId) || {
+      id: personId,
+      name: humanizeArea(personId),
+      color: "#617078",
+    };
+  }
+
+  function initials(name) {
+    return name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part.charAt(0).toUpperCase())
+      .join("") || "?";
   }
 
   function humanizeArea(value) {
@@ -606,6 +700,7 @@
     elements.cardTitle.value = card?.title || "";
     elements.cardDescription.value = card?.detailValues.description || "";
     elements.cardArea.value = card?.area || state.config.entities[0]?.id || "meta";
+    elements.cardAssignee.value = card?.detailValues.assignee || "";
     elements.cardColumn.value = card?.columnId || defaultColumn || "inbox";
     elements.cardPriority.value = card?.priority || "P2";
     elements.cardDialogEyebrow.textContent = card ? card.id : "New outcome";
@@ -644,6 +739,7 @@
       priority: elements.cardPriority.value,
       detailValues: {
         description: elements.cardDescription.value.trim(),
+        assignee: elements.cardAssignee.value,
       },
     };
   }
@@ -654,6 +750,10 @@
     }
     if (!state.config.entities.some((entity) => entity.id === values.area)) {
       throw new Error("Choose an entity from the saved entity list.");
+    }
+    if (values.detailValues.assignee
+      && !state.config.people.some((person) => person.id === values.detailValues.assignee)) {
+      throw new Error("Choose an assignee from the saved people list.");
     }
     if (values.columnId === "doing") {
       const doing = state.board.columns.find((column) => column.id === "doing");
@@ -719,59 +819,148 @@
       densityInput.checked = true;
     }
 
+    elements.peopleList.replaceChildren();
+    config.people.forEach((person, index) => {
+      elements.peopleList.append(createDirectoryRow(person, index, "person"));
+    });
     elements.entityList.replaceChildren();
     config.entities.forEach((entity, index) => {
-      elements.entityList.append(createEntityRow(entity, index));
+      elements.entityList.append(createDirectoryRow(entity, index, "entity"));
     });
   }
 
-  function createEntityRow(entity, index) {
+  function createDirectoryRow(item, index, type) {
+    const isPerson = type === "person";
     const row = document.createElement("div");
-    row.className = "entity-row";
+    row.className = `${type}-row`;
     const color = document.createElement("input");
     color.type = "color";
-    color.value = entity.color;
-    color.title = `${entity.name} color`;
-    color.setAttribute("aria-label", `${entity.name} color`);
+    color.value = item.color;
+    color.title = `${item.name} color`;
+    color.setAttribute("aria-label", `${item.name} color`);
     color.addEventListener("input", (event) => {
-      entity.color = event.target.value;
+      item.color = event.target.value;
       markDirty("config");
-      applyConfig();
       renderBoard();
     });
 
     const name = document.createElement("input");
     name.type = "text";
-    name.value = entity.name;
+    name.value = item.name;
     name.maxLength = 80;
-    name.setAttribute("aria-label", "Entity name");
+    name.setAttribute("aria-label", isPerson ? "Person name" : "Entity name");
     name.addEventListener("input", (event) => {
-      entity.name = event.target.value;
+      item.name = event.target.value;
       markDirty("config");
-      populateAreaFilter();
-      populateEntityOptions();
+      if (isPerson) {
+        populateAssigneeFilter();
+        populatePersonOptions();
+      } else {
+        populateAreaFilter();
+        populateEntityOptions();
+      }
       renderBoard();
     });
 
     const id = document.createElement("input");
     id.type = "text";
-    id.value = entity.id;
+    id.value = item.id;
     id.maxLength = 50;
     id.pattern = "[a-z0-9][a-z0-9\\-]*";
-    id.className = "entity-id-input";
-    id.setAttribute("aria-label", "Entity area ID");
-    id.addEventListener("change", (event) => changeEntityId(entity, event.target));
+    id.className = `${type}-id-input`;
+    id.setAttribute("aria-label", isPerson ? "Person ID" : "Entity area ID");
+    id.addEventListener("change", (event) => {
+      if (isPerson) {
+        changePersonId(item, event.target);
+      } else {
+        changeEntityId(item, event.target);
+      }
+    });
 
     const remove = document.createElement("button");
     remove.type = "button";
-    remove.className = "remove-entity-button";
+    remove.className = `remove-${type}-button`;
     remove.textContent = "×";
-    remove.title = `Remove ${entity.name}`;
-    remove.setAttribute("aria-label", `Remove ${entity.name}`);
-    remove.addEventListener("click", () => removeEntity(index));
+    remove.title = `Remove ${item.name}`;
+    remove.setAttribute("aria-label", `Remove ${item.name}`);
+    remove.addEventListener("click", () => {
+      if (isPerson) {
+        removePerson(index);
+      } else {
+        removeEntity(index);
+      }
+    });
 
     row.append(color, name, id, remove);
     return row;
+  }
+
+  function changePersonId(person, input) {
+    const previous = person.id;
+    const next = input.value.trim().toLowerCase();
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(next)) {
+      input.value = previous;
+      showError(new Error("Person IDs use lowercase letters, numbers, and hyphens."));
+      return;
+    }
+    if (state.config.people.some((item) => item !== person && item.id === next)) {
+      input.value = previous;
+      showError(new Error(`The person ID ${next} already exists.`));
+      return;
+    }
+    person.id = next;
+    let updatedCards = 0;
+    if (state.board) {
+      state.board.columns.flatMap((column) => column.cards).forEach((card) => {
+        if (card.detailValues.assignee === previous) {
+          card.detailValues.assignee = next;
+          updatedCards += 1;
+        }
+      });
+    }
+    markDirty("config");
+    if (updatedCards > 0) markDirty("board");
+    populateAssigneeFilter();
+    populatePersonOptions();
+    renderBoard();
+  }
+
+  function addPerson() {
+    let suffix = state.config.people.length + 1;
+    while (state.config.people.some((person) => person.id === `person-${suffix}`)) {
+      suffix += 1;
+    }
+    state.config.people.push({
+      id: `person-${suffix}`,
+      name: "New person",
+      color: "#7257b5",
+    });
+    markDirty("config");
+    renderSettings();
+    populateAssigneeFilter();
+    populatePersonOptions();
+    const lastRow = elements.peopleList.lastElementChild;
+    lastRow?.querySelector("input[type='text']")?.select();
+  }
+
+  function removePerson(index) {
+    const person = state.config.people[index];
+    const usage = state.board
+      ? state.board.columns.flatMap((column) => column.cards)
+        .filter((card) => card.detailValues.assignee === person.id)
+      : [];
+    if (usage.length > 0) {
+      showError(new Error(`${person.name} is assigned to ${usage.length} outcome(s). Reassign them before removing this person.`));
+      return;
+    }
+    if (!window.confirm(`Remove ${person.name} from the people list?`)) {
+      return;
+    }
+    state.config.people.splice(index, 1);
+    markDirty("config");
+    renderSettings();
+    populateAssigneeFilter();
+    populatePersonOptions();
   }
 
   function changeEntityId(entity, input) {
@@ -1064,11 +1253,22 @@
 
   function eventDescription(event) {
     const entity = getEntity(event.area).name;
-    if (event.event === "created") return `Created in ${statusLabel(event.to)} · ${entity} · ${event.priority}`;
-    if (event.event === "moved") return `Moved ${statusLabel(event.from)} → ${statusLabel(event.to)} · ${entity}`;
-    if (event.event === "updated") return `Updated ${event.changes.join(", ")} · ${entity}`;
-    if (event.event === "deleted") return `Deleted from ${statusLabel(event.from)} · ${entity}`;
-    return entity;
+    let description;
+    if (event.event === "created") description = `Created in ${statusLabel(event.to)} · ${entity} · ${event.priority}`;
+    if (event.event === "moved") description = `Moved ${statusLabel(event.from)} → ${statusLabel(event.to)} · ${entity}`;
+    if (event.event === "updated" && event.changes.includes("assignee")) {
+      const previous = event.previousAssignee ? getPerson(event.previousAssignee).name : "Unassigned";
+      const current = event.assignee ? getPerson(event.assignee).name : "Unassigned";
+      const otherChanges = event.changes.filter((change) => change !== "assignee");
+      description = `Assignment: ${previous} → ${current}`;
+      if (otherChanges.length > 0) description += ` · Updated ${otherChanges.join(", ")}`;
+      description += ` · ${entity}`;
+    } else if (event.event === "updated") {
+      description = `Updated ${event.changes.join(", ")} · ${entity}`;
+    }
+    if (event.event === "deleted") description = `Deleted from ${statusLabel(event.from)} · ${entity}`;
+    description ||= entity;
+    return event.actor ? `${description} · by ${event.actor}` : description;
   }
 
   function statusLabel(status) {
