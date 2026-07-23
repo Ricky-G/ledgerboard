@@ -8,7 +8,7 @@ append-only analytics without an account, database, server, or proprietary expor
 
 ![LedgerBoard board](images/board.png)
 
-## What's new in 0.2.0
+## Highlights
 
 - Exact, line-numbered diagnostics for card separators, multiline descriptions, mixed line endings,
   missing entities, malformed checkboxes, and first source/serialized differences.
@@ -167,10 +167,7 @@ npm run vsix
 Press `F5` to launch an Extension Development Host. The project uses TypeScript, esbuild, the VS Code
 test runner, and Node's built-in test runner.
 
-Publishing is release-driven. A GitHub Release matching the `package.json` version triggers the
-Marketplace workflow; the scoped `VSCE_PAT` is stored only in the protected `marketplace` environment.
-A monthly credential-health workflow verifies publisher access and opens a GitHub issue before PAT
-expiry or Microsoft's global-PAT retirement deadline.
+Releases are published from validated source by project maintainers.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and
 [SUPPORT.md](SUPPORT.md) before opening a pull request or security report.

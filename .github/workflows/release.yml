@@ -1,0 +1,191 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: release-automation
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate merge commit
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run privacy:scan
+      - run: npm run test
+      - run: npm run compile
+      - run: xvfb-run -a npm run test:integration
+      - run: npm run vsix
+
+  wait-for-required-checks:
+    name: Wait for required merge gates
+    runs-on: ubuntu-latest
+    permissions:
+      checks: read
+      contents: read
+    steps:
+      - name: Require successful quality and security checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          REQUIRED_CHECKS=(
+            "CI / quality"
+            "Dependency security / dependency-security"
+            "Secret scan / secret-scan"
+            "CodeQL / analyze"
+          )
+          DEADLINE="$((SECONDS + 1800))"
+
+          while true; do
+            CHECK_RUNS="$(gh api \
+              -H "Accept: application/vnd.github+json" \
+              "/repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs?per_page=100" \
+              --jq '.check_runs')"
+            PENDING=()
+            FAILED=()
+
+            for CHECK_NAME in "${REQUIRED_CHECKS[@]}"; do
+              CHECK_RESULT="$(jq -r --arg name "$CHECK_NAME" \
+                '[.[] | select(.name == $name)] | sort_by(.started_at) | last |
+                  if . == null then "missing" else "\(.status):\(.conclusion // "pending")" end' \
+                <<< "$CHECK_RUNS")"
+              case "$CHECK_RESULT" in
+                completed:success)
+                  ;;
+                completed:*)
+                  FAILED+=("$CHECK_NAME ($CHECK_RESULT)")
+                  ;;
+                *)
+                  PENDING+=("$CHECK_NAME ($CHECK_RESULT)")
+                  ;;
+              esac
+            done
+
+            if [ "${#FAILED[@]}" -gt 0 ]; then
+              printf '::error::Required checks failed on %s: %s\n' \
+                "$GITHUB_SHA" "$(IFS='; '; echo "${FAILED[*]}")"
+              exit 1
+            fi
+            if [ "${#PENDING[@]}" -eq 0 ]; then
+              {
+                echo "## Required merge gates"
+                echo
+                echo "All required push checks succeeded on \`$GITHUB_SHA\`."
+              } >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            if [ "$SECONDS" -ge "$DEADLINE" ]; then
+              printf '::error::Timed out waiting for required checks on %s: %s\n' \
+                "$GITHUB_SHA" "$(IFS='; '; echo "${PENDING[*]}")"
+              exit 1
+            fi
+
+            printf 'Waiting for required checks: %s\n' "$(IFS='; '; echo "${PENDING[*]}")"
+            sleep 30
+          done
+
+  release:
+    name: Create release preparation
+    needs: [validate, wait-for-required-checks]
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release-please.outputs.release_created }}
+    steps:
+      - name: Require release automation token
+        env:
+          RELEASE_PLEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+        run: |
+          test -n "$RELEASE_PLEASE_TOKEN" || {
+            echo "::error::Missing RELEASE_PLEASE_TOKEN. Configure a release-bot token before enabling automated releases."
+            exit 1
+          }
+      - id: release-please
+        uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          config-file: .release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  resolve-publication:
+    name: Resolve publication
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      publish: ${{ steps.resolve.outputs.publish }}
+      tag_name: ${{ steps.resolve.outputs.tag_name }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Resolve release tag
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_CREATED: ${{ needs.release.outputs.release_created }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          RELEASE_TAG="v$PACKAGE_VERSION"
+          echo "tag_name=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          if [ "$RELEASE_CREATED" = "true" ]; then
+            gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json tagName > /dev/null || {
+              echo "::error::Release Please did not create the expected GitHub Release $RELEASE_TAG."
+              exit 1
+            }
+          elif [ "$RUN_ATTEMPT" -gt 1 ] && gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json tagName > /dev/null; then
+            echo "Resuming publication for existing release $RELEASE_TAG."
+          else
+            echo "No new release was created for this merge."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git fetch --force --tags
+          TAG_COMMIT="$(git rev-list -n 1 "$RELEASE_TAG")"
+          test "$TAG_COMMIT" = "$GITHUB_SHA" || {
+            echo "::error::Release tag $RELEASE_TAG points to $TAG_COMMIT, not this merge commit $GITHUB_SHA."
+            exit 1
+          }
+          TAG_TYPE="$(git cat-file -t "refs/tags/$RELEASE_TAG")"
+          if [ "$TAG_TYPE" = "commit" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -d "$RELEASE_TAG"
+            git tag --annotate "$RELEASE_TAG" "$TAG_COMMIT" --message "Release $RELEASE_TAG"
+            git push --force origin "refs/tags/$RELEASE_TAG"
+            git fetch --force --tags
+            TAG_TYPE="$(git cat-file -t "refs/tags/$RELEASE_TAG")"
+          fi
+          test "$TAG_TYPE" = "tag" || {
+            echo "::error::Release tag $RELEASE_TAG is not annotated."
+            exit 1
+          }
+          echo "publish=true" >> "$GITHUB_OUTPUT"
+
+  publish:
+    name: Publish release
+    needs: resolve-publication
+    if: needs.resolve-publication.outputs.publish == 'true'
+    uses: ./.github/workflows/publish.yml
+    with:
+      tag: ${{ needs.resolve-publication.outputs.tag_name }}
