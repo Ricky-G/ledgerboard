@@ -167,8 +167,9 @@ async function handleRequest(entry, req, res) {
         }
         sendJson(res, 404, { message: "Preview route not found." });
     } catch (error) {
+        console.error("LedgerBoard preview request failed:", error);
         sendJson(res, 400, {
-            message: error instanceof Error ? error.message : String(error),
+            message: "Bad request.",
         });
     }
 }
