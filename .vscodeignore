@@ -6,6 +6,8 @@ src/**
 test/**
 scripts/**
 .github/**
+.release-please-config.json
+.release-please-manifest.json
 .nvmrc
 .gitignore
 .yarnrc
