@@ -75,7 +75,7 @@ async function validateBoard(context: vscode.ExtensionContext): Promise<void> {
     const validation = repository.validate(await repository.read());
     const warningDetail = validation.warnings.length > 0 ? ` ${validation.warnings.length} warning(s) were preserved.` : '';
     await vscode.window.showInformationMessage(
-      `LedgerBoard is valid: ${validation.cardCount} cards, ${validation.config.entities.length} entities, ${validation.historyEvents.length} history events.${warningDetail}`,
+      `LedgerBoard is valid: ${validation.cardCount} cards, ${validation.config.entities.length} entities, ${validation.config.people.length} people, ${validation.historyEvents.length} history events.${warningDetail}`,
     );
   } catch (error) {
     const actions = errorCanNormalize(error) ? ['Normalize formatting', 'Open BOARD.md'] : ['Open BOARD.md'];

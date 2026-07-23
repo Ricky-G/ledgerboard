@@ -92,6 +92,7 @@ test('legacy customer configuration migrates to canonical entities', () => {
   const serialized = model.serializeConfig(legacy, parsed);
 
   assert.equal(parsed.entities[0].id, 'internal');
+  assert.deepEqual(parsed.people, []);
   assert.equal(Object.hasOwn(parsed, 'customers'), false);
   assert.equal(serialized.includes('"customers"'), false);
 });
@@ -107,6 +108,75 @@ test('semantic diff records movement and edits separately', () => {
 
   assert.deepEqual(events.map((event) => event.event), ['moved', 'updated']);
   assert.deepEqual(events[1].changes, ['priority']);
+});
+
+test('assignees round-trip through cards and validate against configured people', () => {
+  const source = boardWith(
+    '- [ ] AO-001 — Prepare review · P2 · area:internal\n'
+      + '    - **Description:** Prepare the review pack.\n'
+      + '    - **Assignee:** alex-smith',
+  );
+  const config = CONFIG.replace(
+    '"entities":[{"id":"internal","name":"Internal","color":"#167d74"}]',
+    '"entities":[{"id":"internal","name":"Internal","color":"#167d74"}],"people":[{"id":"alex-smith","name":"Alex Smith","color":"#7257b5"}]',
+  );
+  const board = model.parseBoard(source);
+
+  assert.equal(board.columns[0].cards[0].detailValues.assignee, 'alex-smith');
+  assert.equal(model.serializeBoard(board), source);
+  assert.doesNotThrow(() => model.validateBundleSources(source, config, HISTORY));
+});
+
+test('bundle validation reports assignees missing from the people directory', () => {
+  const source = boardWith(
+    '- [ ] AO-001 — Prepare review · P2 · area:internal\n'
+      + '    - **Assignee:** missing-person',
+  );
+
+  assert.throws(
+    () => model.validateBundleSources(source, CONFIG, HISTORY),
+    /Missing person configuration: missing-person/,
+  );
+});
+
+test('assignment changes record previous and current values', () => {
+  const source = boardWith(
+    '- [ ] AO-001 — Prepare review · P2 · area:internal\n'
+      + '    - **Assignee:** alex-smith',
+  );
+  const before = model.parseBoard(source);
+  const reassigned = model.parseBoard(source);
+  reassigned.columns[0].cards[0].detailValues.assignee = 'sam-lee';
+  const reassignment = model.diffBoardEvents(before, reassigned, '2026-07-21T10:00:00+12:00');
+
+  assert.deepEqual(reassignment[0].changes, ['assignee']);
+  assert.equal(reassignment[0].previousAssignee, 'alex-smith');
+  assert.equal(reassignment[0].assignee, 'sam-lee');
+
+  const unassigned = model.parseBoard(source);
+  unassigned.columns[0].cards[0].detailValues.assignee = '';
+  const unassignment = model.diffBoardEvents(before, unassigned, '2026-07-21T11:00:00+12:00');
+  assert.equal(unassignment[0].previousAssignee, 'alex-smith');
+  assert.equal(unassignment[0].assignee, null);
+});
+
+test('assignment history preserves an available actor', () => {
+  const event = {
+    at: '2026-07-21T10:00:00+12:00',
+    card: 'AO-001',
+    event: 'updated',
+    to: 'inbox',
+    changes: ['assignee'],
+    previousAssignee: null,
+    assignee: 'alex-smith',
+    actor: 'Local editor',
+    area: 'internal',
+    priority: 'P2',
+    title: 'Prepare review',
+  };
+  const history = model.appendHistory(HISTORY, [event]);
+
+  assert.deepEqual(model.parseHistory(history).events[0], event);
 });
 
 test('append-only history preserves its exact prefix', () => {
@@ -234,6 +304,16 @@ test('duplicate entity IDs are rejected', () => {
     '"entities":[{"id":"internal","name":"Internal","color":"#167d74"},{"id":"internal","name":"Duplicate","color":"#7257b5"}]',
   );
   assert.throws(() => model.parseConfig(duplicate), /Duplicate entity ID: internal/);
+});
+
+test('duplicate person IDs are rejected', () => {
+  const duplicate = CONFIG.replace(
+    '"entities":[{"id":"internal","name":"Internal","color":"#167d74"}]',
+    '"entities":[{"id":"internal","name":"Internal","color":"#167d74"}],"people":['
+      + '{"id":"alex-smith","name":"Alex Smith","color":"#7257b5"},'
+      + '{"id":"alex-smith","name":"Duplicate","color":"#2e6ea6"}]',
+  );
+  assert.throws(() => model.parseConfig(duplicate), /Duplicate person ID: alex-smith/);
 });
 
 test('invalid entity colors are rejected', () => {

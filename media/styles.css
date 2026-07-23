@@ -397,7 +397,7 @@ main {
 
 .command-strip {
   display: grid;
-  grid-template-columns: minmax(260px, 1.4fr) 180px 120px auto auto;
+  grid-template-columns: minmax(240px, 1.4fr) 160px 160px 110px auto auto;
   align-items: end;
   gap: 10px;
   padding: 13px 22px;
@@ -506,7 +506,8 @@ main {
 }
 
 .add-outcome-button span,
-.entity-heading-row .secondary-button span {
+.entity-heading-row .secondary-button span,
+.people-heading-row .secondary-button span {
   font-size: 19px;
   font-weight: 500;
   line-height: 0;
@@ -676,6 +677,7 @@ main {
 .card-topline,
 .card-footer,
 .card-entity,
+.card-assignee,
 .card-due,
 .card-priority {
   display: flex;
@@ -759,6 +761,35 @@ main {
 .card-priority[data-priority="P2"] { --priority-color: #c65d18; }
 .card-priority[data-priority="P3"] { --priority-color: #2e6ea6; }
 .card-priority[data-priority="P4"] { --priority-color: #617078; }
+
+.card-assignee {
+  min-width: 0;
+  gap: 5px;
+  color: var(--ink-soft);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.card-assignee > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.person-avatar {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: var(--person-color, var(--ink-faint));
+  border-radius: 50%;
+  font-family: Bahnschrift, "Arial Narrow", sans-serif;
+  font-size: 8px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
 
 .empty-column {
   min-height: 130px;
@@ -1238,7 +1269,8 @@ main {
 
 .settings-heading p:last-child,
 .settings-section-content > p,
-.entity-heading-row p {
+.entity-heading-row p,
+.people-heading-row p {
   margin: 0;
   color: var(--ink-soft);
   font-size: 13px;
@@ -1388,7 +1420,8 @@ main {
   box-shadow: 0 1px 3px rgb(23 32 42 / 12%);
 }
 
-.entity-heading-row {
+.entity-heading-row,
+.people-heading-row {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
@@ -1396,14 +1429,17 @@ main {
 }
 
 .entity-list-header,
-.entity-row {
+.people-list-header,
+.entity-row,
+.person-row {
   display: grid;
   grid-template-columns: 68px minmax(180px, 1fr) minmax(150px, 0.7fr) 40px;
   align-items: center;
   gap: 12px;
 }
 
-.entity-list-header {
+.entity-list-header,
+.people-list-header {
   margin-top: 24px;
   padding: 0 10px 7px;
   color: var(--ink-faint);
@@ -1414,21 +1450,25 @@ main {
   text-transform: uppercase;
 }
 
-.entity-list {
+.entity-list,
+.people-list {
   display: grid;
 }
 
-.entity-row {
+.entity-row,
+.person-row {
   min-height: 58px;
   padding: 9px 10px;
   border-bottom: 1px solid var(--line);
 }
 
-.entity-row:hover {
+.entity-row:hover,
+.person-row:hover {
   background: rgb(255 255 255 / 60%);
 }
 
-.entity-row input[type="text"] {
+.entity-row input[type="text"],
+.person-row input[type="text"] {
   width: 100%;
   min-width: 0;
   height: 36px;
@@ -1439,7 +1479,8 @@ main {
   border-radius: 4px;
 }
 
-.entity-row input[type="color"] {
+.entity-row input[type="color"],
+.person-row input[type="color"] {
   width: 46px;
   height: 32px;
   padding: 2px;
@@ -1448,12 +1489,14 @@ main {
   border-radius: 4px;
 }
 
-.entity-id-input {
+.entity-id-input,
+.person-id-input {
   font-family: Consolas, monospace;
   font-size: 12px;
 }
 
-.remove-entity-button {
+.remove-entity-button,
+.remove-person-button {
   width: 32px;
   height: 32px;
   display: grid;
@@ -1466,7 +1509,8 @@ main {
   font-size: 19px;
 }
 
-.remove-entity-button:hover {
+.remove-entity-button:hover,
+.remove-person-button:hover {
   color: var(--danger);
   background: #fff;
   border-color: color-mix(in srgb, var(--danger) 25%, var(--line));
@@ -1558,7 +1602,7 @@ dialog::backdrop {
 
 .dialog-field-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
 }
 
@@ -1653,7 +1697,7 @@ dialog::backdrop {
 
   .command-strip {
     top: 111px;
-    grid-template-columns: minmax(240px, 1fr) 170px 115px auto;
+    grid-template-columns: minmax(220px, 1fr) 145px 145px 105px auto;
   }
 
   .board-stats {
@@ -1870,22 +1914,26 @@ dialog::backdrop {
     grid-template-columns: 1fr;
   }
 
-  .entity-list-header {
+  .entity-list-header,
+  .people-list-header {
     display: none;
   }
 
-  .entity-row {
+  .entity-row,
+  .person-row {
     grid-template-columns: 50px minmax(0, 1fr) 34px;
     gap: 8px;
     padding: 12px 4px;
   }
 
-  .entity-row .entity-id-input {
+  .entity-row .entity-id-input,
+  .person-row .person-id-input {
     grid-column: 2;
     grid-row: 2;
   }
 
-  .remove-entity-button {
+  .remove-entity-button,
+  .remove-person-button {
     grid-column: 3;
     grid-row: 1 / 3;
   }
@@ -1996,11 +2044,13 @@ dialog::backdrop {
     border-bottom: 2px solid var(--accent);
   }
 
-  .entity-heading-row {
+  .entity-heading-row,
+  .people-heading-row {
     display: grid;
   }
 
-  .entity-heading-row .secondary-button {
+  .entity-heading-row .secondary-button,
+  .people-heading-row .secondary-button {
     justify-self: start;
   }
 

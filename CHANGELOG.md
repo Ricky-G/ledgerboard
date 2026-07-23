@@ -2,6 +2,13 @@
 
 All notable changes to LedgerBoard are documented here.
 
+## Unreleased
+
+### Added
+
+- Named people directory with optional task assignment, board filtering, and card avatars.
+- Assignment history with previous and new person IDs, timestamps, and optional actor labels.
+
 ## [0.2.1] - 2026-07-22
 
 ### Fixed

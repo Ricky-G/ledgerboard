@@ -9,7 +9,7 @@ export interface Card {
   priority: Priority;
   area: string;
   columnId: ColumnId;
-  detailValues: { description: string };
+  detailValues: { description: string; assignee: string };
   rawDetailLines: string[];
 }
 
@@ -36,6 +36,12 @@ export interface Entity {
   color: string;
 }
 
+export interface Person {
+  id: string;
+  name: string;
+  color: string;
+}
+
 export interface KanbanConfig {
   version: number;
   workspace: {
@@ -48,6 +54,7 @@ export interface KanbanConfig {
     density: 'comfortable' | 'compact';
   };
   entities: Entity[];
+  people: Person[];
 }
 
 export interface HistoryEvent {
@@ -60,6 +67,9 @@ export interface HistoryEvent {
   priority: Priority;
   title: string;
   changes?: string[];
+  assignee?: string | null;
+  previousAssignee?: string | null;
+  actor?: string;
 }
 
 export interface BoardDiagnostic {

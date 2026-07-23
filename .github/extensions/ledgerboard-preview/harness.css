@@ -1,0 +1,66 @@
+.preview-controls {
+  isolation: isolate;
+  position: fixed;
+  right: 18px;
+  bottom: 52px;
+  z-index: 95;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  color: var(--text-color-default, #17202a);
+  background: color-mix(in srgb, var(--background-color-default, #fff) 94%, transparent);
+  border: 1px solid var(--border-color-default, #c9cfca);
+  border-radius: 7px;
+  box-shadow: 0 10px 30px rgb(23 32 42 / 16%);
+  backdrop-filter: blur(12px);
+  font-family: var(--font-sans, Aptos, "Segoe UI", sans-serif);
+}
+
+.preview-controls div {
+  display: grid;
+  gap: 1px;
+  padding: 0 5px;
+}
+
+.preview-controls strong {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.preview-controls span {
+  color: var(--text-color-muted, #617078);
+  font-size: 10px;
+}
+
+.preview-controls button {
+  min-height: 30px;
+  padding: 5px 9px;
+  color: var(--text-color-default, #17202a);
+  background: var(--background-color-default, #fff);
+  border: 1px solid var(--border-color-default, #c9cfca);
+  border-radius: 5px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.preview-controls button:hover {
+  border-color: var(--color-focus-outline, #2e6ea6);
+}
+
+@media (max-width: 700px) {
+  .preview-controls {
+    left: 14px;
+    right: 14px;
+  }
+
+  .preview-controls div {
+    margin-right: auto;
+  }
+
+  .preview-controls span {
+    display: none;
+  }
+}

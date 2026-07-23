@@ -123,6 +123,7 @@ suite('Extension Test Suite', function () {
 			const validation = repository.validate(base);
 			assert.equal(validation.cardCount, 0);
 			assert.equal(validation.config.entities.length, 1);
+			assert.equal(validation.config.people.length, 0);
 
 			const config = boardModel.parseConfig(base.configSource);
 			config.workspace.name = 'Integration Test';
@@ -146,6 +147,46 @@ suite('Extension Test Suite', function () {
 				}),
 				/changed outside LedgerBoard/,
 			);
+		} finally {
+			await removeFixture(root);
+		}
+	});
+
+	test('persists assignment and unassignment history', async () => {
+		const root = vscode.Uri.file(path.join(os.tmpdir(), `ledgerboard-assignment-${Date.now()}`));
+		await vscode.workspace.fs.createDirectory(root);
+		try {
+			const repository = new BoardRepository(root);
+			await repository.initialize();
+			const base = await repository.read();
+			const config = boardModel.parseConfig(base.configSource);
+			config.people.push({ id: 'alex-smith', name: 'Alex Smith', color: '#7257b5' });
+			const assignedBoardSource = base.boardSource.replace(
+				'<!-- empty -->',
+				'- [ ] AO-001 — Prepare review · P2 · area:meta\n'
+					+ '    - **Assignee:** alex-smith',
+			);
+			const assigned = await repository.save({
+				base,
+				nextBoardSource: assignedBoardSource,
+				nextConfigSource: boardModel.serializeConfig(base.configSource, config),
+				saveBoard: true,
+				saveConfig: true,
+			});
+			assert.equal(assigned.events[0].assignee, 'alex-smith');
+
+			const board = boardModel.parseBoard(assigned.boardSource);
+			board.columns[0].cards[0].detailValues.assignee = '';
+			const unassigned = await repository.save({
+				base: assigned,
+				nextBoardSource: boardModel.serializeBoard(board),
+				nextConfigSource: assigned.configSource,
+				saveBoard: true,
+				saveConfig: false,
+			});
+			const history = boardModel.parseHistory(unassigned.historySource).events;
+			assert.equal(history.at(-1)?.previousAssignee, 'alex-smith');
+			assert.equal(history.at(-1)?.assignee, null);
 		} finally {
 			await removeFixture(root);
 		}

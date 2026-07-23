@@ -74,7 +74,9 @@ function checkHashedTerms(relativePath, content) {
 
 function isExpectedDocumentation(relativePath, label) {
   return (label === 'actual board file'
-      && (relativePath === 'BOARD-STANDARDS.md' || /^test\/.*\.test\.js$/i.test(relativePath)))
+      && (relativePath === 'BOARD-STANDARDS.md'
+        || relativePath === '.github/extensions/ledgerboard-preview/sample-data.mjs'
+        || /^test\/.*\.test\.js$/i.test(relativePath)))
     || (label === 'email address' && relativePath === 'package-lock.json');
 }
 
