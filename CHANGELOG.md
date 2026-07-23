@@ -2,6 +2,19 @@
 
 All notable changes to LedgerBoard are documented here.
 
+## [0.3.0](https://github.com/Ricky-G/ledgerboard/compare/v0.2.1...v0.3.0) (2026-07-23)
+
+
+### Added
+
+* add task assignees and persistent LedgerBoard preview ([#18](https://github.com/Ricky-G/ledgerboard/issues/18)) ([2cdf3c8](https://github.com/Ricky-G/ledgerboard/commit/2cdf3c86baf7329ababe0b46a9387958f417a8f1))
+* automate versioned releases ([#17](https://github.com/Ricky-G/ledgerboard/issues/17)) ([a66f71b](https://github.com/Ricky-G/ledgerboard/commit/a66f71b423cc04b1418497eac3ae3a229bf75d44))
+
+
+### Fixed
+
+* wait for actual release gate check names ([#19](https://github.com/Ricky-G/ledgerboard/issues/19)) ([fcd7bf7](https://github.com/Ricky-G/ledgerboard/commit/fcd7bf740cdea4e70c869cd448dae8fdccf0426b))
+
 ## [0.2.1] - 2026-07-22
 
 ### Fixed

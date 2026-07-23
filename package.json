@@ -2,7 +2,7 @@
   "name": "ledgerboard",
   "displayName": "LedgerBoard",
   "description": "Local-first Markdown Kanban with conflict-safe autosave, actionable validation, safe formatting repair, and append-only analytics.",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "publisher": "ricky-g",
   "license": "MIT",
   "icon": "images/icon.png",
@@ -17,16 +17,35 @@
   "engines": {
     "vscode": "^1.103.0"
   },
-  "categories": ["Visualization", "Other"],
-  "keywords": ["kanban", "markdown", "tasks", "project management", "local-first", "analytics", "git", "git-backed", "offline"],
+  "categories": [
+    "Visualization",
+    "Other"
+  ],
+  "keywords": [
+    "kanban",
+    "markdown",
+    "tasks",
+    "project management",
+    "local-first",
+    "analytics",
+    "git",
+    "git-backed",
+    "offline"
+  ],
   "galleryBanner": {
     "color": "#17202a",
     "theme": "dark"
   },
-  "extensionKind": ["workspace"],
+  "extensionKind": [
+    "workspace"
+  ],
   "capabilities": {
-    "untrustedWorkspaces": { "supported": true },
-    "virtualWorkspaces": { "supported": true }
+    "untrustedWorkspaces": {
+      "supported": true
+    },
+    "virtualWorkspaces": {
+      "supported": true
+    }
   },
   "main": "./dist/extension.js",
   "contributes": {
