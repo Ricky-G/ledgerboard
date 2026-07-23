@@ -1,50 +1,187 @@
 name: Publish to Visual Studio Marketplace
 
 on:
-  release:
-    types: [published]
+  workflow_call:
+    inputs:
+      tag:
+        description: Existing GitHub Release tag to publish
+        required: true
+        type: string
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing release tag to publish (for example v0.1.0)
+        description: Existing annotated GitHub Release tag to publish (for example v0.2.1)
         required: true
         type: string
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
-  group: marketplace-publish
+  group: marketplace-publish-${{ inputs.tag }}
   cancel-in-progress: false
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     environment: marketplace
+    outputs:
+      marketplace_url: ${{ steps.marketplace.outputs.url }}
+      vsix_sha256: ${{ steps.package.outputs.sha256 }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.release.tag_name || inputs.tag }}
-      - uses: actions/setup-node@v4
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run privacy:scan
-      - name: Verify release version
+      - name: Verify release tag
+        id: release
         env:
-          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
         run: |
-          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
-          test "$RELEASE_TAG" = "v$PACKAGE_VERSION" || {
-            echo "Release tag $RELEASE_TAG does not match package version $PACKAGE_VERSION."
+          TAG_TYPE="$(git cat-file -t "refs/tags/$RELEASE_TAG" 2>/dev/null || true)"
+          test "$TAG_TYPE" = "tag" || {
+            echo "::error::$RELEASE_TAG must be an existing annotated tag."
             exit 1
           }
-          echo "Release version verified: $RELEASE_TAG"
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json tagName > /dev/null || {
+            echo "::error::$RELEASE_TAG must have an existing GitHub Release."
+            exit 1
+          }
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          test "$RELEASE_TAG" = "v$PACKAGE_VERSION" || {
+            echo "::error::Release tag $RELEASE_TAG does not match package version $PACKAGE_VERSION."
+            exit 1
+          }
+          echo "package_version=$PACKAGE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "release_commit=$(git rev-list -n 1 "$RELEASE_TAG")" >> "$GITHUB_OUTPUT"
+      - name: Verify Marketplace credential
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          test -n "$VSCE_PAT" || {
+            echo "::error::The marketplace environment does not provide VSCE_PAT."
+            exit 1
+          }
+      - run: npm run privacy:scan
       - run: npm run test
       - run: npm run compile
       - run: xvfb-run -a npm run test:integration
+      - name: Package release VSIX
+        id: package
+        run: |
+          npm run vsix
+          mapfile -t VSIX_FILES < <(find . -maxdepth 1 -type f -name '*.vsix' -printf '%f\n')
+          test "${#VSIX_FILES[@]}" -eq 1 || {
+            echo "::error::Expected exactly one VSIX, found ${#VSIX_FILES[@]}."
+            exit 1
+          }
+          VSIX="${VSIX_FILES[0]}"
+          CHECKSUM_FILE="$VSIX.sha256"
+          sha256sum "$VSIX" > "$CHECKSUM_FILE"
+          echo "vsix=$VSIX" >> "$GITHUB_OUTPUT"
+          echo "checksum_file=$CHECKSUM_FILE" >> "$GITHUB_OUTPUT"
+          echo "sha256=$(cut -d ' ' -f 1 "$CHECKSUM_FILE")" >> "$GITHUB_OUTPUT"
+      - name: Check Marketplace version
+        id: marketplace
+        env:
+          PACKAGE_VERSION: ${{ steps.release.outputs.package_version }}
+        run: |
+          EXTENSION_ID="$(node -p "require('./package.json').publisher + '.' + require('./package.json').name")"
+          QUERY_PAYLOAD="$(jq -cn --arg extension "$EXTENSION_ID" '{"filters":[{"criteria":[{"filterType":7,"value":$extension}],"pageNumber":1,"pageSize":1}],"flags":1}')"
+          RESPONSE="$(curl --fail --retry 3 --retry-all-errors --silent --show-error \
+            --header 'Accept: application/json;api-version=7.2-preview.1' \
+            --header 'Content-Type: application/json' \
+            --request POST \
+            --data "$QUERY_PAYLOAD" \
+            'https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery')" || {
+              echo "::error::Unable to query the Visual Studio Marketplace before publishing."
+              exit 1
+            }
+          MATCHED_VERSION="$(jq -r --arg version "$PACKAGE_VERSION" \
+            '[.results[]?.extensions[]?.versions[]? | select(.version == $version) | .version][0] // empty' \
+            <<< "$RESPONSE")"
+          echo "url=https://marketplace.visualstudio.com/items?itemName=$EXTENSION_ID" >> "$GITHUB_OUTPUT"
+          if [ "$MATCHED_VERSION" = "$PACKAGE_VERSION" ]; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            echo "Marketplace already contains version $PACKAGE_VERSION. Skipping duplicate publication."
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Publish extension
+        if: steps.marketplace.outputs.published != 'true'
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
-        run: npm run publish:marketplace
+          PACKAGE_VERSION: ${{ steps.release.outputs.package_version }}
+        run: |
+          npm run publish:marketplace || {
+            echo "::error::Marketplace did not accept version $PACKAGE_VERSION. No release asset or result was marked as published."
+            exit 1
+          }
+      - name: Attach release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          VSIX: ${{ steps.package.outputs.vsix }}
+          CHECKSUM_FILE: ${{ steps.package.outputs.checksum_file }}
+        run: |
+          RELEASE_ASSETS="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')"
+          mkdir release-assets
+          attach_asset() {
+            local asset_name="$1"
+            if printf '%s\n' "$RELEASE_ASSETS" | grep -Fxq "$asset_name"; then
+              gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+                --pattern "$asset_name" --dir release-assets
+              cmp --silent "$asset_name" "release-assets/$asset_name" || {
+                echo "::error::Existing release asset $asset_name differs from this validated build."
+                exit 1
+              }
+              echo "Existing release asset $asset_name matches this build."
+            else
+              gh release upload "$RELEASE_TAG" "$asset_name" --repo "$GITHUB_REPOSITORY"
+            fi
+          }
+          attach_asset "$VSIX"
+          attach_asset "$CHECKSUM_FILE"
+      - name: Report publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          MARKETPLACE_URL: ${{ steps.marketplace.outputs.url }}
+          PACKAGE_VERSION: ${{ steps.release.outputs.package_version }}
+          VSIX: ${{ steps.package.outputs.vsix }}
+          VSIX_SHA256: ${{ steps.package.outputs.sha256 }}
+          ALREADY_PUBLISHED: ${{ steps.marketplace.outputs.published }}
+        run: |
+          MARKER='<!-- ledgerboard-marketplace -->'
+          RELEASE_BODY="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json body --jq .body)"
+          if ! printf '%s' "$RELEASE_BODY" | grep -Fq "$MARKER"; then
+            {
+              printf '%s\n\n' "$RELEASE_BODY"
+              printf '%s\n\n' "$MARKER"
+              printf '## Marketplace publication\n\n'
+              printf '[Install LedgerBoard from the Visual Studio Marketplace](%s)\n\n' "$MARKETPLACE_URL"
+              printf -- '- VSIX: `%s`\n' "$VSIX"
+              printf -- '- SHA-256: `%s`\n' "$VSIX_SHA256"
+            } > release-notes.md
+            gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --notes-file release-notes.md
+          fi
+          {
+            echo "## Marketplace publication"
+            echo
+            echo "- Release tag: \`$RELEASE_TAG\`"
+            echo "- Version: \`$PACKAGE_VERSION\`"
+            echo "- Marketplace: [$MARKETPLACE_URL]($MARKETPLACE_URL)"
+            echo "- VSIX SHA-256: \`$VSIX_SHA256\`"
+            if [ "$ALREADY_PUBLISHED" = "true" ]; then
+              echo "- Result: the Marketplace already contained this version, so no duplicate was published."
+            else
+              echo "- Result: published successfully."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
