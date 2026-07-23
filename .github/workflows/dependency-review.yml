@@ -1,0 +1,37 @@
+name: Dependency review
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  dependency-review:
+    name: dependency-review
+    runs-on: ubuntu-latest
+    steps:
+      - name: Review newly introduced dependency risks
+        id: review
+        uses: actions/dependency-review-action@v5
+        with:
+          fail-on-severity: high
+          fail-on-scopes: runtime,development,unknown
+          comment-summary-in-pr: never
+      - name: Publish dependency review summary
+        if: ${{ always() }}
+        env:
+          REVIEW: ${{ steps.review.outcome }}
+        run: |
+          {
+            echo "## Dependency review"
+            echo ""
+            echo "The pull request is blocked when it introduces a high or critical vulnerability."
+            echo ""
+            echo "Result: **$REVIEW**"
+          } >> "$GITHUB_STEP_SUMMARY"

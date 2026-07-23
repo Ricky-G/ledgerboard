@@ -31,5 +31,7 @@ Markdown contract in `BOARD-STANDARDS.md`.
 - Update `CHANGELOG.md` for user-visible changes.
 - Confirm the packaged VSIX contains no test fixtures, secrets, or private board data.
 - Use accessible labels, keyboard interactions, and visible focus states for UI changes.
+- Follow [the PR quality and security gates](docs/pull-request-gates.md), including its local
+  preflight commands and remediation guidance.
 
 By contributing, you agree that your contribution is licensed under the MIT License.

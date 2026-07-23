@@ -1,0 +1,49 @@
+name: Dependency security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-security-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dependency-security:
+    name: dependency-security
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the pull request
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - name: Validate the lockfile and install dependencies
+        id: install
+        run: npm ci --ignore-scripts
+      - name: Audit resolved dependencies
+        id: audit
+        run: npm audit --audit-level=high
+      - name: Publish dependency security summary
+        if: ${{ always() }}
+        env:
+          INSTALL: ${{ steps.install.outcome }}
+          AUDIT: ${{ steps.audit.outcome }}
+        run: |
+          {
+            echo "## Dependency security"
+            echo ""
+            echo "| Check | Result |"
+            echo "| --- | --- |"
+            echo "| Lockfile integrity | $INSTALL |"
+            echo "| High and critical audit findings | $AUDIT |"
+          } >> "$GITHUB_STEP_SUMMARY"
