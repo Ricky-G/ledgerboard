@@ -1,0 +1,45 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: codeql-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: analyze
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the pull request
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: javascript-typescript
+          build-mode: none
+      - name: Analyze source code
+        id: analyze
+        uses: github/codeql-action/analyze@v4
+      - name: Publish CodeQL summary
+        if: ${{ always() }}
+        env:
+          ANALYZE: ${{ steps.analyze.outcome }}
+        run: |
+          {
+            echo "## CodeQL"
+            echo ""
+            echo "Code-scanning merge protection blocks new configured CodeQL findings."
+            echo ""
+            echo "Result: **$ANALYZE**"
+          } >> "$GITHUB_STEP_SUMMARY"
