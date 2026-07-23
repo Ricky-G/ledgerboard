@@ -47,10 +47,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           REQUIRED_CHECKS=(
-            "CI / quality"
-            "Dependency security / dependency-security"
-            "Secret scan / secret-scan"
-            "CodeQL / analyze"
+            "quality"
+            "dependency-security"
+            "secret-scan"
+            "analyze"
           )
           DEADLINE="$((SECONDS + 1800))"
 
