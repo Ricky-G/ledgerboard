@@ -2,6 +2,13 @@
 
 All notable changes to LedgerBoard are documented here.
 
+## [0.3.2](https://github.com/Ricky-G/ledgerboard/compare/v0.3.1...v0.3.2) (2026-07-25)
+
+
+### Documentation
+
+* remove internal details from Marketplace description ([#31](https://github.com/Ricky-G/ledgerboard/issues/31)) ([aeed081](https://github.com/Ricky-G/ledgerboard/commit/aeed081449cca600845723d569d761a1ed5771f5))
+
 ## [0.3.1](https://github.com/Ricky-G/ledgerboard/compare/v0.3.0...v0.3.1) (2026-07-25)
 
 
