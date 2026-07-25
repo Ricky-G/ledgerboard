@@ -80,11 +80,16 @@ request checks and branch rules as every other change before merging.
 
 ### Recovery publishing
 
-Use the **Publish to Visual Studio Marketplace** workflow dispatch only to recover an interrupted
-publication. Provide an existing annotated `vX.Y.Z` tag that already has a GitHub Release. The workflow
-revalidates the tagged source and verifies that the tag matches `package.json` before publishing. It
-skips an already-published Marketplace version and refuses a release asset that differs from the
-validated build, so retrying cannot duplicate a version or silently replace an artifact. Rerunning the
-failed release workflow also safely resumes publication for its existing release tag.
+Use the **Release** workflow dispatch from the default branch with the existing `vX.Y.Z` tag when release
+recovery must repair the tag before publishing. It requires the tag format, an existing GitHub Release, and
+a matching `package.json` version at the tagged commit. A lightweight tag is replaced with an annotated tag
+pointing to the same commit, then the existing protected publisher runs. Approve the `marketplace`
+deployment only after these validations succeed.
+
+Use the **Publish to Visual Studio Marketplace** workflow dispatch only when the existing GitHub Release
+already has an annotated `vX.Y.Z` tag. It revalidates the tagged source and verifies that the tag matches
+`package.json` before publishing. It skips an already-published Marketplace version and refuses a release
+asset that differs from the validated build, so retrying cannot duplicate a version or silently replace an
+artifact.
 
 By contributing, you agree that your contribution is licensed under the MIT License.
