@@ -43,6 +43,8 @@
     editingCardId: null,
     draggedCardId: null,
     suppressCardClick: false,
+    analytics: null,
+    analyticsPendingPreset: vscode.getState()?.analytics || null,
   };
 
   const elements = collectElements();
@@ -54,10 +56,16 @@
       "appShell", "workspaceName", "boardTitle", "connectionState", "connectionLabel",
       "saveState", "saveStateIcon", "saveStateLabel", "saveStateDetail",
       "reloadButton", "connectButton", "saveButton", "boardView", "settingsView",
-      "analyticsView", "analyticsCoverage", "analyticsRange", "metricActive", "metricDone",
-      "metricCompletion", "metricEntities", "metricCompletedLabel", "metricCompletedRange",
-      "metricCycle", "statusTotal", "statusChart", "priorityChart", "activityChart",
-      "entityChart", "historyEventCount", "recentActivity",
+      "analyticsView", "analyticsCoverage", "analyticsTimeZone", "analyticsRangeSummary",
+      "analyticsRange", "analyticsCustomRange", "analyticsStartDate", "analyticsEndDate",
+      "analyticsSearch", "analyticsStatus", "analyticsPriority", "analyticsArea", "analyticsAssignee",
+      "analyticsAggregation", "analyticsShowAssignees", "analyticsSavePreset", "analyticsRestorePreset",
+      "analyticsExport", "analyticsForecastDate", "metricActive", "metricBlocked", "metricAging",
+      "metricCompletedLabel", "metricCompletedRange", "metricNetWork", "metricRework", "metricCycle",
+      "metricForecast", "metricForecastDetail", "analyticsHealthSummary", "analyticsDefinitions",
+      "statusTotal", "statusChart", "priorityChart", "throughputChart", "entityChart", "cumulativeFlow",
+      "agingWork", "workload", "timeInStatus", "qualityChecks", "insights", "forecast",
+      "historyEventCount", "recentActivity", "analyticsDrilldown",
       "searchInput", "areaFilter", "assigneeFilter", "priorityFilter", "activeCount", "blockedCount",
       "doingCount", "addCardButton", "mobileColumnTabs", "boardCanvas", "welcomePanel",
       "welcomeTitle", "welcomeCopy",
@@ -73,6 +81,8 @@
 
   function initialize() {
     bindEvents();
+    restoreAnalyticsPreset({ render: false });
+    updateAnalyticsRangeVisibility();
     populateColumnSelect();
     applyConfig();
     renderSettings();
@@ -92,7 +102,31 @@
     elements.areaFilter.addEventListener("change", renderBoard);
     elements.assigneeFilter.addEventListener("change", renderBoard);
     elements.priorityFilter.addEventListener("change", renderBoard);
-    elements.analyticsRange.addEventListener("change", renderAnalytics);
+    [
+      elements.analyticsRange,
+      elements.analyticsStartDate,
+      elements.analyticsEndDate,
+      elements.analyticsStatus,
+      elements.analyticsPriority,
+      elements.analyticsArea,
+      elements.analyticsAssignee,
+      elements.analyticsAggregation,
+      elements.analyticsShowAssignees,
+      elements.analyticsForecastDate,
+    ].forEach((control) => {
+      control.addEventListener("change", () => {
+        updateAnalyticsRangeVisibility();
+        persistAnalyticsViewState();
+        renderAnalytics();
+      });
+    });
+    elements.analyticsSearch.addEventListener("input", () => {
+      persistAnalyticsViewState();
+      renderAnalytics();
+    });
+    elements.analyticsSavePreset.addEventListener("click", saveAnalyticsPreset);
+    elements.analyticsRestorePreset.addEventListener("click", () => restoreAnalyticsPreset({ render: true }));
+    elements.analyticsExport.addEventListener("click", exportAnalytics);
     elements.addPersonButton.addEventListener("click", addPerson);
     elements.addEntityButton.addEventListener("click", addEntity);
 
@@ -1074,37 +1108,272 @@
       return;
     }
 
-    const days = Number.parseInt(elements.analyticsRange.value, 10) || 30;
-    const analytics = model.buildAnalytics(state.board, state.historyEvents, { days });
+    syncAnalyticsFilterOptions();
+    const analytics = model.buildAnalytics(state.board, state.historyEvents, analyticsOptions());
+    state.analytics = analytics;
     elements.metricActive.textContent = String(analytics.active);
-    elements.metricDone.textContent = String(analytics.done);
-    elements.metricCompletion.textContent = `${analytics.completionRate}%`;
-    elements.metricEntities.textContent = String(analytics.activeEntities);
-    elements.metricCompletedLabel.textContent = `Completed · ${days}d`;
+    elements.metricBlocked.textContent = String(analytics.blocked);
+    elements.metricAging.textContent = String(analytics.aging.stale.length);
+    elements.metricCompletedLabel.textContent = `${analytics.metadata.range.days} days, ${analytics.metadata.timeZone}`;
     elements.metricCompletedRange.textContent = String(analytics.completedInRange);
+    elements.metricNetWork.textContent = formatSignedNumber(analytics.comparison.netWorkChange);
+    elements.metricRework.textContent = String(analytics.reworkCount);
     elements.metricCycle.textContent = analytics.medianCycleDays === null
-      ? "—"
+      ? "Unavailable"
       : `${analytics.medianCycleDays}d`;
+    elements.metricForecast.textContent = formatForecastRange(analytics.forecast);
+    elements.metricForecastDetail.textContent = analytics.forecast.available
+      ? "Historical throughput range"
+      : "Needs more recorded history";
     elements.statusTotal.textContent = `${analytics.total} outcomes`;
     elements.historyEventCount.textContent = `${analytics.historyEvents} events`;
-
-    if (analytics.historySince) {
-      const baselineCount = state.historyEvents.filter((event) => event.event === "baseline").length;
-      elements.analyticsCoverage.textContent = `History tracked from ${formatShortDate(analytics.historySince)}`
-        + ` · ${baselineCount} baseline observations · exact transitions recorded from that point.`;
-    } else {
-      elements.analyticsCoverage.textContent = "Current board state; transition history has not started yet.";
-    }
+    elements.analyticsTimeZone.textContent = analytics.metadata.timeZone;
+    elements.analyticsRangeSummary.textContent = `${formatShortDateKey(analytics.metadata.range.start)} to ${formatShortDateKey(analytics.metadata.range.end)}`;
+    elements.analyticsCoverage.textContent = analytics.historySince
+      ? `History tracked from ${formatShortDate(analytics.historySince)}. ${analytics.metadata.historyCoverage}`
+      : analytics.metadata.historyCoverage;
 
     renderStatusChart(analytics);
     renderPriorityChart(analytics);
-    renderActivityChart(analytics);
+    renderThroughputChart(analytics);
     renderEntityChart(analytics);
+    renderCumulativeFlow(analytics);
+    renderAgingWork(analytics);
+    renderWorkload(analytics);
+    renderTimeInStatus(analytics);
+    renderQualityChecks(analytics);
+    renderInsights(analytics);
+    renderForecast(analytics);
     renderRecentActivity(analytics);
+    renderAnalyticsContext(analytics);
+  }
+
+  function analyticsOptions() {
+    const customRange = elements.analyticsRange.value === "custom";
+    const selected = (element) => element.value ? [element.value] : [];
+    return {
+      days: customRange ? undefined : Number.parseInt(elements.analyticsRange.value, 10) || 30,
+      startDate: customRange ? elements.analyticsStartDate.value : undefined,
+      endDate: customRange ? elements.analyticsEndDate.value : undefined,
+      timeZone: state.config.workspace.timezone,
+      aggregation: elements.analyticsAggregation.value,
+      forecastDate: elements.analyticsForecastDate.value,
+      filters: {
+        statuses: selected(elements.analyticsStatus),
+        priorities: selected(elements.analyticsPriority),
+        areas: selected(elements.analyticsArea),
+        assignees: selected(elements.analyticsAssignee),
+        search: elements.analyticsSearch.value,
+      },
+    };
+  }
+
+  function syncAnalyticsFilterOptions() {
+    const cards = state.board.columns.flatMap((column) => column.cards);
+    const entities = state.config.entities
+      .map((entity) => ({ value: entity.id, label: entity.name }))
+      .sort((left, right) => left.label.localeCompare(right.label));
+    const people = state.config.people
+      .map((person) => ({ value: person.id, label: person.name }))
+      .sort((left, right) => left.label.localeCompare(right.label));
+    const assigned = new Set(cards.map((card) => card.detailValues.assignee).filter(Boolean));
+    populateAnalyticsSelect(elements.analyticsArea, "All entities", entities);
+    populateAnalyticsSelect(elements.analyticsAssignee, "All assignees", [
+      { value: "unassigned", label: "Unassigned" },
+      ...people.filter((person) => assigned.has(person.value)),
+    ]);
+    if (state.analyticsPendingPreset) {
+      elements.analyticsArea.value = state.analyticsPendingPreset.area || "";
+      elements.analyticsAssignee.value = state.analyticsPendingPreset.assignee || "";
+      state.analyticsPendingPreset = null;
+    }
+  }
+
+  function populateAnalyticsSelect(select, allLabel, options) {
+    const selected = select.value;
+    const values = options.map((option) => option.value);
+    select.replaceChildren();
+    const all = document.createElement("option");
+    all.value = "";
+    all.textContent = allLabel;
+    select.append(all);
+    options.forEach((option) => {
+      const element = document.createElement("option");
+      element.value = option.value;
+      element.textContent = option.label;
+      select.append(element);
+    });
+    select.value = values.includes(selected) ? selected : "";
+  }
+
+  function updateAnalyticsRangeVisibility() {
+    const customRange = elements.analyticsRange.value === "custom";
+    elements.analyticsCustomRange.hidden = !customRange;
+    if (customRange && !elements.analyticsEndDate.value) {
+      const end = new Date();
+      const start = new Date(end);
+      start.setDate(start.getDate() - 29);
+      elements.analyticsStartDate.value = localDateInputValue(start);
+      elements.analyticsEndDate.value = localDateInputValue(end);
+    }
+  }
+
+  function localDateInputValue(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  function persistAnalyticsViewState() {
+    const current = vscode.getState() || {};
+    vscode.setState({
+      ...current,
+      analytics: {
+        range: elements.analyticsRange.value,
+        startDate: elements.analyticsStartDate.value,
+        endDate: elements.analyticsEndDate.value,
+        search: elements.analyticsSearch.value,
+        status: elements.analyticsStatus.value,
+        priority: elements.analyticsPriority.value,
+        area: elements.analyticsArea.value,
+        assignee: elements.analyticsAssignee.value,
+        aggregation: elements.analyticsAggregation.value,
+        showAssignees: elements.analyticsShowAssignees.checked,
+        forecastDate: elements.analyticsForecastDate.value,
+      },
+    });
+  }
+
+  function restoreAnalyticsPreset({ render }) {
+    const saved = vscode.getState()?.analytics;
+    if (!saved) {
+      if (render) showToast("No locally saved analytics filters yet.", "info");
+      return;
+    }
+    elements.analyticsRange.value = saved.range || "30";
+    elements.analyticsStartDate.value = saved.startDate || "";
+    elements.analyticsEndDate.value = saved.endDate || "";
+    elements.analyticsSearch.value = saved.search || "";
+    elements.analyticsStatus.value = saved.status || "";
+    elements.analyticsPriority.value = saved.priority || "";
+    elements.analyticsArea.value = saved.area || "";
+    elements.analyticsAssignee.value = saved.assignee || "";
+    elements.analyticsAggregation.value = saved.aggregation || "day";
+    elements.analyticsShowAssignees.checked = Boolean(saved.showAssignees);
+    elements.analyticsForecastDate.value = saved.forecastDate || "";
+    state.analyticsPendingPreset = saved;
+    updateAnalyticsRangeVisibility();
+    if (render) {
+      renderAnalytics();
+      showToast("Restored locally saved analytics filters.", "success");
+    }
+  }
+
+  function saveAnalyticsPreset() {
+    persistAnalyticsViewState();
+    showToast("Saved analytics filters locally in this webview.", "success");
+  }
+
+  function exportAnalytics() {
+    if (!state.analytics) return;
+    const analytics = state.analytics;
+    const includeAssignees = elements.analyticsShowAssignees.checked;
+    const exportData = {
+      schemaVersion: 1,
+      generatedAt: new Date().toISOString(),
+      board: state.rootName,
+      filters: exportAnalyticsMetadata(analytics.metadata, includeAssignees),
+      definitions: analytics.definitions,
+      boardHealth: {
+        total: analytics.total,
+        active: analytics.active,
+        done: analytics.done,
+        blocked: analytics.blocked,
+        completionRate: analytics.completionRate,
+        completedInRange: analytics.completedInRange,
+        createdInRange: analytics.createdInRange,
+        netWorkChange: analytics.comparison.netWorkChange,
+        reopenedInRange: analytics.reworkCount,
+      },
+      distribution: { status: analytics.status, priority: analytics.priority, entities: analytics.entities },
+      throughput: exportThroughput(analytics.throughput),
+      cumulativeFlow: analytics.cumulativeFlow,
+      leadTime: analytics.leadTime,
+      cycleTime: analytics.cycleTime,
+      timeInStatus: analytics.timeInStatus,
+      quality: analytics.quality.summary,
+      workload: exportWorkload(analytics.workload, includeAssignees),
+      forecast: analytics.forecast,
+    };
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "ledgerboard-analytics.json";
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    showToast("Downloaded filtered aggregate analytics. No board data was sent anywhere.", "success");
+  }
+
+  function exportWorkload(workload, includeAssignees) {
+    if (includeAssignees) {
+      return workload.map(({ assignee, active, blocked, completed }) => ({ assignee, active, blocked, completed }));
+    }
+    return aggregateHiddenWorkload(workload).map(({ assignee, active, blocked, completed }) => ({
+      assignee,
+      active,
+      blocked,
+      completed,
+    }));
+  }
+
+  function exportAnalyticsMetadata(metadata, includeAssignees) {
+    return {
+      ...metadata,
+      filters: {
+        ...metadata.filters,
+        assignees: includeAssignees
+          ? metadata.filters.assignees
+          : metadata.filters.assignees.map((assignee) => assignee === "unassigned" ? "unassigned" : "assigned"),
+      },
+    };
+  }
+
+  function exportThroughput(throughput) {
+    return throughput.map((bucket) => ({
+      key: bucket.key,
+      activity: bucket.activity,
+      created: bucket.created,
+      completed: bucket.completed,
+      reopened: bucket.reopened,
+    }));
+  }
+
+  function renderAnalyticsContext(analytics) {
+    const comparison = analytics.comparison;
+    const direction = comparison.completionChange === 0
+      ? "matched"
+      : comparison.completionChange > 0 ? "increased by" : "decreased by";
+    elements.analyticsHealthSummary.textContent = `${analytics.active} open, ${analytics.blocked} blocked, and `
+      + `${analytics.completedInRange} recorded completions. Completion throughput ${direction} `
+      + `${Math.abs(comparison.completionChange)} compared with the preceding equivalent period.`;
+    elements.analyticsDefinitions.replaceChildren();
+    Object.entries(analytics.definitions).forEach(([name, definition]) => {
+      const item = document.createElement("p");
+      const label = document.createElement("strong");
+      label.textContent = `${titleCase(name)}: `;
+      item.append(label, document.createTextNode(definition));
+      elements.analyticsDefinitions.append(item);
+    });
   }
 
   function renderStatusChart(analytics) {
     elements.statusChart.replaceChildren();
+    if (analytics.total === 0) {
+      elements.statusChart.append(createAnalyticsEmpty("No current outcomes match this filter."));
+      return;
+    }
     const colors = {
       inbox: "#7d8890",
       next: "#2e6ea6",
@@ -1117,11 +1386,14 @@
     model.COLUMNS.forEach((column) => {
       const count = analytics.status[column.id];
       if (count === 0) return;
-      const segment = document.createElement("div");
+      const segment = createAnalyticsAction(
+        `${column.label}: ${count} outcomes`,
+        "status-segment",
+        analytics.cards.filter((card) => card.columnId === column.id).map((card) => card.id),
+      );
       segment.className = "status-segment";
       segment.dataset.status = column.id;
       segment.style.flexBasis = `${(count / Math.max(1, analytics.total)) * 100}%`;
-      segment.title = `${column.label}: ${count}`;
       segment.textContent = count;
       track.append(segment);
     });
@@ -1129,7 +1401,11 @@
     const legend = document.createElement("div");
     legend.className = "status-legend";
     model.COLUMNS.forEach((column) => {
-      const item = document.createElement("div");
+      const item = createAnalyticsAction(
+        `${column.label}: ${analytics.status[column.id]} outcomes`,
+        "status-legend-item",
+        analytics.cards.filter((card) => card.columnId === column.id).map((card) => card.id),
+      );
       item.className = "status-legend-item";
       item.style.setProperty("--legend-color", colors[column.id]);
       const swatch = document.createElement("i");
@@ -1145,10 +1421,20 @@
 
   function renderPriorityChart(analytics) {
     elements.priorityChart.replaceChildren();
+    if (analytics.total === 0) {
+      elements.priorityChart.append(createAnalyticsEmpty("No current outcomes match this filter."));
+      return;
+    }
     const colors = { P1: "#b52f42", P2: "#c65d18", P3: "#2e6ea6", P4: "#617078" };
     const maximum = Math.max(1, ...Object.values(analytics.priority));
     Object.entries(analytics.priority).forEach(([priority, count]) => {
-      elements.priorityChart.append(createAnalyticsBar(priority, count, maximum, colors[priority]));
+      elements.priorityChart.append(createAnalyticsBar(
+        priority,
+        count,
+        maximum,
+        colors[priority],
+        analytics.cards.filter((card) => card.priority === priority).map((card) => card.id),
+      ));
     });
   }
 
@@ -1163,12 +1449,18 @@
     const maximum = Math.max(1, ...entries.map(([, count]) => count));
     entries.forEach(([area, count]) => {
       const entity = getEntity(area);
-      elements.entityChart.append(createAnalyticsBar(entity.name, count, maximum, entity.color));
+      elements.entityChart.append(createAnalyticsBar(
+        entity.name,
+        count,
+        maximum,
+        entity.color,
+        analytics.cards.filter((card) => card.area === area).map((card) => card.id),
+      ));
     });
   }
 
-  function createAnalyticsBar(labelText, value, maximum, color) {
-    const row = document.createElement("div");
+  function createAnalyticsBar(labelText, value, maximum, color, cardIds) {
+    const row = createAnalyticsAction(`${labelText}: ${value} outcomes`, "analytics-bar-row", cardIds);
     row.className = "analytics-bar-row";
     const label = document.createElement("span");
     label.textContent = labelText;
@@ -1186,21 +1478,40 @@
     return row;
   }
 
-  function renderActivityChart(analytics) {
-    elements.activityChart.replaceChildren();
-    const activityTotal = analytics.daily.reduce((sum, bucket) => sum + bucket.activity, 0);
+  function createAnalyticsAction(label, className, cardIds) {
+    if (!cardIds?.length) {
+      const item = document.createElement("div");
+      item.className = className;
+      item.title = label;
+      return item;
+    }
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = className;
+    button.title = `View supporting work: ${label}`;
+    button.setAttribute("aria-label", `View supporting work: ${label}`);
+    button.addEventListener("click", () => showAnalyticsDrilldown(label, cardIds));
+    return button;
+  }
+
+  function renderThroughputChart(analytics) {
+    elements.throughputChart.replaceChildren();
+    const activityTotal = analytics.throughput.reduce((sum, bucket) => sum + bucket.activity, 0);
     if (activityTotal === 0) {
-      elements.activityChart.append(createAnalyticsEmpty(
-        "Transition tracking starts with this baseline. Activity and throughput bars will appear after the next saved board change.",
+      elements.throughputChart.append(createAnalyticsEmpty(
+        "No recorded activity matches this range and filter. Future saved changes will appear here.",
       ));
       return;
     }
-    const maximum = Math.max(1, ...analytics.daily.flatMap((bucket) => [bucket.activity, bucket.completed]));
-    const labelEvery = analytics.rangeDays <= 7 ? 1 : analytics.rangeDays <= 30 ? 5 : 15;
-    analytics.daily.forEach((bucket, index) => {
-      const day = document.createElement("div");
+    const maximum = Math.max(1, ...analytics.throughput.flatMap((bucket) => [bucket.activity, bucket.completed]));
+    const labelEvery = analytics.throughput.length <= 7 ? 1 : analytics.throughput.length <= 30 ? 5 : 15;
+    analytics.throughput.forEach((bucket, index) => {
+      const day = createAnalyticsAction(
+        `${bucket.key}: ${bucket.completed} completed and ${bucket.activity} recorded events`,
+        "activity-day",
+        bucket.completedCardIds.length > 0 ? bucket.completedCardIds : bucket.activityCardIds,
+      );
       day.className = "activity-day";
-      day.title = `${bucket.date}: ${bucket.activity} events, ${bucket.completed} completed`;
       const activity = document.createElement("div");
       activity.className = "activity-bar";
       activity.style.height = `${(bucket.activity / maximum) * 100}%`;
@@ -1208,21 +1519,210 @@
       completed.className = "completed-bar";
       completed.style.height = `${(bucket.completed / maximum) * 100}%`;
       day.append(activity, completed);
-      if (index % labelEvery === 0 || index === analytics.daily.length - 1) {
+      if (index % labelEvery === 0 || index === analytics.throughput.length - 1) {
         const label = document.createElement("span");
         label.className = "activity-day-label";
-        label.textContent = formatChartDate(bucket.date);
+        label.textContent = formatChartDate(bucket.key);
         day.append(label);
       }
-      elements.activityChart.append(day);
+      elements.throughputChart.append(day);
     });
+  }
+
+  function renderCumulativeFlow(analytics) {
+    if (analytics.cumulativeFlow.every((row) => row.known === 0)) {
+      elements.cumulativeFlow.replaceChildren(createAnalyticsEmpty(
+        "No recorded state observations match this range and filter.",
+      ));
+      return;
+    }
+    const rows = sampleAnalyticsRows(analytics.cumulativeFlow, 12);
+    renderAnalyticsTable(
+      elements.cumulativeFlow,
+      ["Date", ...model.COLUMNS.map((column) => column.label), "Known"],
+      rows.map((row) => [
+        formatChartDate(row.date),
+        ...model.COLUMNS.map((column) => String(row[column.id])),
+        String(row.known),
+      ]),
+      "No recorded state history matches this range.",
+    );
+  }
+
+  function renderAgingWork(analytics) {
+    elements.agingWork.replaceChildren();
+    if (analytics.aging.items.length === 0) {
+      elements.agingWork.append(createAnalyticsEmpty(
+        analytics.aging.unknown.length > 0
+          ? "Active outcomes have no recorded entry into their current status yet."
+          : "No active work matches this filter.",
+      ));
+      return;
+    }
+    analytics.aging.items.slice(0, 12).forEach((item) => {
+      const row = createAnalyticsAction(
+        `${item.id}: ${item.title}`,
+        "analytics-record",
+        [item.id],
+      );
+      const heading = document.createElement("strong");
+      heading.textContent = `${item.id}: ${item.title}`;
+      const detail = document.createElement("span");
+      detail.textContent = `${statusLabel(item.columnId)} - ${item.priority} - ${item.area} - `
+        + `${item.ageDays} recorded days${item.lowerBound ? " minimum" : ""}`;
+      row.append(heading, detail);
+      elements.agingWork.append(row);
+    });
+    if (analytics.aging.unknown.length > 0) {
+      const unknown = document.createElement("p");
+      unknown.className = "analytics-note";
+      unknown.textContent = `${analytics.aging.unknown.length} active outcome(s) have an unknown age because history has no recorded entry into the current status.`;
+      elements.agingWork.append(unknown);
+    }
+  }
+
+  function renderWorkload(analytics) {
+    const includeAssignees = elements.analyticsShowAssignees.checked;
+    const rows = includeAssignees ? analytics.workload : aggregateHiddenWorkload(analytics.workload);
+    renderAnalyticsTable(
+      elements.workload,
+      ["Workload", "Active", "Blocked", "Completed"],
+      rows.map((item) => [item.assignee === "unassigned" ? "Unassigned" : displayAssignee(item.assignee, includeAssignees), String(item.active), String(item.blocked), String(item.completed)]),
+      "No active workload matches this filter.",
+      rows.map((item) => item.cardIds),
+    );
+  }
+
+  function aggregateHiddenWorkload(workload) {
+    const grouped = new Map();
+    workload.forEach((item) => {
+      const key = item.assignee === "unassigned" ? "unassigned" : "assigned";
+      const target = grouped.get(key) || {
+        assignee: key === "unassigned" ? "unassigned" : "Assigned work",
+        active: 0,
+        blocked: 0,
+        completed: 0,
+        cardIds: [],
+      };
+      target.active += item.active;
+      target.blocked += item.blocked;
+      target.completed += item.completed;
+      target.cardIds.push(...item.cardIds);
+      grouped.set(key, target);
+    });
+    return [...grouped.values()];
+  }
+
+  function displayAssignee(assignee, includeAssignees) {
+    if (!includeAssignees) return "Assigned work";
+    return getPerson(assignee).name;
+  }
+
+  function renderTimeInStatus(analytics) {
+    renderAnalyticsTable(
+      elements.timeInStatus,
+      ["Status", "Intervals", "Median", "Average", "P85"],
+      analytics.timeInStatus.map((item) => [
+        statusLabel(item.status),
+        String(item.count),
+        formatDuration(item.medianDays),
+        formatDuration(item.averageDays),
+        formatDuration(item.p85Days),
+      ]),
+      "No completed, non-baseline status intervals match this history.",
+    );
+  }
+
+  function renderQualityChecks(analytics) {
+    elements.qualityChecks.replaceChildren();
+    const checks = [
+      {
+        label: "Active outcomes without a description",
+        items: analytics.quality.missingDescriptions,
+      },
+      {
+        label: "Unassigned active work",
+        items: analytics.quality.unassigned,
+      },
+      {
+        label: "No recent recorded activity",
+        items: analytics.quality.stale,
+      },
+      {
+        label: "Duplicate-looking active titles",
+        items: analytics.quality.duplicates.flat(),
+      },
+      {
+        label: "Inconsistent status history",
+        items: analytics.quality.historyIssues,
+      },
+    ];
+    const hasChecks = checks.some((check) => check.items.length > 0);
+    if (!hasChecks) {
+      elements.qualityChecks.append(createAnalyticsEmpty("No data-quality checks need attention in this filtered view."));
+      return;
+    }
+    checks.forEach((check) => {
+      if (check.items.length === 0) return;
+      const ids = check.items.map((item) => item.id || item.card).filter(Boolean);
+      const row = createAnalyticsAction(
+        `${check.label}: ${check.items.length}`,
+        "quality-check",
+        ids,
+      );
+      const title = document.createElement("strong");
+      title.textContent = check.label;
+      const detail = document.createElement("span");
+      detail.textContent = `${check.items.length} item${check.items.length === 1 ? "" : "s"} to review`;
+      row.append(title, detail);
+      elements.qualityChecks.append(row);
+    });
+  }
+
+  function renderInsights(analytics) {
+    elements.insights.replaceChildren();
+    if (analytics.insights.length === 0) {
+      elements.insights.append(createAnalyticsEmpty("No significant changes need attention in this filtered view."));
+      return;
+    }
+    analytics.insights.forEach((insight) => {
+      const row = createAnalyticsAction(insight.title, "analytics-insight", insight.cardIds);
+      row.dataset.tone = insight.tone;
+      const title = document.createElement("strong");
+      title.textContent = insight.title;
+      const detail = document.createElement("span");
+      detail.textContent = insight.detail;
+      const action = document.createElement("small");
+      action.textContent = insight.action;
+      row.append(title, detail, action);
+      elements.insights.append(row);
+    });
+  }
+
+  function renderForecast(analytics) {
+    elements.forecast.replaceChildren();
+    if (!analytics.forecast.available) {
+      elements.forecast.append(createAnalyticsEmpty(analytics.forecast.reason));
+      return;
+    }
+    const range = analytics.forecast.finishRangeWeeks;
+    const summary = document.createElement("p");
+    summary.textContent = range.latest === null
+      ? `The current filtered open work could finish in about ${range.earliest} week(s) at the stronger observed weekly throughput. The slower range is too uneven to estimate.`
+      : `Historical weekly throughput suggests a range of ${range.earliest} to ${range.latest} weeks for the current filtered open work. This is not a promised date.`;
+    elements.forecast.append(summary);
+    if (analytics.forecast.targetDate) {
+      const target = document.createElement("p");
+      target.textContent = `${analytics.forecast.whatCanFinish} outcomes could finish by ${formatShortDateKey(analytics.forecast.targetDate)} at typical recorded throughput.`;
+      elements.forecast.append(target);
+    }
   }
 
   function renderRecentActivity(analytics) {
     elements.recentActivity.replaceChildren();
     if (analytics.recent.length === 0) {
       elements.recentActivity.append(createAnalyticsEmpty(
-        "No transitions recorded yet. The current board is baselined; future changes will appear here.",
+        "No recorded activity matches this range and filter.",
       ));
       return;
     }
@@ -1249,6 +1749,93 @@
       row.append(time, symbol, copy);
       elements.recentActivity.append(row);
     });
+  }
+
+  function showAnalyticsDrilldown(title, cardIds) {
+    elements.analyticsDrilldown.replaceChildren();
+    const heading = document.createElement("p");
+    heading.className = "analytics-drilldown-heading";
+    heading.textContent = title;
+    elements.analyticsDrilldown.append(heading);
+    const ids = new Set(cardIds || []);
+    const cards = state.analytics.cards.filter((card) => ids.has(card.id));
+    if (cards.length === 0) {
+      elements.analyticsDrilldown.append(createAnalyticsEmpty(
+        "The supporting data has no current outcome to open. It may be historical or deleted work.",
+      ));
+      return;
+    }
+    cards.forEach((card) => {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "analytics-record";
+      row.addEventListener("click", () => openCardDialog(card.id, card.columnId));
+      const label = document.createElement("strong");
+      label.textContent = `${card.id}: ${card.title}`;
+      const detail = document.createElement("span");
+      detail.textContent = `${statusLabel(card.columnId)} - ${card.priority} - ${getEntity(card.area).name}`;
+      row.append(label, detail);
+      elements.analyticsDrilldown.append(row);
+    });
+  }
+
+  function renderAnalyticsTable(target, headers, rows, emptyCopy, cardIdsByRow) {
+    target.replaceChildren();
+    if (rows.length === 0) {
+      target.append(createAnalyticsEmpty(emptyCopy));
+      return;
+    }
+    const table = document.createElement("table");
+    const head = document.createElement("thead");
+    const headRow = document.createElement("tr");
+    headers.forEach((header) => {
+      const cell = document.createElement("th");
+      cell.scope = "col";
+      cell.textContent = header;
+      headRow.append(cell);
+    });
+    head.append(headRow);
+    const body = document.createElement("tbody");
+    rows.forEach((cells, index) => {
+      const row = document.createElement("tr");
+      cells.forEach((value, cellIndex) => {
+        const cell = document.createElement("td");
+        if (cardIdsByRow?.[index]?.length && cellIndex === 0) {
+          const action = createAnalyticsAction(value, "analytics-table-action", cardIdsByRow[index]);
+          action.textContent = value;
+          cell.append(action);
+        } else {
+          cell.textContent = value;
+        }
+        row.append(cell);
+      });
+      body.append(row);
+    });
+    table.append(head, body);
+    target.append(table);
+  }
+
+  function sampleAnalyticsRows(rows, limit) {
+    if (rows.length <= limit) return rows;
+    return Array.from({ length: limit }, (_, index) => rows[Math.round((index * (rows.length - 1)) / (limit - 1))]);
+  }
+
+  function formatSignedNumber(value) {
+    return value > 0 ? `+${value}` : String(value);
+  }
+
+  function formatForecastRange(forecast) {
+    if (!forecast.available) return "Unavailable";
+    const { earliest, latest } = forecast.finishRangeWeeks;
+    return latest === null ? `${earliest}+w` : `${earliest}-${latest}w`;
+  }
+
+  function formatDuration(value) {
+    return value === null ? "Unavailable" : `${value}d`;
+  }
+
+  function titleCase(value) {
+    return value.replace(/([A-Z])/g, " $1").replace(/^./, (letter) => letter.toUpperCase());
   }
 
   function eventDescription(event) {
@@ -1289,6 +1876,11 @@
 
   function formatChartDate(dateKey) {
     return new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" })
+      .format(new Date(`${dateKey}T00:00:00`));
+  }
+
+  function formatShortDateKey(dateKey) {
+    return new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", year: "numeric" })
       .format(new Date(`${dateKey}T00:00:00`));
   }
 
