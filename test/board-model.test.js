@@ -26,7 +26,7 @@ const EMPTY_BOARD = `# Test Board
 
 ---
 
-## Doing \`(WIP <= 3)\`
+## Doing
 
 <!-- empty -->
 
@@ -55,10 +55,57 @@ function boardWithTwoCards(separator = '\n') {
   return boardWith(cards);
 }
 
+function legacyBoardWithManyDoingCards(cardCount) {
+  const doingCards = Array.from({ length: cardCount }, (_, index) => (
+    `- [ ] AO-${String(index + 1).padStart(3, '0')} — Doing outcome ${index + 1} · P2 · area:internal`
+  )).join('\n\n');
+  return EMPTY_BOARD
+    .replace(
+      '## Inbox\n\n<!-- empty -->',
+      '## Inbox\n\n- [ ] AO-101 — Inbox outcome · P2 · area:internal',
+    )
+    .replace(
+      '## Doing\n\n<!-- empty -->',
+      `## Doing \`(WIP <= 3)\`\n\n${doingCards}`,
+    );
+}
+
 test('empty board round-trips byte-for-byte', () => {
   const board = model.parseBoard(EMPTY_BOARD);
   assert.equal(model.serializeBoard(board), EMPTY_BOARD);
   assert.equal(board.columns.length, 5);
+});
+
+test('accepts, orders, and restores large legacy Doing columns', () => {
+  const source = legacyBoardWithManyDoingCards(100);
+  assert.doesNotThrow(() => model.validateBundleSources(source, CONFIG, HISTORY));
+
+  const board = model.parseBoard(source);
+  model.moveCard(board, 'AO-001', 'doing', 75);
+  const doing = board.columns.find((column) => column.id === 'doing');
+  assert.deepEqual(
+    doing.cards.slice(73, 76).map((card) => card.id),
+    ['AO-075', 'AO-001', 'AO-076'],
+  );
+
+  model.moveCard(board, 'AO-101', 'doing', 50);
+  const created = model.createCard(board, {
+    title: 'Created in a large column',
+    columnId: 'doing',
+    area: 'internal',
+  });
+  doing.cards.push(created);
+  model.validateBoard(board);
+  assert.equal(doing.cards.length, 102);
+  assert.equal(doing.cards[50].id, 'AO-101');
+
+  const saved = model.serializeBoard(board);
+  const restored = model.parseBoard(saved);
+  assert.deepEqual(
+    restored.columns.find((column) => column.id === 'doing').cards.map((card) => card.id),
+    doing.cards.map((card) => card.id),
+  );
+  assert.doesNotThrow(() => model.validateBundleSources(saved, CONFIG, HISTORY));
 });
 
 test('checkbox state must match status', () => {

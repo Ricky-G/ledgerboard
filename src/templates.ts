@@ -9,7 +9,6 @@ export const BOARD_TEMPLATE = `# Kanban Board
 
 > Markdown is the source of truth. Status is the column. Description and Assignee are optional detail fields.
 > **Card format:** \`AO-NNN — Outcome title · P1|P2|P3|P4 · area:<entity-id>\`
-> **Doing WIP limit: 3.**
 
 ---
 
@@ -27,7 +26,7 @@ _Accepted and ready to pull._
 
 ---
 
-## Doing \`(WIP <= 3)\`
+## Doing
 _Actively receiving attention._
 
 <!-- empty -->

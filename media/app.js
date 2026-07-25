@@ -17,7 +17,7 @@
   const COLUMN_EMPTY_COPY = {
     inbox: ["Inbox is clear", "New evidence-backed candidates land here."],
     next: ["Nothing queued", "Accepted outcomes ready to pull appear here."],
-    doing: ["No active outcome", "Pull one clear finish when capacity allows."],
+    doing: ["No active outcome", "Pull the next clear finish when work begins."],
     blocked: ["Nothing waiting", "Dependencies and review states appear here."],
     done: ["Nothing closed yet", "Delivered outcomes appear here until weekly reset."],
   };
@@ -555,7 +555,7 @@
     if (!state.board) {
       elements.activeCount.textContent = "0";
       elements.blockedCount.textContent = "0";
-      elements.doingCount.textContent = "0/3";
+      elements.doingCount.textContent = "0";
       return;
     }
     const active = state.board.columns
@@ -565,7 +565,7 @@
     const doing = state.board.columns.find((column) => column.id === "doing").cards.length;
     elements.activeCount.textContent = String(active);
     elements.blockedCount.textContent = String(blocked);
-    elements.doingCount.textContent = `${doing}/3`;
+    elements.doingCount.textContent = String(doing);
   }
 
   function populateAreaFilter() {
@@ -754,13 +754,6 @@
     if (values.detailValues.assignee
       && !state.config.people.some((person) => person.id === values.detailValues.assignee)) {
       throw new Error("Choose an assignee from the saved people list.");
-    }
-    if (values.columnId === "doing") {
-      const doing = state.board.columns.find((column) => column.id === "doing");
-      const alreadyDoing = state.editingCardId && model.findCard(state.board, state.editingCardId).column.id === "doing";
-      if (!alreadyDoing && doing.cards.length >= 3) {
-        throw new Error("Doing already has three outcomes. Finish something before starting more.");
-      }
     }
   }
 

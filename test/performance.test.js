@@ -24,7 +24,7 @@ ${cards}
 
 ---
 
-## Doing \`(WIP <= 3)\`
+## Doing
 
 <!-- empty -->
 
