@@ -1,0 +1,18 @@
+{
+  "exceptions": [
+    {
+      "advisory": "https://github.com/advisories/GHSA-mh99-v99m-4gvg",
+      "owner": "Ricky-G",
+      "expires": "2026-10-31",
+      "remediation": "docs/dependency-security-exceptions.md#brace-expansion",
+      "reason": "Current VSCE, ESLint, and TypeScript ESLint releases require vulnerable brace-expansion through minimatch. No compatible fixed upstream release is available."
+    },
+    {
+      "advisory": "https://github.com/advisories/GHSA-v2hh-gcrm-f6hx",
+      "owner": "Ricky-G",
+      "expires": "2026-10-31",
+      "remediation": "docs/dependency-security-exceptions.md#fast-uri",
+      "reason": "Current VSCE releases require vulnerable fast-uri through secretlint. No compatible fixed upstream release is available."
+    }
+  ]
+}

@@ -6,7 +6,7 @@ Every pull request to `main` must pass the following required checks. The names 
 | --- | --- | --- |
 | `CI / quality` | Lockfile install, privacy scan, type check, lint, unit tests, compile, Extension Host integration tests, VSIX package, and VSIX artifact | Any failed or missing step blocks the pull request. |
 | `Dependency review / dependency-review` | Newly introduced dependency advisories | High and critical advisories in runtime, development, or unknown scopes block the pull request. |
-| `Dependency security / dependency-security` | Resolved lockfile integrity and `npm audit` | High and critical audit findings block the pull request. |
+| `Dependency security / dependency-security` | Resolved lockfile integrity and `npm audit` | Production high and critical findings block the pull request. Development findings also block unless they match an active, documented, expiring exception. |
 | `Secret scan / secret-scan` | Gitleaks scan of the pull request history | Every detected secret blocks the pull request. Revoke the credential before removing it from source. |
 | `CodeQL / analyze` | GitHub CodeQL JavaScript and TypeScript analysis | GitHub code-scanning merge protection blocks errors and high or critical security alerts. |
 
@@ -25,15 +25,15 @@ npm run test
 npm run compile
 npm run test:integration
 npm run vsix
-npm audit --audit-level=high
+npm run audit:dependencies
 ```
 
-The Gitleaks and CodeQL checks run in GitHub Actions because they inspect the pull request commit range and publish results to GitHub Security. Contributors with the Gitleaks CLI can also run `gitleaks detect --source . --redact` locally. Dependency Review compares the pull request dependency graph with its base branch, so `npm audit` is the local preflight for that gate.
+The Gitleaks and CodeQL checks run in GitHub Actions because they inspect the pull request commit range and publish results to GitHub Security. Contributors with the Gitleaks CLI can also run `gitleaks detect --source . --redact` locally. Dependency Review compares the pull request dependency graph with its base branch, and `npm run audit:dependencies` applies the same production audit and limited exception policy as the dependency security gate.
 
 ## Failure response
 
 - **Privacy, type, lint, test, compile, integration, or package failure:** correct the reported failure and push an update. The quality workflow summary identifies the failed stage.
-- **Dependency finding:** update, replace, or remove the affected dependency. An exception requires a documented risk acceptance with an owner, expiration date, and a link to the tracked remediation before a repository administrator uses the emergency bypass.
+- **Dependency finding:** update, replace, or remove the affected dependency. If upstream has no compatible fix, add an explicit exception with an owner, expiration date, and tracked remediation in [the dependency security exception register](dependency-security-exceptions.md). New, expired, or production findings remain blocking.
 - **Secret finding:** immediately revoke or rotate the exposed credential, remove it from the source and generated artifacts, and assess whether history rewriting is necessary. Removing a secret alone does not make it safe.
 - **CodeQL finding:** correct the vulnerability or suppress it only when the result is proven to be a false positive and the suppression explains why. Review the code-scanning alert in GitHub Security.
 
