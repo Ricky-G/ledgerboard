@@ -16,7 +16,6 @@ or proprietary export.
 - Safe **Normalize BOARD.md Formatting** workflow in the Command Palette and load-error screen.
 - Faster initialization and multi-root discovery with parallel direct file reads, bounded probes,
   active-board reuse, and visible progress.
-- 34 automated model, CLI, performance, and Extension Host tests, plus browser smoke coverage.
 
 ## Why LedgerBoard
 
@@ -161,29 +160,6 @@ As always, review source-control changes before sharing a board that may contain
 - A writable workspace for editing (read-only virtual workspaces can still be inspected)
 
 There are no external runtime dependencies.
-
-## Development
-
-### Copilot canvas preview
-
-The project extension in `.github/extensions/ledgerboard-preview` registers a **LedgerBoard preview**
-canvas whenever this repository is opened in the Copilot app. It serves the current `media` assets
-directly from the checked-out branch against isolated sample data, so UI changes can be tested without
-modifying a real board. Use **Reload UI** after editing assets and **Reset data** to restore the fixture.
-
-```powershell
-npm ci
-npm run privacy:scan
-npm run test
-npm run compile
-npm run test:integration
-npm run vsix
-```
-
-Press `F5` to launch an Extension Development Host. The project uses TypeScript, esbuild, the VS Code
-test runner, and Node's built-in test runner.
-
-Releases are published from validated source by project maintainers.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and
 [SUPPORT.md](SUPPORT.md) before opening a pull request or security report.

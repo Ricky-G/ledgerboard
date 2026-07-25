@@ -32,7 +32,7 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Audit resolved dependencies
         id: audit
-        run: npm audit --audit-level=high
+        run: npm run audit:dependencies
       - name: Publish dependency security summary
         if: ${{ always() }}
         env:
