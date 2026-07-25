@@ -2,6 +2,14 @@
 
 All notable changes to LedgerBoard are documented here.
 
+## [0.3.1](https://github.com/Ricky-G/ledgerboard/compare/v0.3.0...v0.3.1) (2026-07-25)
+
+
+### Fixed
+
+* harden dependency release gates ([#27](https://github.com/Ricky-G/ledgerboard/issues/27)) ([4c0ab91](https://github.com/Ricky-G/ledgerboard/commit/4c0ab919948263101a9cc1e32f6f60f843cc535d))
+* recover lightweight release tags ([#21](https://github.com/Ricky-G/ledgerboard/issues/21)) ([18415a2](https://github.com/Ricky-G/ledgerboard/commit/18415a26365bc2861f5c45eaf13d94884fdb27ac))
+
 ## [0.3.0](https://github.com/Ricky-G/ledgerboard/compare/v0.2.1...v0.3.0) (2026-07-23)
 
 
