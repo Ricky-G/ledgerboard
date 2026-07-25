@@ -29,7 +29,7 @@ _Accepted and ready to pull._
 
 ---
 
-## Doing \`(WIP <= 3)\`
+## Doing
 _Actively receiving attention._
 
 - [ ] AO-005 — Ship task assignment with history · P1 · area:ledgerboard

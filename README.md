@@ -49,7 +49,7 @@ checks workspace roots first, validates candidates in parallel, and lets you cho
 ### Board
 
 - Inbox, Next, Doing, Review / Blocked, and Done workflow
-- Hard three-card Doing WIP limit
+- Unlimited tickets in every column
 - P1-P4 priorities
 - Search and entity, assignee, and priority filters
 - Responsive desktop and narrow-editor layouts
@@ -86,7 +86,7 @@ lead-time, cycle-time, and time-in-status calculations.
 | **LedgerBoard: Initialize Board in Folder** | Create the missing Markdown bundle files |
 | **LedgerBoard: Open Board** | Discover and open a board in the workspace |
 | **LedgerBoard: Add Outcome** | Open the board directly in the new-outcome dialog |
-| **LedgerBoard: Validate Board Bundle** | Validate syntax, entities, WIP, history, and round-trip safety |
+| **LedgerBoard: Validate Board Bundle** | Validate syntax, entities, history, and round-trip safety |
 | **LedgerBoard: Normalize BOARD.md Formatting** | Safely fix card separators and mixed line endings |
 | **LedgerBoard: Open Board Standard** | Open the complete format and agent-generation contract |
 

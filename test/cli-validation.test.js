@@ -25,7 +25,7 @@ const BOARD = `# Test Board
 
 ---
 
-## Doing \`(WIP <= 3)\`
+## Doing
 
 <!-- empty -->
 

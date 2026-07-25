@@ -526,11 +526,6 @@
       });
     });
 
-    const doing = document.columns.find((column) => column.id === "doing");
-    if (doing && doing.cards.length > 3) {
-      issues.push(`Doing WIP is ${doing.cards.length}; the limit is 3.`);
-    }
-
     if (issues.length > 0) {
       throw new Error(issues.join("\n"));
     }
@@ -583,16 +578,22 @@
     if (!source || !target) {
       throw new Error("Card or target column was not found.");
     }
-    if (target.id === "doing" && source.column.id !== "doing" && target.cards.length >= 3) {
-      throw new Error("Doing already has three outcomes. Finish something before starting more.");
+    const isReorder = source.column === target;
+    if (isReorder && targetIndex === source.cardIndex) {
+      validateBoard(document);
+      return source.card;
     }
 
     source.column.cards.splice(source.cardIndex, 1);
     source.card.columnId = target.id;
     source.card.checked = target.id === "done";
-    const insertionIndex = Number.isInteger(targetIndex)
+    const hasTargetIndex = Number.isInteger(targetIndex);
+    let insertionIndex = hasTargetIndex
       ? Math.max(0, Math.min(targetIndex, target.cards.length))
       : target.cards.length;
+    if (isReorder && hasTargetIndex && source.cardIndex < insertionIndex) {
+      insertionIndex -= 1;
+    }
     target.cards.splice(insertionIndex, 0, source.card);
     validateBoard(document);
     return source.card;

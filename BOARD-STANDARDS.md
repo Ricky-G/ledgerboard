@@ -31,8 +31,7 @@ Do not rename the three board data files. The extension opens those fixed names.
 7. Every card's `area` must match an entity ID in `KANBAN-CONFIG.md`.
 8. Every non-empty Assignee must match a person ID in `KANBAN-CONFIG.md`.
 9. Card IDs are unique, monotonic, and never reused.
-10. `Doing` has a hard WIP limit of three cards.
-11. Never invent historical transition times. Use `baseline` when only current state is known.
+10. Never invent historical transition times. Use `baseline` when only current state is known.
 
 ## `BOARD.md` contract
 
@@ -59,7 +58,7 @@ _Accepted and ready to pull._
 
 ---
 
-## Doing `(WIP <= 3)`
+## Doing
 _Actively receiving attention._
 
 <!-- empty -->
@@ -177,7 +176,7 @@ Status is represented only by the section containing the card:
 |---|---|
 | `Inbox` | Captured, but not yet accepted or fully triaged |
 | `Next` | Accepted, clear, and ready to start |
-| `Doing` | Actively receiving attention; maximum three cards |
+| `Doing` | Actively receiving attention |
 | `Review / Blocked` | Waiting for review, acceptance, or an external dependency |
 | `Done` | Delivered or conclusively closed |
 
@@ -422,10 +421,9 @@ When an agent creates or updates a bundle, it must follow this sequence:
 7. Add missing entities and people to `KANBAN-CONFIG.md` before using them.
 8. Preserve existing cards, descriptions, assignees, IDs, colors, and all prior history events.
 9. Separate adjacent cards with exactly one blank physical line.
-10. Enforce the Doing WIP limit of three.
-11. Write the three files atomically where possible.
-12. Run the validation command below.
-13. Do not report completion unless validation succeeds.
+10. Write the three files atomically where possible.
+11. Run the validation command below.
+12. Do not report completion unless validation succeeds.
 
 Do not invent work, completion, priorities, entity assignments, or transition timestamps.
 
@@ -454,25 +452,24 @@ PROCESS
 3. Dedupe against every existing board card before adding anything.
 4. Rewrite vague tasks as concise observable outcome titles.
 5. Use exactly P1, P2, P3, or P4.
-6. Use only the exact columns Inbox, Next, Doing `(WIP <= 3)`, Review / Blocked, and Done.
+6. Use only the exact columns Inbox, Next, Doing, Review / Blocked, and Done.
 7. Use exactly this card grammar:
    - [ ] AO-NNN — Outcome title · P1|P2|P3|P4 · area:<entity-id>
 8. Description and Assignee are optional details and must each be one physical Markdown line:
        - **Description:** Concise context.
        - **Assignee:** <person-id>
 9. Separate every pair of adjacent cards with exactly one blank physical line.
-10. Keep Doing at three cards or fewer.
-11. Use checked boxes only in Done.
-12. Allocate monotonic IDs by scanning both current cards and history. Never reuse an ID.
-13. Ensure every card area resolves to a stable entity in KANBAN-CONFIG.md. New configuration uses
+10. Use checked boxes only in Done.
+11. Allocate monotonic IDs by scanning both current cards and history. Never reuse an ID.
+12. Ensure every card area resolves to a stable entity in KANBAN-CONFIG.md. New configuration uses
     `entities`, not `customers`.
-14. Ensure every Assignee value resolves to a stable person in the `people` configuration array.
-15. For a new/imported board with unknown transition history, append baseline events using the actual
+13. Ensure every Assignee value resolves to a stable person in the `people` configuration array.
+14. For a new/imported board with unknown transition history, append baseline events using the actual
     current timestamp. For updates, append created, moved, updated, or deleted events. Never rewrite
     prior history and never infer historical timestamps. Record previous and new person IDs for
     assignment changes.
-16. Do not add due dates, source fields, estimates, tags, or other card metadata.
-17. Validate the completed bundle with the command in BOARD-STANDARDS.md.
+15. Do not add due dates, source fields, estimates, tags, or other card metadata.
+16. Validate the completed bundle with the command in BOARD-STANDARDS.md.
 
 SOURCE MATERIAL
 <paste or identify the task source here>
@@ -513,7 +510,6 @@ Kanban bundle valid: <card-count> cards, <entity-count> entities, <person-count>
 - Assigning a person ID that has no matching entry in the people directory.
 - Creating config with `customers` instead of canonical `entities`.
 - Reusing or renumbering card IDs.
-- Putting more than three cards in Doing.
 - Marking non-Done cards with `[x]` or Done cards with `[ ]`.
 - Rewriting old history rows or inventing transition timestamps.
 - Creating only `BOARD.md`; the viewer also requires config and history files.
