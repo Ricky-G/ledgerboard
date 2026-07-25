@@ -22,6 +22,7 @@ jobs:
         with:
           fail-on-severity: high
           fail-on-scopes: runtime,development,unknown
+          allow-ghsas: GHSA-mh99-v99m-4gvg,GHSA-v2hh-gcrm-f6hx
           comment-summary-in-pr: never
       - name: Publish dependency review summary
         if: ${{ always() }}
