@@ -3,6 +3,12 @@ name: Release
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing GitHub Release tag to repair and publish (for example v0.3.0)
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -16,6 +22,7 @@ concurrency:
 jobs:
   validate:
     name: Validate merge commit
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -37,6 +44,7 @@ jobs:
 
   wait-for-required-checks:
     name: Wait for required merge gates
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       checks: read
@@ -104,6 +112,7 @@ jobs:
 
   release:
     name: Create release preparation
+    if: github.event_name == 'push'
     needs: [validate, wait-for-required-checks]
     runs-on: ubuntu-latest
     outputs:
@@ -127,9 +136,10 @@ jobs:
   resolve-publication:
     name: Resolve publication
     needs: release
+    if: always() && (github.event_name == 'workflow_dispatch' || needs.release.result == 'success')
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
     outputs:
       publish: ${{ steps.resolve.outputs.publish }}
       tag_name: ${{ steps.resolve.outputs.tag_name }}
@@ -144,11 +154,25 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_CREATED: ${{ needs.release.outputs.release_created }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
+          RECOVERY_TAG: ${{ inputs.tag }}
         run: |
-          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
-          RELEASE_TAG="v$PACKAGE_VERSION"
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            RELEASE_TAG="$RECOVERY_TAG"
+            [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+              echo "::error::Recovery tag must use the vX.Y.Z format."
+              exit 1
+            }
+          else
+            PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+            RELEASE_TAG="v$PACKAGE_VERSION"
+          fi
           echo "tag_name=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
-          if [ "$RELEASE_CREATED" = "true" ]; then
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json tagName > /dev/null || {
+              echo "::error::Recovery tag $RELEASE_TAG must have an existing GitHub Release."
+              exit 1
+            }
+          elif [ "$RELEASE_CREATED" = "true" ]; then
             gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json tagName > /dev/null || {
               echo "::error::Release Please did not create the expected GitHub Release $RELEASE_TAG."
               exit 1
@@ -162,8 +186,16 @@ jobs:
           fi
           git fetch --force --tags
           TAG_COMMIT="$(git rev-list -n 1 "$RELEASE_TAG")"
-          test "$TAG_COMMIT" = "$GITHUB_SHA" || {
-            echo "::error::Release tag $RELEASE_TAG points to $TAG_COMMIT, not this merge commit $GITHUB_SHA."
+          if [ "$GITHUB_EVENT_NAME" != "workflow_dispatch" ]; then
+            test "$TAG_COMMIT" = "$GITHUB_SHA" || {
+              echo "::error::Release tag $RELEASE_TAG points to $TAG_COMMIT, not this merge commit $GITHUB_SHA."
+              exit 1
+            }
+          fi
+          git checkout --detach "$TAG_COMMIT"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          test "$RELEASE_TAG" = "v$PACKAGE_VERSION" || {
+            echo "::error::Release tag $RELEASE_TAG does not match package version $PACKAGE_VERSION."
             exit 1
           }
           TAG_TYPE="$(git cat-file -t "refs/tags/$RELEASE_TAG")"
