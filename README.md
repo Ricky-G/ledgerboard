@@ -68,14 +68,17 @@ team, department, or any grouping that makes the board useful. Names and colors 
 
 ### Analytics
 
-- Current workload and completion rate
-- Work by status, priority, and entity
-- 7, 30, and 90-day activity ranges
-- Recorded throughput and median cycle time
-- Recent semantic activity from the append-only history ledger
+- A dedicated, local-only analytics workspace with date, search, status, priority, entity, and assignee filters.
+- Board health metrics for open, blocked, aging, completed, reopened, and net-changing work, with comparison to the preceding equivalent period.
+- Status, priority, entity, workload, and cumulative-flow views with keyboard-accessible drill-downs to the supporting current outcomes.
+- Daily, weekly, or monthly recorded throughput; lead and cycle-time ranges; and time-in-status summaries that state their data coverage.
+- Aging, unassigned-work, duplicate-looking-title, missing-description, stale-activity, and inconsistent-history checks.
+- Cautious throughput forecasting after sufficient history, expressed as a range rather than a promised delivery date.
+- Locally saved filter settings and a local JSON export of filtered, non-sensitive aggregate data and metric definitions.
 
 Existing boards begin with honest baseline observations. LedgerBoard never invents old creation or
-completion dates.
+completion dates. Baseline observations are displayed as lower bounds and are excluded from
+lead-time, cycle-time, and time-in-status calculations.
 
 ## Commands
 

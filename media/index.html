@@ -241,48 +241,143 @@
               <h2 id="analyticsTitle">Analytics</h2>
               <p id="analyticsCoverage">Current board state with transition history.</p>
             </div>
-            <label class="select-control analytics-range-control">
-              <span>Activity range</span>
+            <div class="analytics-heading-meta">
+              <strong id="analyticsTimeZone">Timezone</strong>
+              <span id="analyticsRangeSummary">Last 30 days</span>
+            </div>
+          </div>
+
+          <section class="analytics-filter-bar" aria-label="Analytics filters">
+            <label>
+              <span>Date range</span>
               <select id="analyticsRange">
                 <option value="7">Last 7 days</option>
                 <option value="30" selected>Last 30 days</option>
                 <option value="90">Last 90 days</option>
+                <option value="custom">Custom range</option>
               </select>
             </label>
-          </div>
+            <div class="analytics-custom-range" id="analyticsCustomRange" hidden>
+              <label>
+                <span>From</span>
+                <input id="analyticsStartDate" type="date">
+              </label>
+              <label>
+                <span>To</span>
+                <input id="analyticsEndDate" type="date">
+              </label>
+            </div>
+            <label class="analytics-filter-search">
+              <span>Search</span>
+              <input id="analyticsSearch" type="search" placeholder="Find an outcome">
+            </label>
+            <label>
+              <span>Status</span>
+              <select id="analyticsStatus">
+                <option value="">All statuses</option>
+                <option value="inbox">Inbox</option>
+                <option value="next">Next</option>
+                <option value="doing">Doing</option>
+                <option value="blocked">Review / Blocked</option>
+                <option value="done">Done</option>
+              </select>
+            </label>
+            <label>
+              <span>Priority</span>
+              <select id="analyticsPriority">
+                <option value="">All priorities</option>
+                <option value="P1">P1</option>
+                <option value="P2">P2</option>
+                <option value="P3">P3</option>
+                <option value="P4">P4</option>
+              </select>
+            </label>
+            <label>
+              <span>Entity / category</span>
+              <select id="analyticsArea">
+                <option value="">All entities</option>
+              </select>
+            </label>
+            <label>
+              <span>Assignee</span>
+              <select id="analyticsAssignee">
+                <option value="">All assignees</option>
+                <option value="unassigned">Unassigned</option>
+              </select>
+            </label>
+            <label>
+              <span>Throughput</span>
+              <select id="analyticsAggregation">
+                <option value="day">By day</option>
+                <option value="week">By week</option>
+                <option value="month">By month</option>
+              </select>
+            </label>
+            <label class="analytics-toggle">
+              <input id="analyticsShowAssignees" type="checkbox">
+              <span>Show assignee labels</span>
+            </label>
+            <div class="analytics-filter-actions">
+              <button id="analyticsSavePreset" class="secondary-button" type="button">Save filters locally</button>
+              <button id="analyticsRestorePreset" class="secondary-button" type="button">Restore saved filters</button>
+              <button id="analyticsExport" class="secondary-button" type="button">Export aggregates</button>
+            </div>
+          </section>
 
           <div class="metric-grid" aria-label="Board metrics">
             <article class="metric-tile">
-              <span>Active outcomes</span>
+              <span>Open work</span>
               <strong id="metricActive">0</strong>
-              <small>Not yet completed</small>
+              <small>Current filtered board state</small>
             </article>
             <article class="metric-tile">
-              <span>Completed</span>
-              <strong id="metricDone">0</strong>
-              <small>Current Done total</small>
+              <span>Blocked work</span>
+              <strong id="metricBlocked">0</strong>
+              <small>Review or dependency waiting</small>
             </article>
             <article class="metric-tile">
-              <span>Completion</span>
-              <strong id="metricCompletion">0%</strong>
-              <small>Done / all outcomes</small>
+              <span>Aging work</span>
+              <strong id="metricAging">0</strong>
+              <small>14 or more recorded days</small>
             </article>
             <article class="metric-tile">
-              <span>Active entities</span>
-              <strong id="metricEntities">0</strong>
-              <small>Entities with open work</small>
-            </article>
-            <article class="metric-tile">
-              <span id="metricCompletedLabel">Completed · 30d</span>
+              <span>Completed in range</span>
               <strong id="metricCompletedRange">0</strong>
-              <small>Recorded transitions to Done</small>
+              <small id="metricCompletedLabel">Recorded transitions to Done</small>
+            </article>
+            <article class="metric-tile">
+              <span>Net work change</span>
+              <strong id="metricNetWork">0</strong>
+              <small>Created minus completed</small>
+            </article>
+            <article class="metric-tile">
+              <span>Reopened in range</span>
+              <strong id="metricRework">0</strong>
+              <small>Returned from Done</small>
             </article>
             <article class="metric-tile">
               <span>Median cycle</span>
               <strong id="metricCycle">—</strong>
-              <small>Created to Done, when known</small>
+              <small>Doing to Done, when known</small>
+            </article>
+            <article class="metric-tile">
+              <span>Completion forecast</span>
+              <strong id="metricForecast">—</strong>
+              <small id="metricForecastDetail">Needs more history</small>
             </article>
           </div>
+
+          <section class="analytics-context" aria-labelledby="analyticsContextTitle">
+            <div>
+              <p class="eyebrow">Filtered board health</p>
+              <h3 id="analyticsContextTitle">Context and comparison</h3>
+              <p id="analyticsHealthSummary"></p>
+            </div>
+            <details class="analytics-definitions">
+              <summary>Metric definitions and exclusions</summary>
+              <div id="analyticsDefinitions"></div>
+            </details>
+          </section>
 
           <div class="analytics-grid">
             <section class="analytics-panel status-panel" aria-labelledby="statusChartTitle">
@@ -299,7 +394,7 @@
             <section class="analytics-panel priority-panel" aria-labelledby="priorityChartTitle">
               <div class="analytics-panel-heading">
                 <div>
-                  <p class="eyebrow">Active work</p>
+                  <p class="eyebrow">Current state</p>
                   <h3 id="priorityChartTitle">Priority mix</h3>
                 </div>
               </div>
@@ -310,21 +405,100 @@
               <div class="analytics-panel-heading">
                 <div>
                   <p class="eyebrow">Flow over time</p>
-                  <h3 id="activityChartTitle">Activity &amp; throughput</h3>
+                  <h3 id="activityChartTitle">Recorded throughput</h3>
                 </div>
-                <span class="chart-key"><i></i> Events <i></i> Completed</span>
+                <span class="chart-key"><i></i> Activity <i></i> Completed</span>
               </div>
-              <div id="activityChart" class="activity-chart" aria-label="Daily activity chart"></div>
+              <div id="throughputChart" class="activity-chart" aria-label="Recorded throughput chart"></div>
             </section>
 
             <section class="analytics-panel entity-panel" aria-labelledby="entityChartTitle">
               <div class="analytics-panel-heading">
                 <div>
                   <p class="eyebrow">Active portfolio</p>
-                  <h3 id="entityChartTitle">Work by entity</h3>
+                  <h3 id="entityChartTitle">Work by entity / category</h3>
                 </div>
               </div>
               <div id="entityChart" class="entity-chart"></div>
+            </section>
+
+            <section class="analytics-panel cumulative-panel" aria-labelledby="cumulativeFlowTitle">
+              <div class="analytics-panel-heading">
+                <div>
+                  <p class="eyebrow">Recorded state history</p>
+                  <h3 id="cumulativeFlowTitle">Cumulative flow</h3>
+                </div>
+                <span>Known ledger observations by day</span>
+              </div>
+              <div id="cumulativeFlow" class="analytics-table-wrap"></div>
+            </section>
+
+            <section class="analytics-panel aging-panel" aria-labelledby="agingWorkTitle">
+              <div class="analytics-panel-heading">
+                <div>
+                  <p class="eyebrow">Current active work</p>
+                  <h3 id="agingWorkTitle">Aging work in progress</h3>
+                </div>
+                <span>Sorted by recorded age</span>
+              </div>
+              <div id="agingWork" class="analytics-list"></div>
+            </section>
+
+            <section class="analytics-panel workload-panel" aria-labelledby="workloadTitle">
+              <div class="analytics-panel-heading">
+                <div>
+                  <p class="eyebrow">Collaboration</p>
+                  <h3 id="workloadTitle">Active workload</h3>
+                </div>
+                <span>Work balance, not performance ranking</span>
+              </div>
+              <div id="workload" class="analytics-table-wrap"></div>
+            </section>
+
+            <section class="analytics-panel duration-panel" aria-labelledby="durationTitle">
+              <div class="analytics-panel-heading">
+                <div>
+                  <p class="eyebrow">Recorded transitions</p>
+                  <h3 id="durationTitle">Time in status</h3>
+                </div>
+                <span>Excludes baseline intervals</span>
+              </div>
+              <div id="timeInStatus" class="analytics-table-wrap"></div>
+            </section>
+
+            <section class="analytics-panel quality-panel" aria-labelledby="qualityTitle">
+              <div class="analytics-panel-heading">
+                <div>
+                  <p class="eyebrow">Data quality</p>
+                  <h3 id="qualityTitle">Checks needing review</h3>
+                </div>
+                <span>Validation blocks malformed data on load</span>
+              </div>
+              <div id="qualityChecks" class="quality-checks"></div>
+            </section>
+
+            <section class="analytics-panel insight-panel" aria-labelledby="insightsTitle">
+              <div class="analytics-panel-heading">
+                <div>
+                  <p class="eyebrow">Decision support</p>
+                  <h3 id="insightsTitle">Explainable insights</h3>
+                </div>
+              </div>
+              <div id="insights" class="insight-list"></div>
+            </section>
+
+            <section class="analytics-panel forecast-panel" aria-labelledby="forecastTitle">
+              <div class="analytics-panel-heading">
+                <div>
+                  <p class="eyebrow">Historical throughput</p>
+                  <h3 id="forecastTitle">What could finish</h3>
+                </div>
+                <label class="forecast-date-control">
+                  <span>By date</span>
+                  <input id="analyticsForecastDate" type="date">
+                </label>
+              </div>
+              <div id="forecast" class="forecast-copy"></div>
             </section>
 
             <section class="analytics-panel recent-panel" aria-labelledby="recentActivityTitle">
@@ -336,6 +510,19 @@
                 <span id="historyEventCount">0 events</span>
               </div>
               <div id="recentActivity" class="recent-activity"></div>
+            </section>
+
+            <section class="analytics-panel drilldown-panel" aria-labelledby="analyticsDrilldownTitle">
+              <div class="analytics-panel-heading">
+                <div>
+                  <p class="eyebrow">Supporting work</p>
+                  <h3 id="analyticsDrilldownTitle">Drill-down</h3>
+                </div>
+                <span>Open an outcome to inspect or edit it</span>
+              </div>
+              <div id="analyticsDrilldown" class="analytics-list">
+                <div class="analytics-empty">Select a chart segment, insight, or check to inspect the supporting outcomes.</div>
+              </div>
             </section>
           </div>
         </section>
