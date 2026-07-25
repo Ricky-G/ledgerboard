@@ -5,7 +5,7 @@ Every pull request to `main` must pass the following required checks. The names 
 | Required check | Purpose | Blocking policy |
 | --- | --- | --- |
 | `CI / quality` | Lockfile install, privacy scan, type check, lint, unit tests, compile, Extension Host integration tests, VSIX package, and VSIX artifact | Any failed or missing step blocks the pull request. |
-| `Dependency review / dependency-review` | Newly introduced dependency advisories | High and critical advisories in runtime, development, or unknown scopes block the pull request. |
+| `Dependency review / dependency-review` | Newly introduced dependency advisories | High and critical advisories in runtime, development, or unknown scopes block the pull request unless they match an active, documented exception. |
 | `Dependency security / dependency-security` | Resolved lockfile integrity and `npm audit` | Production high and critical findings block the pull request. Development findings also block unless they match an active, documented, expiring exception. |
 | `Secret scan / secret-scan` | Gitleaks scan of the pull request history | Every detected secret blocks the pull request. Revoke the credential before removing it from source. |
 | `CodeQL / analyze` | GitHub CodeQL JavaScript and TypeScript analysis | GitHub code-scanning merge protection blocks errors and high or critical security alerts. |

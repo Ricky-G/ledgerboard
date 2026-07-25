@@ -8,6 +8,7 @@ The dependency security workflow performs two audits:
 
 Every exception has an owner, expiration date, remediation reference, and reason. New high or critical
 findings fail the workflow, as do expired exceptions and any production finding.
+Dependency Review uses the same exact advisory IDs, while the full audit enforces each exception's expiry.
 
 ## Brace expansion
 

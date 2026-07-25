@@ -11,6 +11,10 @@ const dependencySecurityWorkflow = fs.readFileSync(
   path.resolve(__dirname, '..', '.github', 'workflows', 'dependency-security.yml'),
   'utf8',
 );
+const dependencyReviewWorkflow = fs.readFileSync(
+  path.resolve(__dirname, '..', '.github', 'workflows', 'dependency-review.yml'),
+  'utf8',
+);
 
 function auditReport(vulnerabilities) {
   return { vulnerabilities };
@@ -60,4 +64,18 @@ test('dependency audit exceptions expire', () => {
 test('dependency security runs the strict exception-aware audit command', () => {
   assert.match(dependencySecurityWorkflow, /run: npm run audit:dependencies/);
   assert.doesNotMatch(dependencySecurityWorkflow, /run: npm audit --audit-level=high/);
+});
+
+test('dependency review allowlists only the documented advisory IDs', () => {
+  const exceptions = loadActiveExceptions(new Date('2026-07-25T00:00:00Z'));
+  const configuredAdvisories = dependencyReviewWorkflow
+    .match(/allow-ghsas: ([^\r\n]+)/)[1]
+    .split(',')
+    .sort();
+  const documentedAdvisories = [...exceptions.keys()]
+    .map((advisory) => advisory.slice(advisory.lastIndexOf('/') + 1))
+    .sort();
+
+  assert.match(dependencyReviewWorkflow, /fail-on-scopes: runtime,development,unknown/);
+  assert.deepEqual(configuredAdvisories, documentedAdvisories);
 });
