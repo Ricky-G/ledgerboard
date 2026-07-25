@@ -2,7 +2,7 @@
   "name": "ledgerboard",
   "displayName": "LedgerBoard",
   "description": "Local-first Markdown Kanban with conflict-safe autosave, actionable validation, safe formatting repair, and append-only analytics.",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "publisher": "ricky-g",
   "license": "MIT",
   "icon": "images/icon.png",

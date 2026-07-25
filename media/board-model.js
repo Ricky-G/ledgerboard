@@ -644,7 +644,9 @@
     if (!event || typeof event !== "object") {
       throw new Error(`History event${location} must be an object.`);
     }
-    if (!/^\d{4}-\d{2}-\d{2}T/.test(event.at || "")) {
+    const timestamp = new Date(event.at || "");
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(event.at || "")
+      || !Number.isFinite(timestamp.valueOf())) {
       throw new Error(`History event${location} requires an ISO timestamp.`);
     }
     if (!/^AO-\d{3,}$/.test(event.card || "")) {
@@ -653,6 +655,11 @@
     if (!HISTORY_EVENTS.has(event.event)) {
       throw new Error(`History event${location} has an unsupported type.`);
     }
+    ["from", "to"].forEach((field) => {
+      if (event[field] !== undefined && !COLUMNS.some((column) => column.id === event[field])) {
+        throw new Error(`History event${location} has an invalid ${field} status.`);
+      }
+    });
     ["assignee", "previousAssignee"].forEach((field) => {
       if (event[field] !== undefined && event[field] !== null
         && !/^[a-z0-9][a-z0-9-]*$/.test(event[field])) {
@@ -749,113 +756,714 @@
   function buildAnalytics(document, historyEvents, options = {}) {
     validateBoard(document);
     const now = options.now ? new Date(options.now) : new Date();
-    const days = Number.isInteger(options.days) ? options.days : 30;
-    const start = new Date(now);
-    start.setHours(0, 0, 0, 0);
-    start.setDate(start.getDate() - (days - 1));
-    const cards = document.columns.flatMap((column) => column.cards.map((card) => ({
+    if (!Number.isFinite(now.valueOf())) {
+      throw new Error("Analytics requires a valid current timestamp.");
+    }
+
+    const timeZone = resolveAnalyticsTimeZone(options.timeZone);
+    const dateFormatter = createDateKeyFormatter(timeZone);
+    const range = resolveAnalyticsRange(options, now, dateFormatter);
+    const filters = normalizeAnalyticsFilters(options.filters);
+    const allCards = document.columns.flatMap((column) => column.cards.map((card) => ({
       ...card,
       columnId: column.id,
+      assignee: card.detailValues.assignee || null,
     })));
+    const cards = allCards.filter((card) => cardMatchesFilters(card, filters));
+    const cardsById = new Map(cards.map((card) => [card.id, card]));
+    const indexedEvents = indexAnalyticsEvents(historyEvents, dateFormatter)
+      .filter((item) => eventMatchesFilters(item.record, cardsById, filters));
+    const history = analyzeHistory(indexedEvents, cardsById, now);
     const activeCards = cards.filter((card) => card.columnId !== "done");
     const status = Object.fromEntries(COLUMNS.map((column) => [column.id, 0]));
     const priority = { P1: 0, P2: 0, P3: 0, P4: 0 };
     const entities = {};
+    const assignees = {};
 
-    cards.forEach((card) => { status[card.columnId] += 1; });
-    activeCards.forEach((card) => {
+    cards.forEach((card) => {
+      status[card.columnId] += 1;
       priority[card.priority] += 1;
       entities[card.area] = (entities[card.area] || 0) + 1;
+      const key = card.assignee || "unassigned";
+      assignees[key] = (assignees[key] || 0) + 1;
     });
 
-    const daily = [];
-    const dailyMap = new Map();
-    for (let offset = 0; offset < days; offset += 1) {
-      const date = new Date(start);
-      date.setDate(start.getDate() + offset);
-      const key = localDateKey(date);
-      const bucket = { date: key, activity: 0, completed: 0 };
-      daily.push(bucket);
-      dailyMap.set(key, bucket);
-    }
+    const daily = range.dateKeys.map((date) => ({
+      date,
+      activity: 0,
+      created: 0,
+      completed: 0,
+      reopened: 0,
+      activityCardIds: [],
+      createdCardIds: [],
+      completedCardIds: [],
+      reopenedCardIds: [],
+    }));
+    const dailyByDate = new Map(daily.map((bucket) => [bucket.date, bucket]));
+    const previous = { activity: 0, created: 0, completed: 0, reopened: 0 };
+    const rangeEvents = [];
 
-    const relevantEvents = historyEvents
-      .filter((event) => event.event !== "baseline")
-      .filter((event) => {
-        const timestamp = new Date(event.at);
-        return Number.isFinite(timestamp.valueOf()) && timestamp >= start && timestamp <= now;
-      });
-    relevantEvents.forEach((event) => {
-      const bucket = dailyMap.get(event.at.slice(0, 10));
-      if (!bucket) return;
-      bucket.activity += 1;
-      if ((event.event === "moved" || event.event === "created") && event.to === "done") {
-        bucket.completed += 1;
+    indexedEvents.forEach((item) => {
+      if (item.record.event === "baseline") {
+        return;
+      }
+      const bucket = dailyByDate.get(item.date);
+      const counters = bucket || (isDateInRange(item.date, range.previousStart, range.previousEnd) ? previous : null);
+      if (!counters) {
+        return;
+      }
+      if (bucket) {
+        rangeEvents.push(item);
+      }
+      counters.activity += 1;
+      if (counters.activityCardIds) counters.activityCardIds.push(item.record.card);
+      if (isCreated(item.record)) {
+        counters.created += 1;
+        if (counters.createdCardIds) counters.createdCardIds.push(item.record.card);
+      }
+      if (isCompletion(item.record)) {
+        counters.completed += 1;
+        if (counters.completedCardIds) counters.completedCardIds.push(item.record.card);
+      }
+      if (isReopen(item.record)) {
+        counters.reopened += 1;
+        if (counters.reopenedCardIds) counters.reopenedCardIds.push(item.record.card);
       }
     });
 
-    const cycleTimes = completedCycleTimes(historyEvents);
-    const recent = [...historyEvents]
-      .filter((event) => event.event !== "baseline")
-      .sort((left, right) => right.at.localeCompare(left.at))
-      .slice(0, 12);
-    const historySince = historyEvents.length > 0
-      ? [...historyEvents].sort((left, right) => left.at.localeCompare(right.at))[0].at
+    const cycleTimes = completedFlowTimes(history.eventsByCard);
+    const aging = buildAging(activeCards, history.cardStates, history.lastMeaningfulEventByCard, now);
+    const quality = buildDataQuality(activeCards, history, now);
+    const workload = buildWorkload(activeCards, rangeEvents, cardsById);
+    const cumulativeFlow = buildCumulativeFlow(indexedEvents, range);
+    const completedInRange = daily.reduce((sum, bucket) => sum + bucket.completed, 0);
+    const createdInRange = daily.reduce((sum, bucket) => sum + bucket.created, 0);
+    const activityInRange = daily.reduce((sum, bucket) => sum + bucket.activity, 0);
+    const reworkCount = daily.reduce((sum, bucket) => sum + bucket.reopened, 0);
+    const periodComparison = {
+      current: { activity: activityInRange, created: createdInRange, completed: completedInRange, reopened: reworkCount },
+      previous,
+      completionChange: completedInRange - previous.completed,
+      netWorkChange: createdInRange - completedInRange,
+    };
+    const insights = buildInsights({
+      activeCards,
+      status,
+      aging,
+      quality,
+      cumulativeFlow,
+      periodComparison,
+      reworkCount,
+    });
+    const forecast = buildForecast(activeCards.length, daily, range, options.forecastDate);
+    const historySince = indexedEvents.length > 0
+      ? indexedEvents.reduce((earliest, item) => item.timestamp < earliest.timestamp ? item : earliest).record.at
       : null;
+    const recent = [...rangeEvents]
+      .sort((left, right) => right.timestamp - left.timestamp || right.index - left.index)
+      .slice(0, 12)
+      .map((item) => item.record);
 
     return {
       total: cards.length,
       active: activeCards.length,
       done: status.done,
+      blocked: status.blocked,
       completionRate: cards.length === 0 ? 0 : Math.round((status.done / cards.length) * 100),
-      activeEntities: Object.keys(entities).length,
-      transitions: relevantEvents.filter((event) => event.event === "moved").length,
-      completedInRange: daily.reduce((sum, bucket) => sum + bucket.completed, 0),
-      medianCycleDays: median(cycleTimes),
+      activeEntities: new Set(activeCards.map((card) => card.area)).size,
+      transitions: rangeEvents.filter((item) => item.record.event === "moved").length,
+      completedInRange,
+      createdInRange,
+      activityInRange,
+      reworkCount,
+      medianCycleDays: cycleTimes.cycle.medianDays,
       status,
       priority,
       entities,
+      assignees,
       daily,
+      throughput: aggregateAnalyticsBuckets(daily, options.aggregation),
+      cumulativeFlow,
+      leadTime: cycleTimes.lead,
+      cycleTime: cycleTimes.cycle,
+      timeInStatus: history.timeInStatus,
+      aging,
+      quality,
+      workload,
+      insights,
+      forecast,
+      comparison: periodComparison,
       recent,
+      cards: cards.map((card) => analyticsCard(card)),
       historySince,
-      historyEvents: historyEvents.length,
-      rangeDays: days,
+      historyEvents: indexedEvents.length,
+      rangeDays: range.days,
+      metadata: {
+        timeZone,
+        range,
+        filters,
+        historyCoverage: historySince
+          ? "History-derived metrics exclude unrecorded activity before the first ledger event."
+          : "No history is available yet. Time-based metrics need future recorded changes.",
+      },
+      definitions: {
+        completion: "A completion is a created or moved event whose destination is Done.",
+        leadTime: "Lead time runs from a recorded creation to the first recorded completion. Baselines are excluded.",
+        cycleTime: "Cycle time runs from the first recorded move to Doing to the first recorded completion. Baselines are excluded.",
+        aging: "Age runs from the latest recorded entry into the current status. A baseline is an observed lower bound, not a start date.",
+        timeInStatus: "Only intervals with a recorded non-baseline entry and exit are included.",
+        forecast: "Forecasts use observed completion throughput and describe a range, not a delivery promise.",
+      },
     };
   }
 
-  function completedCycleTimes(events) {
-    const created = new Map();
-    const durations = [];
-    [...events].sort((left, right) => left.at.localeCompare(right.at)).forEach((event) => {
-      if (event.event === "created") {
-        created.set(event.card, new Date(event.at));
-      }
-      if ((event.event === "moved" || event.event === "created") && event.to === "done") {
-        const started = created.get(event.card);
-        const finished = new Date(event.at);
-        if (started && Number.isFinite(started.valueOf()) && Number.isFinite(finished.valueOf())) {
-          durations.push(Math.max(0, (finished - started) / 86400000));
-        }
-      }
-    });
-    return durations;
+  function resolveAnalyticsTimeZone(timeZone) {
+    const candidate = typeof timeZone === "string" && timeZone.trim()
+      ? timeZone
+      : Intl.DateTimeFormat().resolvedOptions().timeZone;
+    try {
+      new Intl.DateTimeFormat("en-US", { timeZone: candidate }).format();
+      return candidate;
+    } catch {
+      return "Etc/UTC";
+    }
   }
 
-  function median(values) {
+  function createDateKeyFormatter(timeZone) {
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+  }
+
+  function analyticsDateKey(date, formatter) {
+    const parts = Object.fromEntries(formatter.formatToParts(date)
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]));
+    return `${parts.year}-${parts.month}-${parts.day}`;
+  }
+
+  function resolveAnalyticsRange(options, now, formatter) {
+    const end = normalizeDateKey(options.endDate) || analyticsDateKey(now, formatter);
+    const requestedStart = normalizeDateKey(options.startDate);
+    const requestedDays = Number.isInteger(options.days) && options.days > 0 ? options.days : 30;
+    const start = requestedStart || addDaysToDateKey(end, -(requestedDays - 1));
+    if (start > end) {
+      throw new Error("Analytics start date must not be after its end date.");
+    }
+    const days = dateKeyDistance(start, end) + 1;
+    if (days > 3660) {
+      throw new Error("Analytics date ranges cannot exceed ten years.");
+    }
+    return {
+      start,
+      end,
+      days,
+      dateKeys: Array.from({ length: days }, (_, index) => addDaysToDateKey(start, index)),
+      previousStart: addDaysToDateKey(start, -days),
+      previousEnd: addDaysToDateKey(start, -1),
+    };
+  }
+
+  function normalizeDateKey(value) {
+    if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      return null;
+    }
+    const date = new Date(`${value}T00:00:00Z`);
+    return Number.isFinite(date.valueOf()) && date.toISOString().slice(0, 10) === value ? value : null;
+  }
+
+  function addDaysToDateKey(dateKey, days) {
+    const date = new Date(`${dateKey}T00:00:00Z`);
+    date.setUTCDate(date.getUTCDate() + days);
+    return date.toISOString().slice(0, 10);
+  }
+
+  function dateKeyDistance(start, end) {
+    return Math.round((new Date(`${end}T00:00:00Z`) - new Date(`${start}T00:00:00Z`)) / 86400000);
+  }
+
+  function normalizeAnalyticsFilters(filters = {}) {
+    return {
+      statuses: normalizeFilterValues(filters.statuses, COLUMNS.map((column) => column.id)),
+      priorities: normalizeFilterValues(filters.priorities, ["P1", "P2", "P3", "P4"]),
+      areas: normalizeFilterValues(filters.areas),
+      assignees: normalizeFilterValues(filters.assignees, undefined, true),
+      search: typeof filters.search === "string" ? filters.search.trim().toLocaleLowerCase() : "",
+    };
+  }
+
+  function normalizeFilterValues(values, allowed, allowUnassigned = false) {
+    if (!Array.isArray(values) || values.length === 0) {
+      return [];
+    }
+    return [...new Set(values.filter((value) => typeof value === "string"
+      && (allowUnassigned ? value === "unassigned" || value : true)
+      && (!allowed || allowed.includes(value))))];
+  }
+
+  function cardMatchesFilters(card, filters) {
+    if (filters.statuses.length > 0 && !filters.statuses.includes(card.columnId)) return false;
+    if (filters.priorities.length > 0 && !filters.priorities.includes(card.priority)) return false;
+    if (filters.areas.length > 0 && !filters.areas.includes(card.area)) return false;
+    const assignee = card.assignee || "unassigned";
+    if (filters.assignees.length > 0 && !filters.assignees.includes(assignee)) return false;
+    if (filters.search) {
+      const value = [card.id, card.title, card.area, card.assignee, card.detailValues.description]
+        .filter(Boolean)
+        .join(" ")
+        .toLocaleLowerCase();
+      if (!value.includes(filters.search)) return false;
+    }
+    return true;
+  }
+
+  function eventMatchesFilters(event, cardsById, filters) {
+    if (cardsById.has(event.card)) {
+      return true;
+    }
+    if (filters.statuses.length > 0 && !filters.statuses.includes(event.to || event.from || "")) return false;
+    if (filters.priorities.length > 0 && !filters.priorities.includes(event.priority)) return false;
+    if (filters.areas.length > 0 && !filters.areas.includes(event.area)) return false;
+    const assignee = event.assignee || "unassigned";
+    if (filters.assignees.length > 0 && !filters.assignees.includes(assignee)) return false;
+    if (filters.search) {
+      const value = [event.card, event.title, event.area, event.assignee].filter(Boolean).join(" ").toLocaleLowerCase();
+      if (!value.includes(filters.search)) return false;
+    }
+    return true;
+  }
+
+  function indexAnalyticsEvents(historyEvents, formatter) {
+    return historyEvents.map((record, index) => {
+      const timestamp = new Date(record.at);
+      return {
+        record,
+        index,
+        timestamp,
+        date: Number.isFinite(timestamp.valueOf()) ? analyticsDateKey(timestamp, formatter) : null,
+      };
+    }).filter((item) => item.date);
+  }
+
+  function isDateInRange(date, start, end) {
+    return date >= start && date <= end;
+  }
+
+  function isCreated(event) {
+    return event.event === "created";
+  }
+
+  function isCompletion(event) {
+    return (event.event === "created" || event.event === "moved") && event.to === "done";
+  }
+
+  function isReopen(event) {
+    return event.event === "moved" && event.from === "done" && event.to && event.to !== "done";
+  }
+
+  function analyzeHistory(indexedEvents, cardsById, now) {
+    const eventsByCard = new Map();
+    indexedEvents.forEach((item) => {
+      const events = eventsByCard.get(item.record.card) || [];
+      events.push(item);
+      eventsByCard.set(item.record.card, events);
+    });
+
+    const cardStates = new Map();
+    const timeSamples = Object.fromEntries(COLUMNS.map((column) => [column.id, []]));
+    const issues = [];
+    const lastMeaningfulEventByCard = new Map();
+    eventsByCard.forEach((events, cardId) => {
+      events.sort((left, right) => left.timestamp - right.timestamp || left.index - right.index);
+      let state = null;
+      let startedAt = null;
+      let startType = null;
+      events.forEach((item) => {
+        const event = item.record;
+        if (event.event !== "baseline") {
+          lastMeaningfulEventByCard.set(cardId, item);
+        }
+        if (event.from && state && event.from !== state) {
+          issues.push({
+            card: cardId,
+            message: `Recorded from ${event.from}, but the prior known state is ${state}.`,
+          });
+        }
+        const nextState = event.event === "deleted" ? null : event.to || state;
+        if (nextState === state) {
+          return;
+        }
+        addStatusDuration(timeSamples, state, startedAt, startType, item.timestamp);
+        state = nextState;
+        startedAt = nextState ? item.timestamp : null;
+        startType = nextState ? event.event : null;
+      });
+      if (cardsById.has(cardId) && state === cardsById.get(cardId).columnId) {
+        addStatusDuration(timeSamples, state, startedAt, startType, now);
+        cardStates.set(cardId, { state, startedAt, startType, lastAt: events.at(-1)?.timestamp || null });
+      }
+    });
+
+    return {
+      eventsByCard,
+      cardStates,
+      issues,
+      lastMeaningfulEventByCard,
+      timeInStatus: COLUMNS.map((column) => ({
+        status: column.id,
+        ...durationStatistics(timeSamples[column.id]),
+      })),
+    };
+  }
+
+  function addStatusDuration(samples, status, startedAt, startType, endedAt) {
+    if (!status || !startedAt || startType === "baseline") {
+      return;
+    }
+    const durationDays = Math.max(0, (endedAt - startedAt) / 86400000);
+    if (Number.isFinite(durationDays)) {
+      samples[status].push(durationDays);
+    }
+  }
+
+  function completedFlowTimes(eventsByCard) {
+    const lead = [];
+    const cycle = [];
+    eventsByCard.forEach((events) => {
+      let createdAt = null;
+      let doingAt = null;
+      let completed = false;
+      events.forEach((item) => {
+        const event = item.record;
+        if (event.event === "created" && !createdAt) {
+          createdAt = item.timestamp;
+        }
+        if (event.to === "doing" && event.event !== "baseline" && !doingAt) {
+          doingAt = item.timestamp;
+        }
+        if (!completed && isCompletion(event)) {
+          if (createdAt) {
+            lead.push(Math.max(0, (item.timestamp - createdAt) / 86400000));
+          }
+          if (doingAt) {
+            cycle.push(Math.max(0, (item.timestamp - doingAt) / 86400000));
+          }
+          completed = true;
+        }
+      });
+    });
+    return { lead: durationStatistics(lead), cycle: durationStatistics(cycle) };
+  }
+
+  function durationStatistics(values) {
+    if (values.length === 0) {
+      return { count: 0, averageDays: null, medianDays: null, p85Days: null };
+    }
+    return {
+      count: values.length,
+      averageDays: roundOne(values.reduce((sum, value) => sum + value, 0) / values.length),
+      medianDays: percentile(values, 50),
+      p85Days: percentile(values, 85),
+    };
+  }
+
+  function percentile(values, percent) {
     if (values.length === 0) return null;
     const sorted = [...values].sort((left, right) => left - right);
-    const middle = Math.floor(sorted.length / 2);
-    const value = sorted.length % 2 === 0
-      ? (sorted[middle - 1] + sorted[middle]) / 2
-      : sorted[middle];
+    const position = (percent / 100) * (sorted.length - 1);
+    const lower = Math.floor(position);
+    const upper = Math.ceil(position);
+    return roundOne(sorted[lower] + ((sorted[upper] - sorted[lower]) * (position - lower)));
+  }
+
+  function roundOne(value) {
     return Math.round(value * 10) / 10;
   }
 
-  function localDateKey(date) {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
+  function buildAging(activeCards, cardStates, lastMeaningfulEventByCard, now) {
+    const known = [];
+    const unknown = [];
+    activeCards.forEach((card) => {
+      const state = cardStates.get(card.id);
+      if (!state || !state.startedAt) {
+        unknown.push({ ...analyticsCard(card), reason: "No recorded entry into the current status." });
+        return;
+      }
+      known.push({
+        ...analyticsCard(card),
+        ageDays: roundOne(Math.max(0, (now - state.startedAt) / 86400000)),
+        lowerBound: state.startType === "baseline",
+        basis: state.startType === "baseline" ? "Observed baseline" : `Entered ${card.columnId}`,
+        lastActivityAt: lastMeaningfulEventByCard.get(card.id)?.record.at || null,
+      });
+    });
+    known.sort((left, right) => right.ageDays - left.ageDays || left.id.localeCompare(right.id));
+    return {
+      items: known,
+      unknown,
+      stale: known.filter((item) => item.ageDays >= 14),
+      byStatus: Object.fromEntries(COLUMNS
+        .filter((column) => column.id !== "done")
+        .map((column) => [column.id, known.filter((item) => item.columnId === column.id)])),
+    };
+  }
+
+  function buildDataQuality(activeCards, history, now) {
+    const missingDescriptions = activeCards
+      .filter((card) => !card.detailValues.description.trim())
+      .map(analyticsCard);
+    const unassigned = activeCards
+      .filter((card) => !card.assignee)
+      .map(analyticsCard);
+    const stale = activeCards
+      .map((card) => {
+        const item = history.lastMeaningfulEventByCard.get(card.id);
+        return item
+          ? { ...analyticsCard(card), staleDays: roundOne(Math.max(0, (now - item.timestamp) / 86400000)) }
+          : { ...analyticsCard(card), staleDays: null, reason: "No recorded activity." };
+      })
+      .filter((item) => item.staleDays === null || item.staleDays >= 14);
+    const titleGroups = new Map();
+    activeCards.forEach((card) => {
+      const key = card.title.trim().replace(/\s+/g, " ").toLocaleLowerCase();
+      const group = titleGroups.get(key) || [];
+      group.push(analyticsCard(card));
+      titleGroups.set(key, group);
+    });
+    const duplicates = [...titleGroups.values()].filter((group) => group.length > 1);
+    return {
+      missingDescriptions,
+      unassigned,
+      stale,
+      duplicates,
+      historyIssues: history.issues,
+      summary: {
+        missingDescriptions: missingDescriptions.length,
+        unassigned: unassigned.length,
+        stale: stale.length,
+        duplicateGroups: duplicates.length,
+        historyIssues: history.issues.length,
+      },
+    };
+  }
+
+  function buildWorkload(activeCards, rangeEvents, cardsById) {
+    const entries = new Map();
+    const include = (assignee) => {
+      const key = assignee || "unassigned";
+      if (!entries.has(key)) {
+        entries.set(key, { assignee: key, active: 0, blocked: 0, completed: 0, cardIds: [] });
+      }
+      return entries.get(key);
+    };
+    activeCards.forEach((card) => {
+      const item = include(card.assignee);
+      item.active += 1;
+      if (card.columnId === "blocked") item.blocked += 1;
+      item.cardIds.push(card.id);
+    });
+    rangeEvents.filter((item) => isCompletion(item.record)).forEach((item) => {
+      const card = cardsById.get(item.record.card);
+      include(item.record.assignee || card?.assignee).completed += 1;
+    });
+    return [...entries.values()].sort((left, right) => right.active - left.active || left.assignee.localeCompare(right.assignee));
+  }
+
+  function buildCumulativeFlow(indexedEvents, range) {
+    const states = new Map();
+    const byDate = new Map();
+    indexedEvents.forEach((item) => {
+      const events = byDate.get(item.date) || [];
+      events.push(item);
+      byDate.set(item.date, events);
+    });
+    [...byDate.entries()]
+      .filter(([date]) => date < range.start)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .forEach(([, events]) => events.forEach((item) => applyStateEvent(states, item.record)));
+
+    return range.dateKeys.map((date) => {
+      (byDate.get(date) || [])
+        .sort((left, right) => left.timestamp - right.timestamp || left.index - right.index)
+        .forEach((item) => applyStateEvent(states, item.record));
+      const counts = Object.fromEntries(COLUMNS.map((column) => [column.id, 0]));
+      states.forEach((status) => {
+        if (status) counts[status] += 1;
+      });
+      return { date, ...counts, known: [...states.values()].filter(Boolean).length };
+    });
+  }
+
+  function applyStateEvent(states, event) {
+    if (event.event === "deleted") {
+      states.delete(event.card);
+    } else if (event.to && COLUMNS.some((column) => column.id === event.to)) {
+      states.set(event.card, event.to);
+    }
+  }
+
+  function aggregateAnalyticsBuckets(daily, aggregation) {
+    const mode = ["day", "week", "month"].includes(aggregation) ? aggregation : "day";
+    if (mode === "day") {
+      return daily.map((bucket) => ({ key: bucket.date, ...bucket }));
+    }
+    const buckets = new Map();
+    daily.forEach((bucket) => {
+      const key = mode === "week" ? startOfWeek(bucket.date) : bucket.date.slice(0, 7);
+      const target = buckets.get(key) || {
+        key,
+        activity: 0,
+        created: 0,
+        completed: 0,
+        reopened: 0,
+        activityCardIds: [],
+        createdCardIds: [],
+        completedCardIds: [],
+        reopenedCardIds: [],
+      };
+      target.activity += bucket.activity;
+      target.created += bucket.created;
+      target.completed += bucket.completed;
+      target.reopened += bucket.reopened;
+      target.activityCardIds.push(...bucket.activityCardIds);
+      target.createdCardIds.push(...bucket.createdCardIds);
+      target.completedCardIds.push(...bucket.completedCardIds);
+      target.reopenedCardIds.push(...bucket.reopenedCardIds);
+      buckets.set(key, target);
+    });
+    return [...buckets.values()];
+  }
+
+  function startOfWeek(dateKey) {
+    const date = new Date(`${dateKey}T00:00:00Z`);
+    const offset = (date.getUTCDay() + 6) % 7;
+    return addDaysToDateKey(dateKey, -offset);
+  }
+
+  function buildInsights({ activeCards, status, aging, quality, cumulativeFlow, periodComparison, reworkCount }) {
+    const insights = [];
+    if (status.doing > 3) {
+      insights.push({
+        id: "wip-limit",
+        tone: "warning",
+        title: "Doing exceeds its WIP limit",
+        detail: `${status.doing} items are in Doing; the board limit is 3.`,
+        action: "Review active work and return or finish an item before pulling more.",
+        cardIds: activeCards.filter((card) => card.columnId === "doing").map((card) => card.id),
+      });
+    }
+    if (status.blocked > 0) {
+      insights.push({
+        id: "blocked-work",
+        tone: "warning",
+        title: "Blocked work needs attention",
+        detail: status.blocked === 1
+          ? "1 active item is waiting for review or a dependency."
+          : `${status.blocked} active items are waiting for review or dependencies.`,
+        action: "Review blocked work and identify the next unblocker.",
+        cardIds: activeCards.filter((card) => card.columnId === "blocked").map((card) => card.id),
+      });
+    }
+    if (aging.stale.length > 0) {
+      insights.push({
+        id: "aging-work",
+        tone: "warning",
+        title: "Aging work is accumulating",
+        detail: `${aging.stale.length} active item${aging.stale.length === 1 ? "" : "s"} have been in their current state for at least 14 recorded days.`,
+        action: "Review aging work and decide whether to unblock, split, or return it to the queue.",
+        cardIds: aging.stale.map((item) => item.id),
+      });
+    }
+    if (quality.summary.unassigned > 0) {
+      insights.push({
+        id: "unassigned-work",
+        tone: "info",
+        title: "Active work is unassigned",
+        detail: quality.summary.unassigned === 1
+          ? "1 active item has no assignee."
+          : `${quality.summary.unassigned} active items have no assignee.`,
+        action: "Assign ownership where that will help work move.",
+        cardIds: quality.unassigned.map((item) => item.id),
+      });
+    }
+    if (reworkCount > 0) {
+      insights.push({
+        id: "rework",
+        tone: "info",
+        title: "Completed work returned to the board",
+        detail: `${reworkCount} recorded reopen${reworkCount === 1 ? "" : "s"} occurred in the selected period.`,
+        action: "Review reopened items for acceptance or handoff patterns.",
+        cardIds: [],
+      });
+    }
+    if (cumulativeFlow.length > 1) {
+      const start = cumulativeFlow[0];
+      const end = cumulativeFlow.at(-1);
+      if (end.next > start.next) {
+        insights.push({
+          id: "growing-queue",
+          tone: "info",
+          title: "The ready queue grew",
+          detail: `Next increased from ${start.next} to ${end.next} recorded items during the selected period.`,
+          action: "Confirm whether the queue reflects useful options or too much committed work.",
+          cardIds: activeCards.filter((card) => card.columnId === "next").map((card) => card.id),
+        });
+      }
+    }
+    if (periodComparison.previous.completed > 0 && periodComparison.completionChange < 0) {
+      insights.push({
+        id: "throughput-change",
+        tone: "info",
+        title: "Completion throughput decreased",
+        detail: `${Math.abs(periodComparison.completionChange)} fewer recorded completion${Math.abs(periodComparison.completionChange) === 1 ? "" : "s"} than the preceding equivalent period.`,
+        action: "Review aging and blocked work before changing individual commitments.",
+        cardIds: [],
+      });
+    }
+    return insights;
+  }
+
+  function buildForecast(activeCount, daily, range, forecastDate) {
+    const completed = daily.reduce((sum, bucket) => sum + bucket.completed, 0);
+    if (range.days < 14 || completed < 5) {
+      return {
+        available: false,
+        reason: "At least 14 days and 5 recorded completions are required for a cautious throughput forecast.",
+      };
+    }
+    const weekly = aggregateAnalyticsBuckets(daily, "week").map((bucket) => bucket.completed);
+    const slow = percentile(weekly, 25);
+    const typical = percentile(weekly, 50);
+    const fast = percentile(weekly, 75);
+    const target = normalizeDateKey(forecastDate);
+    const targetDays = target ? Math.max(0, dateKeyDistance(range.end, target)) : null;
+    return {
+      available: typical !== null && typical > 0,
+      reason: typical !== null && typical > 0 ? null : "Recorded throughput is too uneven to form a useful range.",
+      weeklyThroughput: { slow, typical, fast },
+      finishRangeWeeks: {
+        earliest: fast > 0 ? Math.ceil(activeCount / fast) : null,
+        latest: slow > 0 ? Math.ceil(activeCount / slow) : null,
+      },
+      whatCanFinish: targetDays === null || typical === null
+        ? null
+        : Math.floor((typical / 7) * targetDays),
+      targetDate: target,
+    };
+  }
+
+  function analyticsCard(card) {
+    return {
+      id: card.id,
+      title: card.title,
+      columnId: card.columnId,
+      priority: card.priority,
+      area: card.area,
+      assignee: card.assignee || card.detailValues.assignee || null,
+    };
   }
 
   function parseConfig(markdown) {

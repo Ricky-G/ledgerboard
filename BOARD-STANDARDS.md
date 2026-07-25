@@ -379,6 +379,35 @@ History rules:
 - The visual application automatically appends events when it saves changes.
 - Never invent past timestamps from email dates, file dates, Git history, or narrative text.
 
+## Analytics calculation rules
+
+LedgerBoard calculates analytics locally from the current board and the append-only event ledger.
+It does not send cards, assignments, history, or aggregates to a remote service.
+
+- The current board health, status, priority, entity, and workload views use the current `BOARD.md`
+  state after the active filters are applied.
+- Date ranges use the IANA timezone configured in `workspace.timezone`. A range includes both its
+  start and end local dates. The comparison period is the immediately preceding range of equal length.
+- A completion is a `created` or `moved` event whose destination is `done`. Net work change is
+  recorded creations minus recorded completions in the selected date range.
+- A reopen is a `moved` event from `done` to any other status. It is reported as rework, not as a
+  negative completion.
+- Lead time runs from a recorded `created` event to the first recorded completion. Cycle time runs
+  from the first recorded move to `doing` to the first recorded completion. These metrics exclude
+  `baseline` observations because a baseline is not a creation or start event.
+- Time in status includes only intervals with a recorded non-baseline entry and a later recorded
+  exit. Aging uses the most recent recorded entry into a current active status. When that entry is a
+  baseline, the displayed age is a lower bound.
+- Cumulative flow contains only states known from recorded events. No state is inferred before the
+  first observation for an outcome.
+- Forecasts require at least 14 days and five recorded completions. They use observed weekly
+  throughput percentiles and describe a range, never a promised date.
+- Missing optional descriptions, unassigned active work, no recent recorded activity, repeated
+  normalized titles, and internally inconsistent transitions are shown as review checks. Parse and
+  validation errors remain blocking diagnostics instead of misleading analytics values.
+- Drill-downs derive from the same filtered current outcomes as the associated metric. Deleted or
+  historical-only outcomes can contribute to an aggregate but cannot be reopened from a drill-down.
+
 ## Agent workflow
 
 When an agent creates or updates a bundle, it must follow this sequence:

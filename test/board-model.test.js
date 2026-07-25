@@ -372,6 +372,11 @@ test('malformed history events report their line', () => {
   assert.throws(() => model.parseHistory(history), /History event on line 4 requires an ISO timestamp/);
 });
 
+test('history rejects unsupported recorded statuses', () => {
+  const history = `${HISTORY}    {"at":"2026-01-01T10:00:00Z","card":"AO-001","event":"created","to":"later","area":"internal","priority":"P2","title":"Outcome"}\n`;
+  assert.throws(() => model.parseHistory(history), /History event on line 4 has an invalid to status/);
+});
+
 test('normalization is idempotent for canonical boards', () => {
   const source = boardWithTwoCards('\n\n');
   const result = model.normalizeBoardSource(source);
@@ -406,4 +411,131 @@ test('analytics handles an all-done board', () => {
   assert.equal(analytics.done, 1);
   assert.equal(analytics.active, 0);
   assert.equal(analytics.completionRate, 100);
+});
+
+test('analytics derives explainable health, flow, aging, quality, and workload metrics', () => {
+  const source = EMPTY_BOARD
+    .replace(
+      '## Inbox\n\n<!-- empty -->',
+      '## Inbox\n\n- [ ] AO-001 — Clarify scope · P3 · area:internal',
+    )
+    .replace(
+      '## Doing `(WIP <= 3)`\n\n<!-- empty -->',
+      '## Doing `(WIP <= 3)`\n\n- [ ] AO-002 — Prepare review · P2 · area:internal\n'
+        + '    - **Description:** Prepare the decision record.\n'
+        + '    - **Assignee:** alex-smith',
+    )
+    .replace(
+      '## Review / Blocked\n\n<!-- empty -->',
+      '## Review / Blocked\n\n- [ ] AO-003 — Await dependency · P1 · area:internal',
+    )
+    .replace(
+      '## Done\n\n<!-- empty -->',
+      '## Done\n\n- [x] AO-004 — Publish outcome · P3 · area:internal\n'
+        + '    - **Assignee:** alex-smith',
+    );
+  const event = (at, card, eventType, extra = {}) => ({
+    at,
+    card,
+    event: eventType,
+    area: 'internal',
+    priority: 'P2',
+    title: card,
+    ...extra,
+  });
+  const events = [
+    event('2026-01-01T10:00:00Z', 'AO-001', 'created', { to: 'inbox' }),
+    event('2026-01-02T10:00:00Z', 'AO-002', 'created', { to: 'inbox', assignee: 'alex-smith' }),
+    event('2026-01-03T10:00:00Z', 'AO-002', 'moved', { from: 'inbox', to: 'next', assignee: 'alex-smith' }),
+    event('2026-01-05T10:00:00Z', 'AO-002', 'moved', { from: 'next', to: 'doing', assignee: 'alex-smith' }),
+    event('2026-01-04T10:00:00Z', 'AO-003', 'created', { to: 'inbox' }),
+    event('2026-01-06T10:00:00Z', 'AO-003', 'moved', { from: 'inbox', to: 'blocked' }),
+    event('2026-01-01T10:00:00Z', 'AO-004', 'created', { to: 'inbox', assignee: 'alex-smith' }),
+    event('2026-01-02T10:00:00Z', 'AO-004', 'moved', { from: 'inbox', to: 'doing', assignee: 'alex-smith' }),
+    event('2026-01-07T10:00:00Z', 'AO-004', 'moved', { from: 'doing', to: 'done', assignee: 'alex-smith' }),
+    event('2026-01-01T10:00:00Z', 'AO-005', 'created', { to: 'inbox' }),
+    event('2026-01-02T10:00:00Z', 'AO-005', 'moved', { from: 'inbox', to: 'done' }),
+    event('2026-01-04T10:00:00Z', 'AO-005', 'moved', { from: 'done', to: 'next' }),
+  ];
+
+  const analytics = model.buildAnalytics(model.parseBoard(source), events, {
+    now: '2026-01-15T12:00:00Z',
+    startDate: '2026-01-01',
+    endDate: '2026-01-15',
+    timeZone: 'Etc/UTC',
+    aggregation: 'week',
+  });
+
+  assert.equal(analytics.total, 4);
+  assert.equal(analytics.active, 3);
+  assert.equal(analytics.status.doing, 1);
+  assert.equal(analytics.status.blocked, 1);
+  assert.equal(analytics.createdInRange, 5);
+  assert.equal(analytics.completedInRange, 2);
+  assert.equal(analytics.reworkCount, 1);
+  assert.equal(analytics.leadTime.medianDays, 3.5);
+  assert.equal(analytics.cycleTime.medianDays, 5);
+  assert.equal(analytics.aging.items[0].id, 'AO-001');
+  assert.equal(analytics.quality.summary.missingDescriptions, 2);
+  assert.equal(analytics.quality.summary.unassigned, 2);
+  assert.equal(analytics.workload.find((item) => item.assignee === 'alex-smith').active, 1);
+  assert.equal(analytics.cumulativeFlow.at(-1).done, 1);
+  assert.equal(analytics.throughput.length, 3);
+  assert.equal(analytics.metadata.timeZone, 'Etc/UTC');
+});
+
+test('analytics filters current cards and their supporting history consistently', () => {
+  const source = EMPTY_BOARD.replace(
+    '## Doing `(WIP <= 3)`\n\n<!-- empty -->',
+    '## Doing `(WIP <= 3)`\n\n- [ ] AO-001 — Prepare review · P2 · area:internal\n'
+      + '    - **Assignee:** alex-smith',
+  ).replace(
+    '## Review / Blocked\n\n<!-- empty -->',
+    '## Review / Blocked\n\n- [ ] AO-002 — Await dependency · P1 · area:internal',
+  );
+  const events = [
+    { at: '2026-01-01T10:00:00Z', card: 'AO-001', event: 'created', to: 'doing', area: 'internal', priority: 'P2', title: 'Prepare review', assignee: 'alex-smith' },
+    { at: '2026-01-02T10:00:00Z', card: 'AO-001', event: 'updated', to: 'doing', changes: ['title'], area: 'internal', priority: 'P2', title: 'Prepare review', assignee: 'alex-smith' },
+    { at: '2026-01-01T10:00:00Z', card: 'AO-002', event: 'created', to: 'blocked', area: 'internal', priority: 'P1', title: 'Await dependency' },
+  ];
+
+  const analytics = model.buildAnalytics(model.parseBoard(source), events, {
+    now: '2026-01-03T12:00:00Z',
+    days: 3,
+    timeZone: 'Etc/UTC',
+    filters: {
+      statuses: ['doing'],
+      assignees: ['alex-smith'],
+      search: 'prepare',
+    },
+  });
+
+  assert.equal(analytics.total, 1);
+  assert.equal(analytics.status.doing, 1);
+  assert.equal(analytics.historyEvents, 2);
+  assert.equal(analytics.recent.length, 2);
+  assert.equal(analytics.cards[0].id, 'AO-001');
+});
+
+test('analytics offers a throughput range only after sufficient recorded history', () => {
+  const source = boardWith('- [ ] AO-001 — Remaining work · P2 · area:internal');
+  const events = Array.from({ length: 5 }, (_, index) => {
+    const day = String((index * 7) + 1).padStart(2, '0');
+    const card = `AO-${String(index + 2).padStart(3, '0')}`;
+    return [
+      { at: `2026-01-${day}T09:00:00Z`, card, event: 'created', to: 'inbox', area: 'internal', priority: 'P2', title: card },
+      { at: `2026-01-${day}T17:00:00Z`, card, event: 'moved', from: 'inbox', to: 'done', area: 'internal', priority: 'P2', title: card },
+    ];
+  }).flat();
+
+  const analytics = model.buildAnalytics(model.parseBoard(source), events, {
+    now: '2026-02-01T12:00:00Z',
+    days: 32,
+    timeZone: 'Etc/UTC',
+    forecastDate: '2026-02-15',
+  });
+
+  assert.equal(analytics.forecast.available, true);
+  assert.ok(analytics.forecast.finishRangeWeeks.earliest >= 1);
+  assert.ok(analytics.forecast.whatCanFinish >= 0);
 });
