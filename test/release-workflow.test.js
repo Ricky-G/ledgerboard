@@ -28,6 +28,7 @@ test('release recovery can repair and publish an existing release tag', () => {
   const resolvePublication = releaseWorkflow.match(
     /  resolve-publication:[\s\S]*?(?=\n  publish:)/,
   )[0];
+  const publish = releaseWorkflow.match(/  publish:[\s\S]*$/)[0];
 
   assert.match(releaseWorkflow, /workflow_dispatch:\s+inputs:\s+tag:/);
   assert.match(
@@ -43,5 +44,6 @@ test('release recovery can repair and publish an existing release tag', () => {
   assert.match(resolvePublication, /Release tag \$RELEASE_TAG does not match package version \$PACKAGE_VERSION/);
   assert.match(resolvePublication, /git push --force origin "refs\/tags\/\$RELEASE_TAG"/);
   assert.match(resolvePublication, /echo "publish=true" >> "\$GITHUB_OUTPUT"/);
-  assert.match(releaseWorkflow, /uses: \.\/\.github\/workflows\/publish\.yml/);
+  assert.match(publish, /if: always\(\) && needs\.resolve-publication\.outputs\.publish == 'true'/);
+  assert.match(publish, /uses: \.\/\.github\/workflows\/publish\.yml/);
 });
