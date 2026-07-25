@@ -217,7 +217,7 @@ jobs:
   publish:
     name: Publish release
     needs: resolve-publication
-    if: needs.resolve-publication.outputs.publish == 'true'
+    if: always() && needs.resolve-publication.outputs.publish == 'true'
     uses: ./.github/workflows/publish.yml
     with:
       tag: ${{ needs.resolve-publication.outputs.tag_name }}
