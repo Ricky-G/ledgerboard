@@ -29,14 +29,14 @@ jobs:
       marketplace_url: ${{ steps.marketplace.outputs.url }}
       vsix_sha256: ${{ steps.package.outputs.sha256 }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ inputs.tag }}
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci
       - name: Verify release tag
@@ -69,10 +69,16 @@ jobs:
             echo "::error::The marketplace environment does not provide VSCE_PAT."
             exit 1
           }
-      - run: npm run privacy:scan
-      - run: npm run test
-      - run: npm run compile
-      - run: xvfb-run -a npm run test:integration
+      - name: Re-validate the tagged commit before publishing
+        # The tagged tree is what customers install, so it is verified here even
+        # though the same commit already passed CI on main.
+        run: |
+          npm run privacy:scan
+          npm run check-types
+          npm run lint
+          npm run test:coverage
+          npm run test:performance
+          xvfb-run -a npm run test:integration
       - name: Package release VSIX
         id: package
         run: |

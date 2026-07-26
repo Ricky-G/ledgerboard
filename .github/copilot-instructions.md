@@ -5,10 +5,55 @@
 - Keep changes focused. Preserve unrelated work already in the tree.
 - Keep the extension local-first: no telemetry, credentials, network requests, or runtime dependencies
   without an explicitly reviewed requirement.
-- Preserve the Markdown contract in `BOARD-STANDARDS.md`. Add tests for behavior changes and maintain
-  accessible keyboard and focus behavior for UI changes.
-- Use Node 22. Run the smallest relevant checks locally; use the full preflight in
-  `docs/pull-request-gates.md` before a pull request when practical.
+- Preserve the Markdown contract in `BOARD-STANDARDS.md`. Maintain accessible keyboard and focus
+  behavior for UI changes.
+- Use Node 22. Run the smallest relevant checks locally; use `npm run preflight` before a pull
+  request when practical.
+
+## Testing is mandatory for every task
+
+`docs/testing.md` is the full standard. It is not optional guidance, and these rules apply to every
+story, task, bug fix, and refactor, including small ones.
+
+- **Every change adds or updates a test at the layer that owns the behavior it changes.** Choose the
+  cheapest layer that can actually fail when the behavior breaks:
+  - domain model, parsing, validation, history, analytics -> `test/unit/`
+  - workflows, npm scripts, policy files, repository automation -> `test/tooling/`
+  - anything the user sees or clicks in the board panel -> `test/webview/specs/`
+  - activation, commands, file system, watchers -> `src/test/`
+  - VSIX contents and contributed manifest surface -> `test/packaging/`
+  - cost that grows with board size -> `test/performance/`
+- **A bug fix starts with a test that reproduces the bug.** Confirm it fails before the fix and
+  passes after. A fix without a regression test is incomplete work.
+- **Verify the test actually tests the change.** Revert the change mentally or literally: if the new
+  test still passes, it is not covering the behavior and needs to be rewritten.
+- **Never weaken a test to make a build green.** Deleting an assertion, widening a matcher, skipping
+  a case, or lowering a coverage threshold to get past a failure is a defect, not a fix. If a test is
+  genuinely wrong, say so explicitly in the pull request and explain why.
+- **Use the shared fixtures** in `test/fixtures/board-fixtures.js` and the webview harness fixture.
+  Fixtures must fail loudly when they cannot build what they promised, never return something
+  plausible. Keep them deterministic: no `Date.now()`, no `Math.random()`, no local timezone.
+- **Raise the coverage thresholds** in `scripts/coverage-policy.json` in the same pull request when a
+  change lifts the measured baseline. Lowering one requires an explicit justification.
+- **No flaky tests.** Poll with a deadline or use a retrying assertion instead of sleeping for a
+  fixed duration. Verify webview spec changes with `npx playwright test --repeat-each=3`.
+- If a change genuinely cannot be tested, state that in the pull request along with the reason and
+  how the behavior was verified instead. Silence is not an acceptable answer.
+
+## Writing for a public repository
+
+Everything in this repository, including commit messages, pull request descriptions, code comments,
+and documentation, is public and permanent. Write for a reader who has no other context.
+
+- Never reference a private conversation, chat, ticket, or instruction the reader cannot open.
+  Phrases such as "you asked", "as we discussed", or "per your request" have no meaning to a
+  stranger and imply hidden context. State the requirement or the rationale directly instead.
+- Explain a decision by its technical reason, not by who requested it.
+- Never include machine-specific detail: absolute local paths, home directories, personal email
+  addresses, internal hostnames, internal registry or proxy URLs, or real board content.
+- Use neutral, factual prose. Describe what the change does and why, not the process of arriving
+  at it.
+- `npm run privacy:scan` enforces the mechanical parts of this and runs in `static-checks`.
 
 ## Pull requests and releases
 
@@ -28,4 +73,9 @@
 - Never add, print, or expose secrets. Marketplace credentials belong only to the protected
   `marketplace` environment and are unavailable to PR workflows.
 - Keep workflow permissions minimal. Do not use `pull_request_target` for untrusted pull request code.
+- Pin every GitHub Action to a full commit SHA with the version in a trailing comment. A mutable tag
+  lets an upstream owner change what runs in CI.
 - Required checks and an independent approval protect `main`. Do not bypass them for routine work.
+- `quality` is the single required status check and aggregates every CI layer. Adding a layer means
+  adding a job and listing it under the `quality` job's `needs:`. Never rename `quality`: the release
+  workflow waits on that exact name.

@@ -5,11 +5,31 @@ import * as path from 'node:path';
 import { discoverBoardRepositories } from '../boardDiscovery';
 import { BoardRepository } from '../boardRepository';
 import { boardModel } from '../model';
-import { BOARD_FILE } from '../templates';
+import { BOARD_FILE, BUNDLE_FILES, CONFIG_FILE, HISTORY_FILE } from '../templates';
 
 async function removeFixture(uri: vscode.Uri): Promise<void> {
 	await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 	await vscode.workspace.fs.delete(uri, { recursive: true, useTrash: false });
+}
+
+/**
+ * Every test gets its own temporary workspace folder so no test can observe or
+ * corrupt another test's board bundle, even when the suite is re-ordered.
+ */
+async function withWorkspace(
+	label: string,
+	body: (root: vscode.Uri) => Promise<void>,
+): Promise<void> {
+	const root = vscode.Uri.file(path.join(
+		os.tmpdir(),
+		`ledgerboard-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+	));
+	await vscode.workspace.fs.createDirectory(root);
+	try {
+		await body(root);
+	} finally {
+		await removeFixture(root);
+	}
 }
 
 suite('Extension Test Suite', function () {
@@ -270,5 +290,260 @@ suite('Extension Test Suite', function () {
 		} finally {
 			await removeFixture(parent);
 		}
+	});
+
+	test('every contributed command is registered by activation', async () => {
+		const extension = vscode.extensions.getExtension('ricky-g.ledgerboard');
+		assert.ok(extension);
+		const contributed: Array<{ command: string }> = extension.packageJSON.contributes.commands;
+		const registered = new Set(await vscode.commands.getCommands(true));
+		const missing = contributed
+			.map((entry) => entry.command)
+			.filter((command) => !registered.has(command));
+		assert.deepEqual(missing, [], `Commands declared but never registered: ${missing}`);
+	});
+
+	test('the initialize command creates a complete bundle on disk', async () => {
+		await withWorkspace('command-initialize', async (root) => {
+			await vscode.commands.executeCommand('ledgerBoard.initializeBoard', root);
+
+			const repository = new BoardRepository(root);
+			// The command opens a webview panel asynchronously, so poll for the
+			// files rather than assuming the progress notification has settled.
+			const deadline = Date.now() + 10_000;
+			while (!await repository.exists() && Date.now() < deadline) {
+				await new Promise((resolve) => setTimeout(resolve, 100));
+			}
+
+			assert.equal(await repository.exists(), true, 'The command did not create the bundle.');
+			const validation = repository.validate(await repository.readFromDisk());
+			assert.equal(validation.cardCount, 0);
+			assert.equal(validation.diagnostics.length, 0);
+		});
+	});
+
+	test('initialization preserves files that already exist', async () => {
+		await withWorkspace('preserve', async (root) => {
+			const repository = new BoardRepository(root);
+			await repository.initialize();
+			const withCard = (await repository.readFromDisk()).boardSource.replace(
+				'<!-- empty -->',
+				'- [ ] AO-001 — Existing outcome · P2 · area:meta',
+			);
+			await vscode.workspace.fs.writeFile(
+				repository.uri(BOARD_FILE),
+				new TextEncoder().encode(withCard),
+			);
+
+			const second = await repository.initialize();
+			assert.deepEqual(second.created, []);
+			assert.deepEqual([...second.preserved].sort(), [...BUNDLE_FILES].sort());
+			assert.match((await repository.readFromDisk()).boardSource, /AO-001 — Existing outcome/);
+		});
+	});
+
+	test('exists reports false while any bundle file is missing', async () => {
+		await withWorkspace('partial-bundle', async (root) => {
+			const repository = new BoardRepository(root);
+			assert.equal(await repository.exists(), false);
+
+			await repository.initialize();
+			assert.equal(await repository.exists(), true);
+
+			await vscode.workspace.fs.delete(repository.uri(HISTORY_FILE), { useTrash: false });
+			assert.equal(await repository.exists(), false, 'A partial bundle must not count as a board.');
+		});
+	});
+
+	test('read observes unsaved editor text while readFromDisk observes the file', async () => {
+		await withWorkspace('dirty-editor', async (root) => {
+			const repository = new BoardRepository(root);
+			await repository.initialize();
+			const document = await vscode.workspace.openTextDocument(repository.uri(BOARD_FILE));
+			const edit = new vscode.WorkspaceEdit();
+			edit.replace(
+				document.uri,
+				new vscode.Range(document.positionAt(0), document.positionAt(document.getText().length)),
+				document.getText().replace(
+					'<!-- empty -->',
+					'- [ ] AO-001 — Unsaved outcome · P3 · area:meta',
+				),
+			);
+			assert.equal(await vscode.workspace.applyEdit(edit), true);
+
+			assert.match((await repository.read()).boardSource, /AO-001 — Unsaved outcome/);
+			assert.doesNotMatch((await repository.readFromDisk()).boardSource, /AO-001 — Unsaved outcome/);
+
+			assert.equal(await document.save(), true);
+			assert.match((await repository.readFromDisk()).boardSource, /AO-001 — Unsaved outcome/);
+		});
+	});
+
+	test('saving a board rejects an externally rewritten history ledger', async () => {
+		await withWorkspace('stale-history', async (root) => {
+			const repository = new BoardRepository(root);
+			await repository.initialize();
+			const base = await repository.read();
+			const nextBoardSource = base.boardSource.replace(
+				'<!-- empty -->',
+				'- [ ] AO-001 — Recorded outcome · P1 · area:meta',
+			);
+
+			const historyDocument = await vscode.workspace.openTextDocument(repository.uri(HISTORY_FILE));
+			const edit = new vscode.WorkspaceEdit();
+			edit.insert(historyDocument.uri, historyDocument.positionAt(historyDocument.getText().length), '\n');
+			assert.equal(await vscode.workspace.applyEdit(edit), true);
+			assert.equal(await historyDocument.save(), true);
+
+			await assert.rejects(
+				repository.save({
+					base,
+					nextBoardSource,
+					nextConfigSource: base.configSource,
+					saveBoard: true,
+					saveConfig: false,
+				}),
+				new RegExp(`${HISTORY_FILE} changed outside LedgerBoard`),
+			);
+		});
+	});
+
+	test('saving a board that fails validation leaves every file untouched', async () => {
+		await withWorkspace('atomic-save', async (root) => {
+			const repository = new BoardRepository(root);
+			await repository.initialize();
+			const base = await repository.read();
+
+			await assert.rejects(repository.save({
+				base,
+				// area:not-a-real-entity is not present in KANBAN-CONFIG.md.
+				nextBoardSource: base.boardSource.replace(
+					'<!-- empty -->',
+					'- [ ] AO-001 — Rejected outcome · P1 · area:not-a-real-entity',
+				),
+				nextConfigSource: base.configSource,
+				saveBoard: true,
+				saveConfig: false,
+			}));
+
+			const afterFailure = await repository.readFromDisk();
+			assert.equal(afterFailure.boardSource, base.boardSource);
+			assert.equal(afterFailure.configSource, base.configSource);
+			assert.equal(
+				afterFailure.historySource,
+				base.historySource,
+				'A rejected save must not append history events.',
+			);
+		});
+	});
+
+	test('the file watcher only reports the bundle files and disposes cleanly', async () => {
+		await withWorkspace('watcher', async (root) => {
+			const repository = new BoardRepository(root);
+			await repository.initialize();
+
+			const observed: string[] = [];
+			const subscription = repository.watch((fileName) => observed.push(fileName));
+			try {
+				// VS Code installs watchers for folders outside the workspace
+				// asynchronously, so give the provider a moment before writing.
+				await new Promise((resolve) => setTimeout(resolve, 2_000));
+
+				const bundle = await repository.readFromDisk();
+				await vscode.workspace.fs.writeFile(
+					repository.uri(CONFIG_FILE),
+					new TextEncoder().encode(`${bundle.configSource}\n`),
+				);
+				// A sibling Markdown file matches the watcher glob but is not part
+				// of the bundle, so it must never reach the callback.
+				await vscode.workspace.fs.writeFile(
+					vscode.Uri.joinPath(root, 'NOTES.md'),
+					new TextEncoder().encode('# Not part of the bundle\n'),
+				);
+
+				const deadline = Date.now() + 5_000;
+				while (observed.length === 0 && Date.now() < deadline) {
+					await new Promise((resolve) => setTimeout(resolve, 100));
+				}
+
+				// File-system notification delivery is an operating-system service,
+				// so the assertion covers the filter rather than the delivery: any
+				// event that does arrive must name a bundle file and nothing else.
+				const unexpected = observed.filter((fileName) => !BUNDLE_FILES.includes(
+					fileName as typeof BUNDLE_FILES[number],
+				));
+				assert.deepEqual(
+					unexpected,
+					[],
+					`The watcher reported files outside the bundle: ${JSON.stringify(unexpected)}`,
+				);
+				assert.ok(
+					!observed.includes(BOARD_FILE),
+					`${BOARD_FILE} never changed but the watcher reported it.`,
+				);
+			} finally {
+				subscription.dispose();
+				// Disposal must be idempotent so a panel can dispose during teardown.
+				assert.doesNotThrow(() => subscription.dispose());
+			}
+		});
+	});
+
+	test('discovery falls back to descendant boards when no workspace root holds one', async () => {
+		await withWorkspace('descendants', async (root) => {
+			const nested = vscode.Uri.joinPath(root, 'programmes', 'alpha');
+			await vscode.workspace.fs.createDirectory(nested);
+			await new BoardRepository(nested).initialize();
+
+			const discovery = await discoverBoardRepositories([{ uri: root, name: 'Outer', index: 0 }]);
+
+			// The workspace root has no bundle, so discovery must widen its search
+			// rather than reporting that the workspace holds no board at all.
+			assert.equal(discovery.scope, 'workspace-descendants');
+		});
+	});
+
+	test('a round trip through the model preserves byte-for-byte Markdown', async () => {
+		await withWorkspace('round-trip', async (root) => {
+			const repository = new BoardRepository(root);
+			await repository.initialize();
+			const base = await repository.read();
+			const populated = base.boardSource.replace(
+				'<!-- empty -->',
+				'- [ ] AO-001 — Round trip outcome · P2 · area:meta\n'
+					+ '    - **Description:** Stable text.',
+			);
+
+			const parsed = boardModel.parseBoard(populated);
+			assert.equal(
+				boardModel.serializeBoard(parsed),
+				populated,
+				'parseBoard then serializeBoard must not rewrite the author\'s Markdown.',
+			);
+			assert.equal(
+				boardModel.serializeConfig(base.configSource, boardModel.parseConfig(base.configSource)),
+				base.configSource,
+			);
+		});
+	});
+
+	test('the standard command opens the bundled BOARD-STANDARDS document', async () => {
+		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+		await vscode.commands.executeCommand('ledgerBoard.openStandard');
+
+		const deadline = Date.now() + 10_000;
+		while (Date.now() < deadline) {
+			const open = vscode.workspace.textDocuments.some(
+				(document) => document.uri.fsPath.endsWith('BOARD-STANDARDS.md'),
+			);
+			const previewed = vscode.window.tabGroups.all.some((group) => group.tabs.some(
+				(tab) => tab.label.includes('BOARD-STANDARDS'),
+			));
+			if (open || previewed) {
+				return;
+			}
+			await new Promise((resolve) => setTimeout(resolve, 100));
+		}
+		assert.fail('ledgerBoard.openStandard did not surface BOARD-STANDARDS.md.');
 	});
 });

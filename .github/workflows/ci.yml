@@ -1,89 +1,243 @@
 name: CI
 
+# Every job below runs independently so a failure names the layer that broke.
+# The aggregate `quality` job stays as the single required status check, which
+# keeps branch protection and the release gate stable while the work is split.
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # Superseded pull request runs are cancelled, but a push to main is never
+  # cancelled: its result is the evidence the release gate waits on.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Pull requests validate the merge result; pushes validate the exact commit
+  # that landed on main, which is what the release workflow later publishes.
+  VALIDATED_REF: ${{ github.event_name == 'push' && github.sha || '' }}
 
 jobs:
-  quality:
-    name: quality
+  static-checks:
+    name: static-checks
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - name: Check out the pull request
-        uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          ref: ${{ env.VALIDATED_REF }}
           persist-credentials: false
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
-      - name: Install dependencies from the lockfile
-        id: install
-        run: npm ci
+      - run: npm ci
       - name: Scan for prohibited private data
-        id: privacy
         run: npm run privacy:scan
       - name: Type check
-        id: type_check
         run: npm run check-types
       - name: Lint
-        id: lint
         run: npm run lint
-      - name: Run unit tests
-        id: unit_tests
-        run: npm run test
-      - name: Compile the extension
-        id: compile
-        run: npm run compile
-      - name: Run Extension Host integration tests
-        id: integration_tests
+      - name: Audit dependency advisories
+        run: npm run audit:dependencies
+
+  unit-tests:
+    name: unit-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ env.VALIDATED_REF }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Run the unit and tooling suites with coverage thresholds
+        run: npm run test:coverage
+      - name: Upload the coverage report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: coverage-report
+          path: coverage/
+          if-no-files-found: warn
+          retention-days: 14
+
+  webview-tests:
+    name: webview-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ env.VALIDATED_REF }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Resolve the pinned Playwright version
+        id: playwright
+        run: echo "version=$(node -p "require('./package.json').devDependencies['@playwright/test']")" >> "$GITHUB_OUTPUT"
+      - name: Restore the Playwright browser cache
+        id: browser-cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+      - name: Install the Chromium build Playwright expects
+        run: npx playwright install --with-deps chromium
+        if: steps.browser-cache.outputs.cache-hit != 'true'
+      - name: Install only the system dependencies when the browser is cached
+        run: npx playwright install-deps chromium
+        if: steps.browser-cache.outputs.cache-hit == 'true'
+      - name: Run the webview suite
+        run: npx playwright test
+      - name: Upload the Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  integration-tests:
+    name: integration-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ env.VALIDATED_REF }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Run the VS Code extension host suite
         run: xvfb-run -a npm run test:integration
-      - name: Package VSIX
-        id: package
-        run: npm run vsix
-      - name: Upload VSIX artifact
-        id: upload
-        if: ${{ success() }}
-        uses: actions/upload-artifact@v7
+      - name: Upload extension host diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: integration-diagnostics
+          path: |
+            .vscode-test/user-data/logs/
+            /tmp/ledgerboard-vscode-*/user-data/logs/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  performance:
+    name: performance
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ env.VALIDATED_REF }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Run the performance budgets
+        run: npm run test:performance
+
+  packaging:
+    name: packaging
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ env.VALIDATED_REF }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Build and verify the VSIX
+        run: npm run test:packaging
+      - name: Upload the VSIX for review
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: ledgerboard-vsix
           path: '*.vsix'
           if-no-files-found: error
-      - name: Publish quality summary
-        if: ${{ always() }}
+          retention-days: 14
+
+  quality:
+    # This is the required status check. It stays green only when every test
+    # layer above succeeded, so branch protection needs exactly one entry and
+    # adding a new layer never needs a branch protection change.
+    name: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: ${{ always() }}
+    needs:
+      - static-checks
+      - unit-tests
+      - webview-tests
+      - integration-tests
+      - performance
+      - packaging
+    steps:
+      - name: Publish the quality summary
         env:
-          INSTALL: ${{ steps.install.outcome }}
-          PRIVACY: ${{ steps.privacy.outcome }}
-          TYPE_CHECK: ${{ steps.type_check.outcome }}
-          LINT: ${{ steps.lint.outcome }}
-          UNIT_TESTS: ${{ steps.unit_tests.outcome }}
-          COMPILE: ${{ steps.compile.outcome }}
-          INTEGRATION_TESTS: ${{ steps.integration_tests.outcome }}
-          PACKAGE: ${{ steps.package.outcome }}
-          UPLOAD: ${{ steps.upload.outcome }}
+          STATIC_CHECKS: ${{ needs.static-checks.result }}
+          UNIT_TESTS: ${{ needs.unit-tests.result }}
+          WEBVIEW_TESTS: ${{ needs.webview-tests.result }}
+          INTEGRATION_TESTS: ${{ needs.integration-tests.result }}
+          PERFORMANCE: ${{ needs.performance.result }}
+          PACKAGING: ${{ needs.packaging.result }}
         run: |
           {
             echo "## Quality gate"
-            echo ""
-            echo "| Check | Result |"
+            echo
+            echo "| Layer | Result |"
             echo "| --- | --- |"
-            echo "| Lockfile install | $INSTALL |"
-            echo "| Privacy scan | $PRIVACY |"
-            echo "| Type check | $TYPE_CHECK |"
-            echo "| Lint | $LINT |"
-            echo "| Unit tests | $UNIT_TESTS |"
-            echo "| Compile | $COMPILE |"
-            echo "| Integration tests | $INTEGRATION_TESTS |"
-            echo "| VSIX package | $PACKAGE |"
-            echo "| VSIX upload | $UPLOAD |"
+            echo "| Static checks | $STATIC_CHECKS |"
+            echo "| Unit and tooling tests | $UNIT_TESTS |"
+            echo "| Webview tests | $WEBVIEW_TESTS |"
+            echo "| Extension host integration tests | $INTEGRATION_TESTS |"
+            echo "| Performance budgets | $PERFORMANCE |"
+            echo "| Packaging | $PACKAGING |"
           } >> "$GITHUB_STEP_SUMMARY"
+
+          FAILED=""
+          for LAYER in \
+            "static-checks:$STATIC_CHECKS" \
+            "unit-tests:$UNIT_TESTS" \
+            "webview-tests:$WEBVIEW_TESTS" \
+            "integration-tests:$INTEGRATION_TESTS" \
+            "performance:$PERFORMANCE" \
+            "packaging:$PACKAGING"
+          do
+            case "${LAYER##*:}" in
+              success) ;;
+              *) FAILED="$FAILED ${LAYER%%:*}(${LAYER##*:})" ;;
+            esac
+          done
+
+          if [ -n "$FAILED" ]; then
+            echo "::error::The quality gate failed because these layers did not succeed:$FAILED"
+            exit 1
+          fi
+          echo "Every test layer succeeded."

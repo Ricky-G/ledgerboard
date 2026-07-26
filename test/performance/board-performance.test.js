@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const { performance } = require('node:perf_hooks');
 const test = require('node:test');
-const model = require('../media/board-model.js');
+const model = require('../../media/board-model.js');
 
 function createBoard(cardCount) {
   const cards = Array.from({ length: cardCount }, (_, index) => {

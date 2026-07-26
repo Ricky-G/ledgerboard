@@ -1,0 +1,23 @@
+{
+  "$comment": "Coverage ratchet for the deterministic Node test layers. Raise these numbers when a change lifts the measured baseline. Lowering a threshold requires an explicit, reviewed justification in the pull request.",
+  "suites": [
+    "test/unit/**/*.test.js",
+    "test/tooling/**/*.test.js"
+  ],
+  "include": [
+    "media/board-model.js",
+    "scripts/audit-dependencies.js",
+    "scripts/privacy-scan.js"
+  ],
+  "exclude": [
+    "test/**",
+    "node_modules/**",
+    "dist/**",
+    "out/**"
+  ],
+  "thresholds": {
+    "lines": 94,
+    "branches": 91,
+    "functions": 97
+  }
+}

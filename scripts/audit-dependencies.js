@@ -4,9 +4,10 @@ const path = require('node:path');
 
 const HIGH_OR_CRITICAL = new Set(['high', 'critical']);
 
-function loadActiveExceptions(now = new Date()) {
-  const exceptionPath = path.join(__dirname, 'dependency-audit-exceptions.json');
-  const { exceptions } = JSON.parse(fs.readFileSync(exceptionPath, 'utf8'));
+function collectActiveExceptions(exceptions, now = new Date()) {
+  if (!Array.isArray(exceptions)) {
+    throw new Error('Dependency audit exceptions must be an array.');
+  }
   const today = now.toISOString().slice(0, 10);
   const activeExceptions = new Map();
 
@@ -33,6 +34,12 @@ function loadActiveExceptions(now = new Date()) {
   }
 
   return activeExceptions;
+}
+
+function loadActiveExceptions(now = new Date()) {
+  const exceptionPath = path.join(__dirname, 'dependency-audit-exceptions.json');
+  const { exceptions } = JSON.parse(fs.readFileSync(exceptionPath, 'utf8'));
+  return collectActiveExceptions(exceptions, now);
 }
 
 function advisoryUrls(report, vulnerabilityName, ancestors = new Set()) {
@@ -118,6 +125,8 @@ if (require.main === module) {
 
 module.exports = {
   advisoryUrls,
+  collectActiveExceptions,
   evaluateAuditReport,
   loadActiveExceptions,
+  printFindings,
 };
