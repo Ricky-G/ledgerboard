@@ -2,6 +2,15 @@
 
 All notable changes to LedgerBoard are documented here.
 
+## [0.4.0](https://github.com/Ricky-G/ledgerboard/compare/v0.3.2...v0.4.0) (2026-07-26)
+
+
+### Added
+
+* expand board analytics and insights ([#33](https://github.com/Ricky-G/ledgerboard/issues/33)) ([af1c662](https://github.com/Ricky-G/ledgerboard/commit/af1c66259bf67ca0e79c653a94a68ce9184aae32))
+* expand board analytics and insights ([#33](https://github.com/Ricky-G/ledgerboard/issues/33)) ([962f225](https://github.com/Ricky-G/ledgerboard/commit/962f2254d9fbf52a7fcbf5402cb1a33764a5b47b))
+* remove board column ticket limits ([#35](https://github.com/Ricky-G/ledgerboard/issues/35)) ([8608a1b](https://github.com/Ricky-G/ledgerboard/commit/8608a1b3c4f27802307da6358f9d3dc90cd943e4))
+
 ## [0.3.2](https://github.com/Ricky-G/ledgerboard/compare/v0.3.1...v0.3.2) (2026-07-25)
 
 
