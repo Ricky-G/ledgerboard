@@ -72,7 +72,8 @@ function handleRequest(req, res) {
     }
     send(res, 404, 'text/plain; charset=utf-8', 'Not found');
   } catch (error) {
-    send(res, 500, 'text/plain; charset=utf-8', String(error?.message ?? error));
+    console.error('Harness request failed:', error?.stack ?? error);
+    send(res, 500, 'text/plain; charset=utf-8', 'Internal server error');
   }
 }
 
