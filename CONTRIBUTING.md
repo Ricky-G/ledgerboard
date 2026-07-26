@@ -15,21 +15,55 @@ Use Node 22 LTS and a current VS Code release.
 
 ```powershell
 npm ci
-npm run privacy:scan
-npm run test
-npm run compile
-npm run test:integration
+npm run preflight
+```
+
+`preflight` runs everything CI runs. While iterating, run just the layer you are changing:
+
+```powershell
+npm run static             # privacy scan, type check, lint, dependency audit
+npm run test:unit          # domain model and analytics
+npm run test:tooling       # repository automation guards
+npm run test:webview       # Playwright specs against the real webview assets
+npm run test:integration   # VS Code Extension Host
+npm run test:packaging     # builds and verifies the VSIX
+npm run test:performance   # board operation budgets
 ```
 
 Press `F5` to run an Extension Development Host. Keep changes focused and preserve the public
 Markdown contract in `BOARD-STANDARDS.md`.
 
+## Testing
+
+[The testing standard](docs/testing.md) describes every layer, where its tests live, and which layer
+owns which behavior. Read it before your first pull request.
+
+The rule is short: **every change adds or updates a test at the layer that owns the behavior it
+changes.** A bug fix starts with a test that reproduces the bug and fails without the fix. Never
+weaken a test, widen a matcher, skip a case, or lower a coverage threshold to get a green build. If
+a change genuinely cannot be tested, say so in the pull request and explain how you verified it.
+
+## Writing for a public repository
+
+This repository is public. Commit messages, pull request descriptions, comments, and documentation
+are permanent and visible to everyone, so write for a reader who has no other context.
+
+- Do not reference a private conversation, chat, or instruction a reader cannot open. Phrases such
+  as "you asked" or "as we discussed" imply hidden context. State the requirement or rationale
+  directly instead.
+- Do not include absolute local paths, home directories, personal email addresses, internal
+  hostnames or registry URLs, or real board content.
+- Explain a decision by its technical reason rather than by who requested it.
+
+`npm run privacy:scan` enforces the mechanical parts of this and runs as part of `npm run static`.
+
 ## Pull requests
 
-- Add tests for behavior changes.
+- Fill in the testing section of the pull request template. It is the part reviewers read first.
 - Keep runtime dependencies at zero unless there is a compelling reviewed reason.
 - Use conventional commit titles so automated releases can identify user-visible changes.
-- Confirm the packaged VSIX contains no test fixtures, secrets, or private board data.
+- Confirm the packaged VSIX contains no test fixtures, secrets, or private board data. The
+  `packaging` layer checks this automatically.
 - Use accessible labels, keyboard interactions, and visible focus states for UI changes.
 - Follow [the PR quality and security gates](docs/pull-request-gates.md), including its local
   preflight commands and remediation guidance.
@@ -55,7 +89,8 @@ request checks and branch rules as every other change before merging.
 
 ### Automated lifecycle
 
-1. A merge to `main` reruns the production validation suite on that exact merge commit.
+1. A merge to `main` runs the full CI pipeline against that exact merge commit. The release workflow
+   waits for those recorded check results rather than repeating the same suites.
 2. Release Please opens or updates a version and changelog pull request when eligible conventional
    commits are present.
 3. After that protected pull request merges, Release Please creates the annotated `vX.Y.Z` tag and

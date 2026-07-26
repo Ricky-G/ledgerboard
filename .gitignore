@@ -4,5 +4,7 @@ node_modules
 .vscode-test/
 .playwright-mcp/
 coverage/
+playwright-report/
+test-results/
 *.vsix
 .DS_Store

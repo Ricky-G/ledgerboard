@@ -2,17 +2,18 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
+const { REPOSITORY_ROOT } = require('../helpers/repository.js');
 const {
   evaluateAuditReport,
   loadActiveExceptions,
-} = require('../scripts/audit-dependencies');
+} = require('../../scripts/audit-dependencies');
 
 const dependencySecurityWorkflow = fs.readFileSync(
-  path.resolve(__dirname, '..', '.github', 'workflows', 'dependency-security.yml'),
+  path.join(REPOSITORY_ROOT, '.github', 'workflows', 'dependency-security.yml'),
   'utf8',
 );
 const dependencyReviewWorkflow = fs.readFileSync(
-  path.resolve(__dirname, '..', '.github', 'workflows', 'dependency-review.yml'),
+  path.join(REPOSITORY_ROOT, '.github', 'workflows', 'dependency-review.yml'),
   'utf8',
 );
 

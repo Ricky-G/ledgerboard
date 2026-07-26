@@ -4,8 +4,6 @@
   const model = window.LedgerBoardModel;
   const vscode = acquireVsCodeApi();
   const BOARD_FILE = "BOARD.md";
-  const CONFIG_FILE = "KANBAN-CONFIG.md";
-  const HISTORY_FILE = "KANBAN-HISTORY.md";
   const AUTOSAVE_DELAY_MS = 1000;
   const COLUMN_DESCRIPTIONS = {
     inbox: "Awaiting triage",

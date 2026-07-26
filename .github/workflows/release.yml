@@ -20,29 +20,10 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  validate:
-    name: Validate merge commit
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run privacy:scan
-      - run: npm run test
-      - run: npm run compile
-      - run: xvfb-run -a npm run test:integration
-      - run: npm run vsix
-
   wait-for-required-checks:
+    # The aggregate `quality` check already ran every test layer against this
+    # exact merge commit, so the release path verifies that evidence instead of
+    # re-running the same suites and doubling the time to publish.
     name: Wait for required merge gates
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
@@ -113,7 +94,7 @@ jobs:
   release:
     name: Create release preparation
     if: github.event_name == 'push'
-    needs: [validate, wait-for-required-checks]
+    needs: [wait-for-required-checks]
     runs-on: ubuntu-latest
     outputs:
       release_created: ${{ steps.release-please.outputs.release_created }}
@@ -127,7 +108,7 @@ jobs:
             exit 1
           }
       - id: release-please
-        uses: googleapis/release-please-action@v4
+        uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4
         with:
           token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
           config-file: .release-please-config.json
@@ -144,7 +125,7 @@ jobs:
       publish: ${{ steps.resolve.outputs.publish }}
       tag_name: ${{ steps.resolve.outputs.tag_name }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0

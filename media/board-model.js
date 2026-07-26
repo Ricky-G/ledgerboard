@@ -584,16 +584,22 @@
       return source.card;
     }
 
+    // `targetIndex` is expressed against the column as the caller sees it, before
+    // the card is lifted out. Clamp against that length so an out-of-range index
+    // is not reduced twice by the reorder adjustment below.
+    const hasTargetIndex = Number.isInteger(targetIndex);
+    const requestedIndex = hasTargetIndex
+      ? Math.max(0, Math.min(targetIndex, target.cards.length))
+      : target.cards.length;
+
     source.column.cards.splice(source.cardIndex, 1);
     source.card.columnId = target.id;
     source.card.checked = target.id === "done";
-    const hasTargetIndex = Number.isInteger(targetIndex);
-    let insertionIndex = hasTargetIndex
-      ? Math.max(0, Math.min(targetIndex, target.cards.length))
-      : target.cards.length;
-    if (isReorder && hasTargetIndex && source.cardIndex < insertionIndex) {
+    let insertionIndex = requestedIndex;
+    if (isReorder && hasTargetIndex && source.cardIndex < requestedIndex) {
       insertionIndex -= 1;
     }
+    insertionIndex = Math.min(insertionIndex, target.cards.length);
     target.cards.splice(insertionIndex, 0, source.card);
     validateBoard(document);
     return source.card;

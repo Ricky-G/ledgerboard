@@ -1,74 +1,15 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const model = require('../media/board-model.js');
-
-const CONFIG = `# Config
-
-\`\`\`json
-{"version":1,"workspace":{"name":"Test"},"appearance":{"accent":"#e24a35","density":"comfortable"},"entities":[{"id":"internal","name":"Internal","color":"#167d74"}]}
-\`\`\`
-`;
-const HISTORY = '# History\n\n## Events\n';
-
-const EMPTY_BOARD = `# Test Board
-
----
-
-## Inbox
-
-<!-- empty -->
-
----
-
-## Next
-
-<!-- empty -->
-
----
-
-## Doing
-
-<!-- empty -->
-
----
-
-## Review / Blocked
-
-<!-- empty -->
-
----
-
-## Done
-
-<!-- empty -->
-`;
-
-function boardWith(cardLine, column = 'Inbox') {
-  return EMPTY_BOARD.replace(`## ${column}\n\n<!-- empty -->`, `## ${column}\n\n${cardLine}`);
-}
-
-function boardWithTwoCards(separator = '\n') {
-  const cards = [
-    '- [ ] AO-001 — First outcome · P1 · area:internal\n    - **Description:** First description.',
-    '- [ ] AO-002 — Second outcome · P2 · area:internal\n    - **Description:** Second description.',
-  ].join(separator);
-  return boardWith(cards);
-}
-
-function legacyBoardWithManyDoingCards(cardCount) {
-  const doingCards = Array.from({ length: cardCount }, (_, index) => (
-    `- [ ] AO-${String(index + 1).padStart(3, '0')} — Doing outcome ${index + 1} · P2 · area:internal`
-  )).join('\n\n');
-  return EMPTY_BOARD
-    .replace(
-      '## Inbox\n\n<!-- empty -->',
-      '## Inbox\n\n- [ ] AO-101 — Inbox outcome · P2 · area:internal',
-    )
-    .replace(
-      '## Doing\n\n<!-- empty -->',
-      `## Doing \`(WIP <= 3)\`\n\n${doingCards}`,
-    );
-}
+const model = require('../../media/board-model.js');
+const {
+  CONFIG,
+  EMPTY_BOARD,
+  HISTORY,
+  boardWith,
+  boardWithTwoCards,
+  buildBoard,
+  legacyBoardWithManyDoingCards,
+} = require('../fixtures/board-fixtures.js');
 
 test('empty board round-trips byte-for-byte', () => {
   const board = model.parseBoard(EMPTY_BOARD);
@@ -414,26 +355,15 @@ test('analytics handles an all-done board', () => {
 });
 
 test('analytics derives explainable health, flow, aging, quality, and workload metrics', () => {
-  const source = EMPTY_BOARD
-    .replace(
-      '## Inbox\n\n<!-- empty -->',
-      '## Inbox\n\n- [ ] AO-001 — Clarify scope · P3 · area:internal',
-    )
-    .replace(
-      '## Doing `(WIP <= 3)`\n\n<!-- empty -->',
-      '## Doing `(WIP <= 3)`\n\n- [ ] AO-002 — Prepare review · P2 · area:internal\n'
-        + '    - **Description:** Prepare the decision record.\n'
-        + '    - **Assignee:** alex-smith',
-    )
-    .replace(
-      '## Review / Blocked\n\n<!-- empty -->',
-      '## Review / Blocked\n\n- [ ] AO-003 — Await dependency · P1 · area:internal',
-    )
-    .replace(
-      '## Done\n\n<!-- empty -->',
-      '## Done\n\n- [x] AO-004 — Publish outcome · P3 · area:internal\n'
-        + '    - **Assignee:** alex-smith',
-    );
+  const source = buildBoard({
+    Inbox: '- [ ] AO-001 — Clarify scope · P3 · area:internal',
+    Doing: '- [ ] AO-002 — Prepare review · P2 · area:internal\n'
+      + '    - **Description:** Prepare the decision record.\n'
+      + '    - **Assignee:** alex-smith',
+    'Review / Blocked': '- [ ] AO-003 — Await dependency · P1 · area:internal',
+    Done: '- [x] AO-004 — Publish outcome · P3 · area:internal\n'
+      + '    - **Assignee:** alex-smith',
+  });
   const event = (at, card, eventType, extra = {}) => ({
     at,
     card,
@@ -485,14 +415,11 @@ test('analytics derives explainable health, flow, aging, quality, and workload m
 });
 
 test('analytics filters current cards and their supporting history consistently', () => {
-  const source = EMPTY_BOARD.replace(
-    '## Doing `(WIP <= 3)`\n\n<!-- empty -->',
-    '## Doing `(WIP <= 3)`\n\n- [ ] AO-001 — Prepare review · P2 · area:internal\n'
+  const source = buildBoard({
+    Doing: '- [ ] AO-001 — Prepare review · P2 · area:internal\n'
       + '    - **Assignee:** alex-smith',
-  ).replace(
-    '## Review / Blocked\n\n<!-- empty -->',
-    '## Review / Blocked\n\n- [ ] AO-002 — Await dependency · P1 · area:internal',
-  );
+    'Review / Blocked': '- [ ] AO-002 — Await dependency · P1 · area:internal',
+  });
   const events = [
     { at: '2026-01-01T10:00:00Z', card: 'AO-001', event: 'created', to: 'doing', area: 'internal', priority: 'P2', title: 'Prepare review', assignee: 'alex-smith' },
     { at: '2026-01-02T10:00:00Z', card: 'AO-001', event: 'updated', to: 'doing', changes: ['title'], area: 'internal', priority: 'P2', title: 'Prepare review', assignee: 'alex-smith' },

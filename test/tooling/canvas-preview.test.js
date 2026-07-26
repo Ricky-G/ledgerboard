@@ -3,9 +3,9 @@ const childProcess = require('node:child_process');
 const path = require('node:path');
 const test = require('node:test');
 const { pathToFileURL } = require('node:url');
-const model = require('../media/board-model.js');
+const model = require('../../media/board-model.js');
+const { REPOSITORY_ROOT } = require('../helpers/repository.js');
 
-const REPOSITORY_ROOT = path.resolve(__dirname, '..');
 const EXTENSION_ROOT = path.join(REPOSITORY_ROOT, '.github', 'extensions', 'ledgerboard-preview');
 
 test('project canvas resolves the current repository without branch-specific paths', async () => {
