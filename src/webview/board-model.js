@@ -1,3 +1,4 @@
+// Shared by the extension host and the generated self-contained web app.
 (function initBoardModel(root, factory) {
   const api = factory();
 

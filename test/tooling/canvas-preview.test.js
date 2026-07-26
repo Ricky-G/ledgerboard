@@ -3,7 +3,7 @@ const childProcess = require('node:child_process');
 const path = require('node:path');
 const test = require('node:test');
 const { pathToFileURL } = require('node:url');
-const model = require('../../media/board-model.js');
+const model = require('../../src/webview/board-model.js');
 const { REPOSITORY_ROOT } = require('../helpers/repository.js');
 
 const EXTENSION_ROOT = path.join(REPOSITORY_ROOT, '.github', 'extensions', 'ledgerboard-preview');
@@ -29,6 +29,15 @@ test('project canvas scripts have valid JavaScript syntax', () => {
     );
     assert.equal(result.status, 0, result.stderr);
   });
+});
+
+test('project canvas injects its host into the self-contained webview', () => {
+  const source = require('node:fs').readFileSync(path.join(EXTENSION_ROOT, 'extension.mjs'), 'utf8');
+
+  assert.match(source, /LEDGERBOARD_HOST/);
+  assert.match(source, /bGVkZ2VyYm9hcmQ/);
+  assert.doesNotMatch(source, /\/assets\/(?:styles|board-model|app)/);
+  assert.doesNotMatch(source, /\{\{(?:cspSource|nonce|stylesUri|modelUri|appUri)\}\}/);
 });
 
 test('project canvas sample data validates against the shared model', async () => {

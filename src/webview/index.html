@@ -1,0 +1,602 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <meta name="theme-color" content="#f4f5f2">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; connect-src 'none'; form-action 'none'; img-src data:; object-src 'none'; style-src 'nonce-bGVkZ2VyYm9hcmQ'; script-src 'nonce-bGVkZ2VyYm9hcmQ';">
+    <title>LedgerBoard</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='8' fill='%2317202a'/%3E%3Cpath d='M0 54h64v10H0z' fill='%23e24a35'/%3E%3Ctext x='32' y='39' text-anchor='middle' font-family='Arial' font-size='22' font-weight='700' fill='white'%3EAO%3C/text%3E%3C/svg%3E">
+    <!-- LEDGERBOARD_STYLES -->
+  </head>
+  <body>
+    <div class="app-shell" id="appShell" data-density="comfortable">
+      <header class="topbar">
+        <div class="brand-block">
+          <div class="brand-mark" aria-hidden="true">AO</div>
+          <div>
+            <p class="eyebrow" id="workspaceName">Workspace</p>
+            <h1 id="boardTitle">LedgerBoard</h1>
+          </div>
+        </div>
+
+        <nav class="view-switcher" aria-label="Application views">
+          <button class="view-tab is-active" type="button" data-view="board" aria-pressed="true">
+            Board
+          </button>
+          <button class="view-tab" type="button" data-view="settings" aria-pressed="false">
+            People &amp; entities
+          </button>
+          <button class="view-tab" type="button" data-view="analytics" aria-pressed="false">
+            Analytics
+          </button>
+        </nav>
+
+        <div class="topbar-actions">
+          <div class="save-state" id="saveState" data-state="idle" aria-live="polite">
+            <span class="save-state-icon" id="saveStateIcon" aria-hidden="true">•</span>
+            <span class="save-state-copy">
+              <strong id="saveStateLabel">Not connected</strong>
+              <small id="saveStateDetail">Open the repository</small>
+            </span>
+          </div>
+          <div class="connection-state" id="connectionState" data-state="offline">
+            <span class="status-dot" aria-hidden="true"></span>
+            <span id="connectionLabel">Folder not connected</span>
+          </div>
+          <button class="icon-button" id="reloadButton" type="button" title="Reload Markdown files" aria-label="Reload Markdown files" disabled>
+            ↻
+          </button>
+          <button class="secondary-button" id="connectButton" type="button">
+            Switch board
+          </button>
+          <button class="primary-button" id="saveButton" type="button" disabled>
+            Save now
+          </button>
+        </div>
+      </header>
+
+      <main>
+        <section class="board-view" id="boardView" aria-labelledby="boardTitle">
+          <div class="command-strip">
+            <div class="search-control">
+              <span aria-hidden="true">⌕</span>
+              <label class="visually-hidden" for="searchInput">Search cards</label>
+              <input id="searchInput" type="search" placeholder="Search outcomes, details, or IDs" autocomplete="off">
+            </div>
+
+            <label class="select-control">
+              <span>Entity</span>
+              <select id="areaFilter">
+                <option value="">All entities</option>
+              </select>
+            </label>
+
+            <label class="select-control">
+              <span>Assignee</span>
+              <select id="assigneeFilter">
+                <option value="">Anyone</option>
+                <option value="__unassigned__">Unassigned</option>
+              </select>
+            </label>
+
+            <label class="select-control compact-select">
+              <span>Priority</span>
+              <select id="priorityFilter">
+                <option value="">All</option>
+                <option value="P1">P1</option>
+                <option value="P2">P2</option>
+                <option value="P3">P3</option>
+                <option value="P4">P4</option>
+              </select>
+            </label>
+
+            <div class="board-stats" aria-label="Board summary">
+              <div><strong id="activeCount">0</strong><span>active</span></div>
+              <div><strong id="blockedCount">0</strong><span>waiting</span></div>
+              <div><strong id="doingCount">0</strong><span>in progress</span></div>
+            </div>
+
+            <button class="primary-button add-outcome-button" id="addCardButton" type="button" disabled>
+              <span aria-hidden="true">+</span>
+              New outcome
+            </button>
+          </div>
+
+          <div class="mobile-column-tabs" id="mobileColumnTabs" aria-label="Board columns"></div>
+
+          <div class="board-canvas" id="boardCanvas">
+            <div class="welcome-panel" id="welcomePanel">
+              <div class="welcome-signal" aria-hidden="true">
+                <span></span><span></span><span></span><span></span><span></span>
+              </div>
+              <p class="eyebrow">Markdown-powered</p>
+              <h2 id="welcomeTitle">Your delivery board, directly on the repository.</h2>
+              <p id="welcomeCopy">
+                Open a LedgerBoard bundle to load <strong>BOARD.md</strong>,
+                <strong>KANBAN-CONFIG.md</strong>, and <strong>KANBAN-HISTORY.md</strong>.
+              </p>
+              <div class="welcome-actions">
+                <button class="primary-button large-button" id="welcomeConnectButton" type="button">
+                  Choose board folder
+                </button>
+                <button class="secondary-button large-button" id="welcomeNormalizeButton" type="button" hidden>
+                  Normalize formatting
+                </button>
+              </div>
+              <p class="browser-note" id="browserNote">
+                Files stay in your workspace and remain readable without this extension.
+              </p>
+            </div>
+            <div class="kanban-board" id="kanbanBoard" aria-label="Kanban board"></div>
+          </div>
+        </section>
+
+        <section class="settings-view" id="settingsView" hidden aria-labelledby="settingsTitle">
+          <div class="settings-heading">
+            <div>
+              <p class="eyebrow">Board configuration</p>
+              <h2 id="settingsTitle">People, entities &amp; appearance</h2>
+              <p>People, entity identity, and board presentation are persisted in KANBAN-CONFIG.md.</p>
+            </div>
+            <button class="primary-button" id="settingsSaveButton" type="button" disabled>
+              Save now
+            </button>
+          </div>
+
+          <div class="settings-layout" id="settingsContent">
+            <section class="settings-section" aria-labelledby="workspaceSettingsTitle">
+              <div class="section-number" aria-hidden="true">01</div>
+              <div class="settings-section-content">
+                <h3 id="workspaceSettingsTitle">Workspace identity</h3>
+                <p>These labels appear in the board header and browser title.</p>
+                <div class="field-grid">
+                  <label class="field">
+                    <span>Workspace name</span>
+                    <input id="configWorkspaceName" type="text" maxlength="60">
+                  </label>
+                  <label class="field">
+                    <span>Board title</span>
+                    <input id="configBoardTitle" type="text" maxlength="80">
+                  </label>
+                  <label class="field">
+                    <span>Timezone</span>
+                    <input id="configTimezone" type="text" maxlength="60">
+                  </label>
+                </div>
+              </div>
+            </section>
+
+            <section class="settings-section" aria-labelledby="appearanceSettingsTitle">
+              <div class="section-number" aria-hidden="true">02</div>
+              <div class="settings-section-content">
+                <h3 id="appearanceSettingsTitle">Appearance</h3>
+                <p>Keep the board quiet, legible, and quick to scan.</p>
+                <div class="field-grid appearance-fields">
+                  <label class="field color-field">
+                    <span>Action color</span>
+                    <span class="color-input-wrap">
+                      <input id="configAccent" type="color">
+                      <output id="configAccentValue">#e24a35</output>
+                    </span>
+                  </label>
+                  <fieldset class="field density-field">
+                    <legend>Card density</legend>
+                    <div class="segmented-control">
+                      <label><input type="radio" name="density" value="comfortable"><span>Comfortable</span></label>
+                      <label><input type="radio" name="density" value="compact"><span>Compact</span></label>
+                    </div>
+                  </fieldset>
+                </div>
+              </div>
+            </section>
+
+            <section class="settings-section people-settings-section" aria-labelledby="peopleSettingsTitle">
+              <div class="section-number" aria-hidden="true">03</div>
+              <div class="settings-section-content">
+                <div class="people-heading-row">
+                  <div>
+                    <h3 id="peopleSettingsTitle">People</h3>
+                    <p>Add the names that can own work. Assignments stay optional for every outcome.</p>
+                  </div>
+                  <button class="secondary-button" id="addPersonButton" type="button">
+                    <span aria-hidden="true">+</span>
+                    Add person
+                  </button>
+                </div>
+                <div class="people-list-header" aria-hidden="true">
+                  <span>Color</span><span>Person name</span><span>Person ID</span><span></span>
+                </div>
+                <div class="people-list" id="peopleList"></div>
+              </div>
+            </section>
+
+            <section class="settings-section entity-settings-section" aria-labelledby="entitySettingsTitle">
+              <div class="section-number" aria-hidden="true">04</div>
+              <div class="settings-section-content">
+                <div class="entity-heading-row">
+                  <div>
+                    <h3 id="entitySettingsTitle">Entities</h3>
+                    <p>Every card uses its `area` value to pick up an entity name and color.</p>
+                  </div>
+                  <button class="secondary-button" id="addEntityButton" type="button">
+                    <span aria-hidden="true">+</span>
+                    Add entity
+                  </button>
+                </div>
+                <div class="entity-list-header" aria-hidden="true">
+                  <span>Color</span><span>Entity name</span><span>Area ID</span><span></span>
+                </div>
+                <div class="entity-list" id="entityList"></div>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="analytics-view" id="analyticsView" hidden aria-labelledby="analyticsTitle">
+          <div class="analytics-heading">
+            <div>
+              <p class="eyebrow">Operational signal</p>
+              <h2 id="analyticsTitle">Analytics</h2>
+              <p id="analyticsCoverage">Current board state with transition history.</p>
+            </div>
+            <div class="analytics-heading-meta">
+              <strong id="analyticsTimeZone">Timezone</strong>
+              <span id="analyticsRangeSummary">Last 30 days</span>
+            </div>
+          </div>
+
+          <section class="analytics-filter-bar" aria-label="Analytics filters">
+            <label>
+              <span>Date range</span>
+              <select id="analyticsRange">
+                <option value="7">Last 7 days</option>
+                <option value="30" selected>Last 30 days</option>
+                <option value="90">Last 90 days</option>
+                <option value="custom">Custom range</option>
+              </select>
+            </label>
+            <div class="analytics-custom-range" id="analyticsCustomRange" hidden>
+              <label>
+                <span>From</span>
+                <input id="analyticsStartDate" type="date">
+              </label>
+              <label>
+                <span>To</span>
+                <input id="analyticsEndDate" type="date">
+              </label>
+            </div>
+            <label class="analytics-filter-search">
+              <span>Search</span>
+              <input id="analyticsSearch" type="search" placeholder="Find an outcome">
+            </label>
+            <label>
+              <span>Status</span>
+              <select id="analyticsStatus">
+                <option value="">All statuses</option>
+                <option value="inbox">Inbox</option>
+                <option value="next">Next</option>
+                <option value="doing">Doing</option>
+                <option value="blocked">Review / Blocked</option>
+                <option value="done">Done</option>
+              </select>
+            </label>
+            <label>
+              <span>Priority</span>
+              <select id="analyticsPriority">
+                <option value="">All priorities</option>
+                <option value="P1">P1</option>
+                <option value="P2">P2</option>
+                <option value="P3">P3</option>
+                <option value="P4">P4</option>
+              </select>
+            </label>
+            <label>
+              <span>Entity / category</span>
+              <select id="analyticsArea">
+                <option value="">All entities</option>
+              </select>
+            </label>
+            <label>
+              <span>Assignee</span>
+              <select id="analyticsAssignee">
+                <option value="">All assignees</option>
+                <option value="unassigned">Unassigned</option>
+              </select>
+            </label>
+            <label>
+              <span>Throughput</span>
+              <select id="analyticsAggregation">
+                <option value="day">By day</option>
+                <option value="week">By week</option>
+                <option value="month">By month</option>
+              </select>
+            </label>
+            <label class="analytics-toggle">
+              <input id="analyticsShowAssignees" type="checkbox">
+              <span>Show assignee labels</span>
+            </label>
+            <div class="analytics-filter-actions">
+              <button id="analyticsSavePreset" class="secondary-button" type="button">Save filters locally</button>
+              <button id="analyticsRestorePreset" class="secondary-button" type="button">Restore saved filters</button>
+              <button id="analyticsExport" class="secondary-button" type="button">Export aggregates</button>
+            </div>
+          </section>
+
+          <div class="metric-grid" aria-label="Board metrics">
+            <article class="metric-tile">
+              <span>Open work</span>
+              <strong id="metricActive">0</strong>
+              <small>Current filtered board state</small>
+            </article>
+            <article class="metric-tile">
+              <span>Blocked work</span>
+              <strong id="metricBlocked">0</strong>
+              <small>Review or dependency waiting</small>
+            </article>
+            <article class="metric-tile">
+              <span>Aging work</span>
+              <strong id="metricAging">0</strong>
+              <small>14 or more recorded days</small>
+            </article>
+            <article class="metric-tile">
+              <span>Completed in range</span>
+              <strong id="metricCompletedRange">0</strong>
+              <small id="metricCompletedLabel">Recorded transitions to Done</small>
+            </article>
+            <article class="metric-tile">
+              <span>Net work change</span>
+              <strong id="metricNetWork">0</strong>
+              <small>Created minus completed</small>
+            </article>
+            <article class="metric-tile">
+              <span>Reopened in range</span>
+              <strong id="metricRework">0</strong>
+              <small>Returned from Done</small>
+            </article>
+            <article class="metric-tile">
+              <span>Median cycle</span>
+              <strong id="metricCycle">—</strong>
+              <small>Doing to Done, when known</small>
+            </article>
+            <article class="metric-tile">
+              <span>Completion forecast</span>
+              <strong id="metricForecast">—</strong>
+              <small id="metricForecastDetail">Needs more history</small>
+            </article>
+          </div>
+
+          <section class="analytics-context" aria-labelledby="analyticsContextTitle">
+            <div>
+              <p class="eyebrow">Filtered board health</p>
+              <h3 id="analyticsContextTitle">Context and comparison</h3>
+              <p id="analyticsHealthSummary"></p>
+            </div>
+            <details class="analytics-definitions">
+              <summary>Metric definitions and exclusions</summary>
+              <div id="analyticsDefinitions"></div>
+            </details>
+          </section>
+
+          <div class="analytics-grid">
+            <section class="analytics-panel status-panel" aria-labelledby="statusChartTitle">
+              <div class="analytics-panel-heading">
+                <div>
+                  <p class="eyebrow">Current state</p>
+                  <h3 id="statusChartTitle">Work by status</h3>
+                </div>
+                <strong id="statusTotal">0 outcomes</strong>
+              </div>
+              <div id="statusChart" class="status-chart"></div>
+            </section>
+
+            <section class="analytics-panel priority-panel" aria-labelledby="priorityChartTitle">
+              <div class="analytics-panel-heading">
+                <div>
+                  <p class="eyebrow">Current state</p>
+                  <h3 id="priorityChartTitle">Priority mix</h3>
+                </div>
+              </div>
+              <div id="priorityChart" class="priority-chart"></div>
+            </section>
+
+            <section class="analytics-panel activity-panel" aria-labelledby="activityChartTitle">
+              <div class="analytics-panel-heading">
+                <div>
+                  <p class="eyebrow">Flow over time</p>
+                  <h3 id="activityChartTitle">Recorded throughput</h3>
+                </div>
+                <span class="chart-key"><i></i> Activity <i></i> Completed</span>
+              </div>
+              <div id="throughputChart" class="activity-chart" aria-label="Recorded throughput chart"></div>
+            </section>
+
+            <section class="analytics-panel entity-panel" aria-labelledby="entityChartTitle">
+              <div class="analytics-panel-heading">
+                <div>
+                  <p class="eyebrow">Active portfolio</p>
+                  <h3 id="entityChartTitle">Work by entity / category</h3>
+                </div>
+              </div>
+              <div id="entityChart" class="entity-chart"></div>
+            </section>
+
+            <section class="analytics-panel cumulative-panel" aria-labelledby="cumulativeFlowTitle">
+              <div class="analytics-panel-heading">
+                <div>
+                  <p class="eyebrow">Recorded state history</p>
+                  <h3 id="cumulativeFlowTitle">Cumulative flow</h3>
+                </div>
+                <span>Known ledger observations by day</span>
+              </div>
+              <div id="cumulativeFlow" class="analytics-table-wrap"></div>
+            </section>
+
+            <section class="analytics-panel aging-panel" aria-labelledby="agingWorkTitle">
+              <div class="analytics-panel-heading">
+                <div>
+                  <p class="eyebrow">Current active work</p>
+                  <h3 id="agingWorkTitle">Aging work in progress</h3>
+                </div>
+                <span>Sorted by recorded age</span>
+              </div>
+              <div id="agingWork" class="analytics-list"></div>
+            </section>
+
+            <section class="analytics-panel workload-panel" aria-labelledby="workloadTitle">
+              <div class="analytics-panel-heading">
+                <div>
+                  <p class="eyebrow">Collaboration</p>
+                  <h3 id="workloadTitle">Active workload</h3>
+                </div>
+                <span>Work balance, not performance ranking</span>
+              </div>
+              <div id="workload" class="analytics-table-wrap"></div>
+            </section>
+
+            <section class="analytics-panel duration-panel" aria-labelledby="durationTitle">
+              <div class="analytics-panel-heading">
+                <div>
+                  <p class="eyebrow">Recorded transitions</p>
+                  <h3 id="durationTitle">Time in status</h3>
+                </div>
+                <span>Excludes baseline intervals</span>
+              </div>
+              <div id="timeInStatus" class="analytics-table-wrap"></div>
+            </section>
+
+            <section class="analytics-panel quality-panel" aria-labelledby="qualityTitle">
+              <div class="analytics-panel-heading">
+                <div>
+                  <p class="eyebrow">Data quality</p>
+                  <h3 id="qualityTitle">Checks needing review</h3>
+                </div>
+                <span>Validation blocks malformed data on load</span>
+              </div>
+              <div id="qualityChecks" class="quality-checks"></div>
+            </section>
+
+            <section class="analytics-panel insight-panel" aria-labelledby="insightsTitle">
+              <div class="analytics-panel-heading">
+                <div>
+                  <p class="eyebrow">Decision support</p>
+                  <h3 id="insightsTitle">Explainable insights</h3>
+                </div>
+              </div>
+              <div id="insights" class="insight-list"></div>
+            </section>
+
+            <section class="analytics-panel forecast-panel" aria-labelledby="forecastTitle">
+              <div class="analytics-panel-heading">
+                <div>
+                  <p class="eyebrow">Historical throughput</p>
+                  <h3 id="forecastTitle">What could finish</h3>
+                </div>
+                <label class="forecast-date-control">
+                  <span>By date</span>
+                  <input id="analyticsForecastDate" type="date">
+                </label>
+              </div>
+              <div id="forecast" class="forecast-copy"></div>
+            </section>
+
+            <section class="analytics-panel recent-panel" aria-labelledby="recentActivityTitle">
+              <div class="analytics-panel-heading">
+                <div>
+                  <p class="eyebrow">Append-only ledger</p>
+                  <h3 id="recentActivityTitle">Recent activity</h3>
+                </div>
+                <span id="historyEventCount">0 events</span>
+              </div>
+              <div id="recentActivity" class="recent-activity"></div>
+            </section>
+
+            <section class="analytics-panel drilldown-panel" aria-labelledby="analyticsDrilldownTitle">
+              <div class="analytics-panel-heading">
+                <div>
+                  <p class="eyebrow">Supporting work</p>
+                  <h3 id="analyticsDrilldownTitle">Drill-down</h3>
+                </div>
+                <span>Open an outcome to inspect or edit it</span>
+              </div>
+              <div id="analyticsDrilldown" class="analytics-list">
+                <div class="analytics-empty">Select a chart segment, insight, or check to inspect the supporting outcomes.</div>
+              </div>
+            </section>
+          </div>
+        </section>
+      </main>
+
+      <footer class="statusbar">
+        <span id="statusMessage">Open the repository to begin.</span>
+        <span class="unsaved-indicator" id="unsavedIndicator" hidden>
+          <span aria-hidden="true"></span> Unsaved changes
+        </span>
+        <span id="lastLoadedLabel"></span>
+      </footer>
+    </div>
+
+    <dialog class="card-dialog" id="cardDialog">
+      <form method="dialog" id="cardForm">
+        <div class="dialog-header">
+          <div>
+            <p class="eyebrow" id="cardDialogEyebrow">New outcome</p>
+            <h2 id="cardDialogTitle">Add an outcome</h2>
+          </div>
+          <button class="icon-button close-dialog-button" type="button" data-close-dialog title="Close" aria-label="Close">×</button>
+        </div>
+
+        <div class="dialog-body">
+          <input id="cardId" type="hidden">
+          <label class="field full-field">
+            <span>Outcome title</span>
+            <input id="cardTitle" type="text" maxlength="140" required autofocus>
+          </label>
+          <label class="field full-field">
+            <span>Brief description</span>
+            <textarea id="cardDescription" rows="3" maxlength="360" placeholder="What does done look like, and why does this matter?"></textarea>
+          </label>
+
+          <div class="dialog-field-grid">
+            <label class="field">
+              <span>Entity</span>
+              <select id="cardArea" required></select>
+            </label>
+            <label class="field">
+              <span>Assignee</span>
+              <select id="cardAssignee"></select>
+            </label>
+            <label class="field">
+              <span>Status</span>
+              <select id="cardColumn"></select>
+            </label>
+            <label class="field">
+              <span>Priority</span>
+              <select id="cardPriority">
+                <option value="P1">P1 · Critical</option>
+                <option value="P2">P2 · This week</option>
+                <option value="P3">P3 · Soon</option>
+                <option value="P4">P4 · Someday</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div class="dialog-footer">
+          <button class="danger-button" id="deleteCardButton" type="button" hidden>Delete</button>
+          <span class="dialog-spacer"></span>
+          <button class="secondary-button" type="button" data-close-dialog>Cancel</button>
+          <button class="primary-button" id="submitCardButton" type="submit">Add outcome</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
+
+    <!-- LEDGERBOARD_HOST -->
+    <!-- LEDGERBOARD_MODEL -->
+    <!-- LEDGERBOARD_STANDALONE -->
+    <!-- LEDGERBOARD_APP -->
+  </body>
+</html>

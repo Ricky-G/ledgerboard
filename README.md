@@ -44,6 +44,16 @@ KANBAN-HISTORY.md
 Run **LedgerBoard: Open Board** whenever you want to return. In a multi-root workspace, LedgerBoard
 checks workspace roots first, validates candidates in parallel, and lets you choose when needed.
 
+### Standalone browser app
+
+`media/index.html` is also a complete offline application. Copy that one file into an air-gapped
+environment, open it in a current Chrome or Edge browser, and choose the folder containing
+`BOARD.md`, `KANBAN-CONFIG.md`, and `KANBAN-HISTORY.md`. The app reads and writes those files
+directly, includes all styles and scripts inside the HTML file, and makes no network requests.
+
+Browser folder access requires the File System Access API. The VS Code extension remains the
+compatible option for browsers that do not provide it.
+
 ## Features
 
 ### Board

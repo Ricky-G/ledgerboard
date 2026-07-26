@@ -24,13 +24,13 @@ Run everything with `npm run test:all`, or `npm run preflight` to include the st
 Pick the cheapest layer that can actually fail when the behavior breaks.
 
 - Changing how a card, column, config value, or history event is parsed, validated, or written?
-  **Unit.** These tests are pure, fast, and run against `media/board-model.js` directly.
+  **Unit.** These tests are pure, fast, and run against `src/webview/board-model.js` directly.
 - Changing a workflow, an npm script, a repository policy file, or a generator script?
   **Tooling.** Add a guard so a future edit that breaks the contract fails a test instead of
   failing a release.
 - Changing anything the user sees or interacts with in the board panel? **Webview.** The static
-  harness renders the real `media/index.html`, `media/app.js`, and `media/styles.css` against a
-  fixed fixture, so a spec failure means a user-visible regression.
+  harness renders the generated `media/index.html` from the maintainable `src/webview/` sources
+  against a fixed fixture, so a spec failure means a user-visible regression.
 - Changing activation, a command, file reading or writing, or the watcher? **Integration.**
 - Changing `.vscodeignore`, `package.json` contributions, or the build output? **Packaging.**
 - Changing an algorithm whose cost grows with board size? **Performance**, plus unit tests for

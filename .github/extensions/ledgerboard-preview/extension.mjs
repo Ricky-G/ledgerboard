@@ -11,8 +11,9 @@ const extensionRoot = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = repositoryRootFromExtensionRoot(extensionRoot);
 const mediaRoot = join(repositoryRoot, "media");
 const require = createRequire(import.meta.url);
-const model = require(join(mediaRoot, "board-model.js"));
+const model = require(join(repositoryRoot, "src", "webview", "board-model.js"));
 const servers = new Map();
+const inlineNonce = "bGVkZ2VyYm9hcmQ";
 
 function createState() {
     return {
@@ -23,21 +24,19 @@ function createState() {
 
 function renderHtml() {
     const nonce = "ledgerboard-preview";
+    const harnessCss = readFileSync(join(extensionRoot, "harness.css"), "utf8");
+    const harnessScript = readFileSync(join(extensionRoot, "harness.js"), "utf8")
+        .replaceAll("</script", "<\\/script");
     return readFileSync(join(mediaRoot, "index.html"), "utf8")
-        .replace("default-src 'none';", "default-src 'none'; connect-src 'self';")
-        .replaceAll("{{cspSource}}", "'self'")
-        .replaceAll("{{nonce}}", nonce)
-        .replaceAll("{{stylesUri}}", "/assets/styles.css")
-        .replaceAll("{{modelUri}}", "/assets/board-model.js")
-        .replaceAll("{{appUri}}", "/assets/app.js")
+        .replaceAll(inlineNonce, nonce)
+        .replace("connect-src 'none'", "connect-src 'self'")
         .replace(
             "</head>",
-            `    <link rel="stylesheet" href="/preview/harness.css">\n  </head>`,
+            `    <style nonce="${nonce}">\n${harnessCss}\n    </style>\n  </head>`,
         )
         .replace(
-            `<script nonce="${nonce}" src="/assets/board-model.js"></script>`,
-            `<script nonce="${nonce}" src="/preview/harness.js"></script>\n`
-                + `    <script nonce="${nonce}" src="/assets/board-model.js"></script>`,
+            "<!-- LEDGERBOARD_HOST -->",
+            `<script nonce="${nonce}">\n${harnessScript}\n    </script>`,
         );
 }
 
@@ -116,28 +115,11 @@ function broadcast(entry, event) {
     }
 }
 
-function serveAsset(res, path) {
-    const assets = {
-        "/assets/styles.css": [join(mediaRoot, "styles.css"), "text/css; charset=utf-8"],
-        "/assets/board-model.js": [join(mediaRoot, "board-model.js"), "text/javascript; charset=utf-8"],
-        "/assets/app.js": [join(mediaRoot, "app.js"), "text/javascript; charset=utf-8"],
-        "/preview/harness.css": [join(extensionRoot, "harness.css"), "text/css; charset=utf-8"],
-        "/preview/harness.js": [join(extensionRoot, "harness.js"), "text/javascript; charset=utf-8"],
-    };
-    const asset = assets[path];
-    if (!asset) return false;
-    send(res, 200, asset[1], readFileSync(asset[0]));
-    return true;
-}
-
 async function handleRequest(entry, req, res) {
     const url = new URL(req.url || "/", "http://127.0.0.1");
     try {
         if (req.method === "GET" && url.pathname === "/") {
             send(res, 200, "text/html; charset=utf-8", renderHtml());
-            return;
-        }
-        if (req.method === "GET" && serveAsset(res, url.pathname)) {
             return;
         }
         if (req.method === "GET" && url.pathname === "/api/state") {

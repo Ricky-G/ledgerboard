@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const model = require('../../media/board-model.js');
+const model = require('../../src/webview/board-model.js');
 const {
   CONFIG,
   EMPTY_BOARD,

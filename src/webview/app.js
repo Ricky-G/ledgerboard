@@ -3,6 +3,7 @@
 
   const model = window.LedgerBoardModel;
   const vscode = acquireVsCodeApi();
+  const standalone = vscode.mode === "standalone";
   const BOARD_FILE = "BOARD.md";
   const AUTOSAVE_DELAY_MS = 1000;
   const COLUMN_DESCRIPTIONS = {
@@ -84,8 +85,19 @@
     populateColumnSelect();
     applyConfig();
     renderSettings();
+    configureHostCopy();
     window.addEventListener("message", handleExtensionMessage);
     vscode.postMessage({ type: "ready" });
+  }
+
+  function configureHostCopy() {
+    if (!standalone) return;
+    elements.saveStateDetail.textContent = "Choose a local board folder";
+    elements.connectionLabel.textContent = "Folder not selected";
+    elements.connectButton.textContent = "Open board folder";
+    elements.welcomeTitle.textContent = "Open a local Markdown board.";
+    elements.browserNote.textContent = "LedgerBoard reads and writes only the folder you choose. It makes no network requests.";
+    elements.statusMessage.textContent = "Choose the folder containing the three LedgerBoard Markdown files.";
   }
 
   function bindEvents() {
@@ -235,11 +247,15 @@
 
     elements.welcomePanel.hidden = true;
     elements.welcomePanel.dataset.state = "ready";
-    elements.welcomeTitle.textContent = "Your delivery board, directly on the repository.";
+    elements.welcomeTitle.textContent = standalone
+      ? "Your local Markdown board."
+      : "Your delivery board, directly on the repository.";
     elements.welcomeCopy.innerHTML = "Open a LedgerBoard bundle to load <strong>BOARD.md</strong>, <strong>KANBAN-CONFIG.md</strong>, and <strong>KANBAN-HISTORY.md</strong>.";
     elements.welcomeConnectButton.textContent = "Choose board folder";
     elements.welcomeNormalizeButton.hidden = true;
-    elements.browserNote.textContent = "Files stay in your workspace and remain readable without this extension.";
+    elements.browserNote.textContent = standalone
+      ? "Changes save directly to the selected Markdown files. LedgerBoard makes no network requests."
+      : "Files stay in your workspace and remain readable without this extension.";
     elements.connectButton.textContent = rootName;
     elements.connectionState.dataset.state = "online";
     elements.connectionLabel.textContent = `${BOARD_FILE} connected`;
@@ -1992,7 +2008,12 @@
     renderAnalytics();
     const savedAt = new Date();
     elements.lastLoadedLabel.textContent = `Saved ${formatTime(savedAt)}`;
-    setStatus("Markdown files saved. Source control has the authoritative diff.", "online");
+    setStatus(
+      standalone
+        ? "Markdown files saved to the selected folder."
+        : "Markdown files saved. Source control has the authoritative diff.",
+      "online",
+    );
     if (!state.dirtyBoard && !state.dirtyConfig) {
       updateSaveState("saved", "Saved", `Last saved ${formatTime(savedAt)}`);
     }

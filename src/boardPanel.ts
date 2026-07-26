@@ -152,16 +152,8 @@ export class BoardPanel implements vscode.Disposable {
     const webview = this.panel.webview;
     const mediaRoot = vscode.Uri.joinPath(this.context.extensionUri, 'media');
     const nonce = randomBytes(16).toString('base64');
-    const replacements: Record<string, string> = {
-      '{{cspSource}}': webview.cspSource,
-      '{{nonce}}': nonce,
-      '{{stylesUri}}': webview.asWebviewUri(vscode.Uri.joinPath(mediaRoot, 'styles.css')).toString(),
-      '{{modelUri}}': webview.asWebviewUri(vscode.Uri.joinPath(mediaRoot, 'board-model.js')).toString(),
-      '{{appUri}}': webview.asWebviewUri(vscode.Uri.joinPath(mediaRoot, 'app.js')).toString(),
-    };
-    let html = await readUtf8(vscode.Uri.joinPath(mediaRoot, 'index.html'));
-    for (const [token, value] of Object.entries(replacements)) {html = html.replaceAll(token, value);}
-    return html;
+    const html = await readUtf8(vscode.Uri.joinPath(mediaRoot, 'index.html'));
+    return html.replaceAll('bGVkZ2VyYm9hcmQ', nonce);
   }
 }
 

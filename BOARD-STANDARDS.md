@@ -9,6 +9,10 @@ look plausible in Markdown but fail to load, autosave, or produce accurate analy
 Install LedgerBoard in VS Code, run **LedgerBoard: Open Board**, and choose the folder containing
 the board data. Run **LedgerBoard: Initialize Board in Folder** to create a blank compatible bundle.
 
+For an air-gapped browser workflow, open the self-contained `media/index.html` in a current Chrome
+or Edge browser and choose the board folder. The standalone app reads and writes the same three
+files without a server, installation, or network access.
+
 The selected folder can be any workspace folder, but it must contain these exact filenames at its root:
 
 ```text
