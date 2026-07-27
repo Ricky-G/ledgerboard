@@ -1,0 +1,11 @@
+# Every text file in this repository is committed with LF. Pinning the working
+# tree to LF as well means a checkout matches the committed form on every
+# platform instead of depending on each contributor's core.autocrlf setting.
+# Without this, a Windows checkout produces a CRLF working tree, so a guard that
+# compares a checked-in file against generator output fails locally while
+# passing in CI.
+* text=auto eol=lf
+
+# Images must never be treated as text. text=auto already detects this, and
+# declaring it keeps the intent explicit.
+*.png binary

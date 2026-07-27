@@ -7,7 +7,7 @@ const { REPOSITORY_ROOT } = require('../helpers/repository.js');
 const WORKFLOW_DIRECTORY = path.join(REPOSITORY_ROOT, '.github', 'workflows');
 
 function readWorkflow(name) {
-  // Normalize line endings so the guards behave the same on Windows and Linux.
+  // Tolerate a clone made before .gitattributes pinned the working tree to LF.
   return fs.readFileSync(path.join(WORKFLOW_DIRECTORY, name), 'utf8').replace(/\r\n/g, '\n');
 }
 

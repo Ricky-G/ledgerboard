@@ -10,9 +10,7 @@ const { buildWebviewHtml } = require('../../scripts/build-webview.js');
 test('media contains one self-contained offline HTML application', () => {
   const mediaRoot = repositoryPath('media');
   const entries = fs.readdirSync(mediaRoot).sort();
-  // Normalize line endings so the guard behaves the same on Windows and Linux.
-  // Git stores the file with LF and checks it out with CRLF under
-  // core.autocrlf, while the generator always emits LF.
+  // Tolerate a clone made before .gitattributes pinned the working tree to LF.
   const html = fs.readFileSync(repositoryPath('media', 'index.html'), 'utf8').replace(/\r\n/g, '\n');
 
   assert.deepEqual(entries, ['index.html']);

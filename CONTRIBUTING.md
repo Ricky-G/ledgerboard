@@ -33,6 +33,21 @@ npm run test:performance   # board operation budgets
 Press `F5` to run an Extension Development Host. Keep changes focused and preserve the public
 Markdown contract in `BOARD-STANDARDS.md`.
 
+### Line endings
+
+`.gitattributes` pins the working tree to LF on every platform, so a checkout matches the committed
+form regardless of your `core.autocrlf` setting. A clone created before that file existed keeps its
+old CRLF working tree until the affected files are checked out again, which can make guards that
+compare a checked-in file against generated output fail locally. Commit or stash your work, then
+refresh the clone once:
+
+```powershell
+git rm --cached -r . --quiet
+git reset --hard
+```
+
+`git reset --hard` discards uncommitted changes, so make sure the tree is clean before running it.
+
 ## Testing
 
 [The testing standard](docs/testing.md) describes every layer, where its tests live, and which layer
