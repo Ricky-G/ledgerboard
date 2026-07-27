@@ -2,6 +2,13 @@
 
 All notable changes to LedgerBoard are documented here.
 
+## [0.5.1](https://github.com/Ricky-G/ledgerboard/compare/v0.5.0...v0.5.1) (2026-07-27)
+
+
+### Fixed
+
+* stop release automation stranding tagged versions unpublished ([#42](https://github.com/Ricky-G/ledgerboard/issues/42)) ([505677f](https://github.com/Ricky-G/ledgerboard/commit/505677faa66f28e813cfcaf4a7087145e4793f4c))
+
 ## [0.5.0](https://github.com/Ricky-G/ledgerboard/compare/v0.4.0...v0.5.0) (2026-07-27)
 
 
