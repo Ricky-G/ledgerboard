@@ -29,7 +29,8 @@ The layers behind `quality` each report as their own check, so a red build names
 Dependabot keeps npm dependencies under weekly review and GitHub Actions under monthly review. Dependency Review complements that scheduled maintenance by rejecting risky dependency changes before merge.
 
 Testing expectations for a change are in [the testing standard](testing.md). Every pull request is
-expected to add or update a test at the layer that owns the behavior it changed.
+expected to add or update a test at the layer that owns the behavior it changed. What happens to a
+change after it merges is in [the release process](releasing.md).
 
 ## Local preflight
 
@@ -92,7 +93,7 @@ The current policy deliberately does not require code-owner approval. An emergen
 
 ## Credential isolation
 
-PR workflows use the `pull_request` event, read-only permissions, and `persist-credentials: false` wherever repository contents are checked out. They never use `pull_request_target`, the protected `marketplace` environment, or `VSCE_PAT`. The CodeQL workflow receives the narrowly scoped `security-events: write` permission required to upload code-scanning results. Marketplace credentials remain available only to the release-driven publishing workflow.
+PR workflows use the `pull_request` event, read-only permissions, and `persist-credentials: false` wherever repository contents are checked out. They never use `pull_request_target`, the protected `marketplace` environment, or `VSCE_PAT`. The CodeQL workflow receives the narrowly scoped `security-events: write` permission required to upload code-scanning results. Marketplace credentials remain available only to the release-driven publishing workflow, which reads them through the `marketplace` environment. That environment restricts deployments to `main`, and [the release process](releasing.md) explains why merging the release pull request, rather than a second environment approval, is the decision to ship.
 
 Every GitHub Action is pinned to a full commit SHA with its version in a trailing comment, so an
 upstream tag move cannot change what runs against this repository. Each CI job declares a timeout,

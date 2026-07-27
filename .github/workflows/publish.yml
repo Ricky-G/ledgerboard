@@ -69,20 +69,15 @@ jobs:
             echo "::error::The marketplace environment does not provide VSCE_PAT."
             exit 1
           }
-      - name: Re-validate the tagged commit before publishing
-        # The tagged tree is what customers install, so it is verified here even
-        # though the same commit already passed CI on main.
-        run: |
-          npm run privacy:scan
-          npm run check-types
-          npm run lint
-          npm run test:coverage
-          npm run test:performance
-          xvfb-run -a npm run test:integration
-      - name: Package release VSIX
+      - name: Build and verify the release VSIX
         id: package
+        # `quality` already ran every suite against this exact commit, so this
+        # verifies the artifact rather than repeating CI. `test:packaging`
+        # builds the VSIX through `vscode:prepublish`, which reruns the privacy
+        # scan, type check and lint, then asserts the contents of the package
+        # and installs it into a clean extensions directory.
         run: |
-          npm run vsix
+          npm run test:packaging
           mapfile -t VSIX_FILES < <(find . -maxdepth 1 -type f -name '*.vsix' -printf '%f\n')
           test "${#VSIX_FILES[@]}" -eq 1 || {
             echo "::error::Expected exactly one VSIX, found ${#VSIX_FILES[@]}."

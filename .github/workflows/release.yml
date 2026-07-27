@@ -15,10 +15,6 @@ permissions:
   issues: write
   pull-requests: write
 
-concurrency:
-  group: release-automation
-  cancel-in-progress: false
-
 jobs:
   wait-for-required-checks:
     # The aggregate `quality` check already ran every test layer against this
@@ -96,6 +92,15 @@ jobs:
     if: github.event_name == 'push'
     needs: [wait-for-required-checks]
     runs-on: ubuntu-latest
+    # Only release preparation needs a lock, and only this job may be
+    # superseded. Release Please keeps a single open release pull request that
+    # covers every commit since the last release, so a newer run always
+    # subsumes an older pending one. Locking the whole workflow instead would
+    # put publication behind the same lock, where GitHub cancels the pending
+    # run when a newer one arrives and strands a tagged release unpublished.
+    concurrency:
+      group: release-please
+      cancel-in-progress: false
     outputs:
       release_created: ${{ steps.release-please.outputs.release_created }}
     steps:
@@ -200,5 +205,70 @@ jobs:
     needs: resolve-publication
     if: always() && needs.resolve-publication.outputs.publish == 'true'
     uses: ./.github/workflows/publish.yml
+    # A called workflow starts with an empty `secrets` context, so the
+    # marketplace environment credential resolves to an empty string without
+    # this. The environment gate still pauses for approval either way, which
+    # makes the omission look like a credential problem rather than a wiring one.
+    secrets: inherit
     with:
       tag: ${{ needs.resolve-publication.outputs.tag_name }}
+
+  report-failure:
+    name: Report release failure
+    # Release automation runs unattended after a merge, so a failure that is
+    # only visible in the Actions tab goes unnoticed. Versions v0.3.1 through
+    # v0.5.0 were each tagged and then silently never published.
+    needs: [wait-for-required-checks, release, resolve-publication, publish]
+    if: always() && contains(needs.*.result, 'failure')
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          WAIT_RESULT: ${{ needs.wait-for-required-checks.result }}
+          RELEASE_RESULT: ${{ needs.release.result }}
+          RESOLVE_RESULT: ${{ needs.resolve-publication.result }}
+          PUBLISH_RESULT: ${{ needs.publish.result }}
+        with:
+          script: |
+            const title = '[Automation] Release automation failed';
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = [
+              `Release automation failed on \`${context.sha}\`.`,
+              '',
+              '| Stage | Result |',
+              '| --- | --- |',
+              `| Wait for required merge gates | ${process.env.WAIT_RESULT} |`,
+              `| Create release preparation | ${process.env.RELEASE_RESULT} |`,
+              `| Resolve publication | ${process.env.RESOLVE_RESULT} |`,
+              `| Publish release | ${process.env.PUBLISH_RESULT} |`,
+              '',
+              'A tagged release that does not publish leaves the Marketplace behind this repository.',
+              'After fixing the cause, publish the existing tag with the `Publish to Visual Studio',
+              'Marketplace` workflow rather than cutting a new version.',
+              '',
+              `Run: ${runUrl}`,
+            ].join('\n');
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100,
+            });
+            const existing = issues.find(issue => issue.title === title && !issue.pull_request);
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+              });
+            }
