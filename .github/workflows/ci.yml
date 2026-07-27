@@ -41,6 +41,12 @@ jobs:
       - run: npm ci
       - name: Scan for prohibited private data
         run: npm run privacy:scan
+      - name: Check the release notes in the pull request body
+        env:
+          # Passed as an environment variable rather than interpolated into the
+          # command, so body text can never be executed as shell.
+          PULL_REQUEST_BODY: ${{ github.event.pull_request.body }}
+        run: npm run check:release-notes
       - name: Type check
         run: npm run check-types
       - name: Lint
