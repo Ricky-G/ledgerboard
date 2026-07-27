@@ -62,7 +62,10 @@ and documentation, is public and permanent. Write for a reader who has no other 
 - Use `feat:` for a user-facing capability, `fix:` for a user-visible defect correction, and
   `feat!:` or a `BREAKING CHANGE:` footer for a breaking change. `feat` produces a minor release,
   `fix` produces a patch release, and a breaking change produces a major release.
-- Use `docs:`, `perf:`, `test:`, `refactor:`, `build:`, `ci:`, or `chore:` when a change should not
+- `docs:` and `perf:` also produce a patch release and appear in the changelog, because both have a
+  section in `.release-please-config.json`. Use them for changes a reader of the Marketplace listing
+  should know about, not for repository housekeeping.
+- Use `test:`, `refactor:`, `build:`, `ci:`, `style:`, or `chore:` when a change should not
   independently create a release. Do not disguise a user-visible change as a non-release type.
 - Do not manually change package versions, create tags or releases, publish a VSIX, or edit generated
   changelog entries. Release Please owns version preparation and the protected workflow owns publishing.

@@ -60,6 +60,10 @@ are permanent and visible to everyone, so write for a reader who has no other co
 ## Pull requests
 
 - Fill in the testing section of the pull request template. It is the part reviewers read first.
+- Write the title as the changelog entry you want readers to see. Squash merging turns it into the
+  first bullet of the next release, and that release ships inside the VSIX as the Marketplace
+  Changelog tab. Add a nested commit block per additional user-visible change, as described in
+  [the release process](docs/releasing.md).
 - Keep runtime dependencies at zero unless there is a compelling reviewed reason.
 - Use conventional commit titles so automated releases can identify user-visible changes.
 - Confirm the packaged VSIX contains no test fixtures, secrets, or private board data. The
@@ -80,7 +84,7 @@ Release Please determines the next semantic version from the commits that reach 
 - `feat:` creates a minor release.
 - `fix:` creates a patch release.
 - `feat!:` or a `BREAKING CHANGE:` footer creates a major release.
-- `perf:` and `docs:` are included in release notes when they are part of a release.
+- `perf:` and `docs:` create a patch release and are listed in the changelog.
 - Other commit types do not independently create a release.
 
 Use a squash commit title that follows this convention. The generated release-preparation pull request

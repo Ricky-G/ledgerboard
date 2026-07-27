@@ -113,6 +113,18 @@ test('the aggregate quality gate depends on every test layer', () => {
   assert.match(quality, /The quality gate failed because these layers did not succeed/);
 });
 
+test('the pull request body reaches the release notes check without shell interpolation', () => {
+  const staticChecks = ciWorkflow.match(/^ {2}static-checks:\n([\s\S]*?)(?=\n {2}unit-tests:)/m)[1];
+
+  assert.match(staticChecks, /run: npm run check:release-notes/);
+  assert.match(staticChecks, /PULL_REQUEST_BODY: \$\{\{ github\.event\.pull_request\.body \}\}/);
+  assert.doesNotMatch(
+    staticChecks,
+    /run:[^\n]*github\.event\.pull_request\.body/,
+    'Interpolating a pull request body into a run block executes author supplied text as shell.',
+  );
+});
+
 test('the required check name the release gate waits for still exists in CI', () => {
   const releaseWorkflow = readWorkflow('release.yml');
   const requiredChecks = releaseWorkflow
