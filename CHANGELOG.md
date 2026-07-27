@@ -2,6 +2,13 @@
 
 All notable changes to LedgerBoard are documented here.
 
+## [0.5.0](https://github.com/Ricky-G/ledgerboard/compare/v0.4.0...v0.5.0) (2026-07-27)
+
+
+### Added
+
+* ship a self-contained offline board app ([#38](https://github.com/Ricky-G/ledgerboard/issues/38)) ([68db308](https://github.com/Ricky-G/ledgerboard/commit/68db308ab1aa272f3a881ed17cb9d405123e916d))
+
 ## [0.4.0](https://github.com/Ricky-G/ledgerboard/compare/v0.3.2...v0.4.0) (2026-07-26)
 
 
