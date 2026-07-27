@@ -59,3 +59,17 @@ test('release recovery can repair and publish an existing release tag', () => {
   assert.match(publish, /if: always\(\) && needs\.resolve-publication\.outputs\.publish == 'true'/);
   assert.match(publish, /uses: \.\/\.github\/workflows\/publish\.yml/);
 });
+
+test('the called publish workflow receives the marketplace credential', () => {
+  // A called workflow starts with an empty `secrets` context. Without
+  // `secrets: inherit` the publish job still stops at the marketplace approval
+  // gate, but `secrets.VSCE_PAT` resolves to an empty string, so publication
+  // fails after a reviewer has already approved it.
+  const publish = releaseWorkflow.match(/^ {2}publish:\n[\s\S]*$/m)[0];
+
+  assert.match(
+    publish,
+    /^ {4}secrets: inherit$/m,
+    'The publish job must inherit secrets or the marketplace credential is empty.',
+  );
+});

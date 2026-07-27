@@ -200,5 +200,10 @@ jobs:
     needs: resolve-publication
     if: always() && needs.resolve-publication.outputs.publish == 'true'
     uses: ./.github/workflows/publish.yml
+    # A called workflow starts with an empty `secrets` context, so the
+    # marketplace environment credential resolves to an empty string without
+    # this. The environment gate still pauses for approval either way, which
+    # makes the omission look like a credential problem rather than a wiring one.
+    secrets: inherit
     with:
       tag: ${{ needs.resolve-publication.outputs.tag_name }}
