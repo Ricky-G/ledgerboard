@@ -182,6 +182,38 @@ test('an entry with a prefix but no description is rejected', () => {
   assert.match(result.problems[0], /has no description/);
 });
 
+test('no releasing type is documented as one that skips a release', () => {
+  const releasingTypes = readReleasingTypes(REPOSITORY_ROOT);
+  const instructions = fs.readFileSync(repositoryPath('.github', 'copilot-instructions.md'), 'utf8');
+  const bullet = instructions
+    .split('\n- ')
+    .find((entry) => entry.includes('should not') && entry.includes('independently create a release'));
+
+  assert.ok(bullet, 'The instructions must say which commit types skip a release.');
+
+  for (const type of releasingTypes) {
+    assert.ok(
+      !bullet.includes(`\`${type}:\``),
+      `"${type}:" has a section in .release-please-config.json, so it creates a release. The `
+        + 'instructions must not list it as a type that skips one.',
+    );
+  }
+});
+
+test('the contributing guide accounts for every releasing type', () => {
+  const contributing = fs.readFileSync(repositoryPath('CONTRIBUTING.md'), 'utf8');
+  const section = contributing
+    .split('### Versioning convention')[1]
+    .split('### Automated lifecycle')[0];
+
+  for (const type of readReleasingTypes(REPOSITORY_ROOT)) {
+    assert.ok(
+      section.includes(`\`${type}:\``),
+      `The versioning convention must tell contributors what "${type}:" releases.`,
+    );
+  }
+});
+
 test('a configuration with no changelog sections fails loudly', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ledgerboard-release-notes-'));
   try {

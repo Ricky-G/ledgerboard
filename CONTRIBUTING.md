@@ -84,7 +84,7 @@ Release Please determines the next semantic version from the commits that reach 
 - `feat:` creates a minor release.
 - `fix:` creates a patch release.
 - `feat!:` or a `BREAKING CHANGE:` footer creates a major release.
-- `perf:` and `docs:` are included in release notes when they are part of a release.
+- `perf:` and `docs:` create a patch release and are listed in the changelog.
 - Other commit types do not independently create a release.
 
 Use a squash commit title that follows this convention. The generated release-preparation pull request
