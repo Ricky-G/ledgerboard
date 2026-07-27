@@ -5,7 +5,7 @@ const childProcess = require('node:child_process');
 const path = require('node:path');
 const test = require('node:test');
 
-const model = require('../../media/board-model.js');
+const model = require('../../src/webview/board-model.js');
 const { CONFIG, HISTORY, boardWithTwoCards } = require('../fixtures/board-fixtures.js');
 const { REPOSITORY_ROOT } = require('../helpers/repository.js');
 const { createTemporaryBundle } = require('../helpers/temporary-bundle.js');

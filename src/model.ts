@@ -122,6 +122,6 @@ interface BoardModelApi {
   validateConfig(config: KanbanConfig): true;
 }
 
-// The same dependency-free model is loaded by the extension host and the webview.
+// Keep this path valid from both src/model.ts and the compiled out/model.js integration build.
 
-export const boardModel = require('../media/board-model.js') as BoardModelApi;
+export const boardModel = require('../src/webview/board-model.js') as BoardModelApi;

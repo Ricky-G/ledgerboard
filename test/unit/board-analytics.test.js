@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const model = require('../../media/board-model.js');
+const model = require('../../src/webview/board-model.js');
 const { boardWith, buildBoard, card } = require('../fixtures/board-fixtures.js');
 
 const NOW = '2026-03-10T12:00:00.000Z';

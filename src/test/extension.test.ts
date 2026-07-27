@@ -303,19 +303,22 @@ suite('Extension Test Suite', function () {
 		assert.deepEqual(missing, [], `Commands declared but never registered: ${missing}`);
 	});
 
-	test('the initialize command creates a complete bundle on disk', async () => {
+	test('the initialize command creates a complete bundle and opens the webview', async () => {
 		await withWorkspace('command-initialize', async (root) => {
 			await vscode.commands.executeCommand('ledgerBoard.initializeBoard', root);
 
 			const repository = new BoardRepository(root);
-			// The command opens a webview panel asynchronously, so poll for the
-			// files rather than assuming the progress notification has settled.
+			const panelTitle = `LedgerBoard · ${repository.name}`;
+			const panelIsOpen = () => vscode.window.tabGroups.all
+				.flatMap((group) => group.tabs)
+				.some((tab) => tab.label === panelTitle);
 			const deadline = Date.now() + 10_000;
-			while (!await repository.exists() && Date.now() < deadline) {
+			while ((!await repository.exists() || !panelIsOpen()) && Date.now() < deadline) {
 				await new Promise((resolve) => setTimeout(resolve, 100));
 			}
 
 			assert.equal(await repository.exists(), true, 'The command did not create the bundle.');
+			assert.equal(panelIsOpen(), true, 'The command did not open the generated webview.');
 			const validation = repository.validate(await repository.readFromDisk());
 			assert.equal(validation.cardCount, 0);
 			assert.equal(validation.diagnostics.length, 0);

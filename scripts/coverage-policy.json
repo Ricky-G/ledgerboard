@@ -5,7 +5,7 @@
     "test/tooling/**/*.test.js"
   ],
   "include": [
-    "media/board-model.js",
+    "src/webview/board-model.js",
     "scripts/audit-dependencies.js",
     "scripts/privacy-scan.js"
   ],

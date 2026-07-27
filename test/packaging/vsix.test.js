@@ -70,9 +70,11 @@ test('ships the bundled extension entry point', () => {
 });
 
 test('ships every webview asset the panel loads', () => {
-  for (const asset of ['index.html', 'app.js', 'board-model.js', 'styles.css']) {
-    assert.ok(names.has(`extension/media/${asset}`), `media/${asset} is missing from the VSIX.`);
-  }
+  assert.ok(names.has('extension/media/index.html'), 'media/index.html is missing from the VSIX.');
+  const extraMedia = [...names].filter((name) => (
+    name.startsWith('extension/media/') && name !== 'extension/media/index.html'
+  ));
+  assert.deepEqual(extraMedia, [], `The self-contained webview has unexpected companion files: ${extraMedia}`);
 });
 
 test('ships the marketplace metadata files', () => {
