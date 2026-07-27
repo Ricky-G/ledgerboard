@@ -12,6 +12,23 @@ title, and Release Please reads that commit to decide the next version.
 
 <!-- Describe the user-visible behavior. Link the issue this closes. -->
 
+## Release notes
+
+<!--
+This body becomes the commit message when the pull request is squashed, and
+Release Please builds CHANGELOG.md from it. That file ships inside the VSIX, so
+it is the Changelog tab on the Marketplace listing.
+
+The title above is already the first entry. Add a nested commit block here for
+each additional user-visible change, written for someone who uses the extension
+and has never seen this repository. Delete this section if the title covers
+everything.
+
+docs/releasing.md has the exact form to copy. The markers are deliberately not
+repeated here, because anything left unedited in this template would become a
+real changelog entry.
+-->
+
 ## Tests
 
 <!-- Required. See docs/testing.md. -->

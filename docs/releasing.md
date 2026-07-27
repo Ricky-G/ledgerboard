@@ -57,6 +57,43 @@ Squash merging uses the pull request title as the commit title, so the title is 
 
 Do not edit versions, tags, or changelog entries by hand. Release Please owns them.
 
+## Writing the release notes
+
+`CHANGELOG.md` ships inside the VSIX, so it is the Changelog tab on the Marketplace listing. It is
+read by people who use the extension and have never seen this repository, so an entry has to say
+what changed for them rather than what the work was called.
+
+By default a squash merge produces one commit, and one commit produces one changelog entry, taken
+from the pull request title. A title like `fix: harden dependency release gates` is accurate for a
+maintainer and meaningless to a reader of the listing.
+
+Two things fix that.
+
+**Write the title as the entry you want to appear.** It is the first bullet of the release, so it
+should describe the change, not the task.
+
+**Add a nested commit block for each additional user-visible change.** Squash merges use the pull
+request body as the commit message, and Release Please splits a commit message on these markers,
+treating each block as a separate commit:
+
+```text
+BEGIN_NESTED_COMMIT
+feat: <what a reader can now do>
+END_NESTED_COMMIT
+```
+
+Each marker must be alone on its line, the block must start with a Conventional Commit prefix that
+has a section in `.release-please-config.json`, and the prefix must start at the beginning of the
+line. `npm run check:release-notes` validates all of that against the pull request body and runs in
+`static-checks`, so a malformed block fails the build rather than silently producing nothing.
+
+The same check reports a Conventional Commit prefix that appears at the start of a line after a
+blank line **outside** a block, because Release Please turns that into a changelog entry too.
+Indent such a line if you are quoting a commit message rather than writing an entry.
+
+A pull request that makes one change needs no blocks at all. Use them when one pull request delivers
+several things a reader would want to know about separately.
+
 ## The `marketplace` environment
 
 Publishing runs in the `marketplace` GitHub environment, which:
