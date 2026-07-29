@@ -71,6 +71,33 @@ and documentation, is public and permanent. Write for a reader who has no other 
   changelog entries. Release Please owns version preparation and the protected workflow owns publishing.
 - Describe user-visible behavior clearly in the PR. Update user documentation when it changes.
 
+### Writing the release notes
+
+The pull request body becomes the squash commit message, and Release Please builds `CHANGELOG.md`
+from it. That file ships inside the VSIX, so it is the Changelog tab on the Marketplace listing.
+Write every entry for someone who uses the extension and has never seen this repository.
+
+- The title is already the first changelog entry. Write it as the sentence a reader should see, not
+  as the name of the task.
+- Add one nested commit block to the body for each additional user-visible change. Release Please
+  reads each block as a separate commit:
+
+  ```text
+  BEGIN_NESTED_COMMIT
+  feat: group cards by assignee
+  END_NESTED_COMMIT
+  ```
+
+- Each marker must be alone on its line, blocks cannot nest, and the entry must start at the
+  beginning of the line with a type that has a section in `.release-please-config.json`.
+- Never start a line in the body with a Conventional Commit prefix after a blank line unless you
+  intend it to become a changelog entry, because Release Please turns it into one. Indent the line
+  when quoting a commit message rather than writing an entry.
+- A pull request that makes a single change needs no blocks at all. Use them when one pull request
+  delivers several things a reader would want to know about separately.
+- `npm run check:release-notes` validates the body in `static-checks`, so a malformed block fails
+  the build instead of silently producing nothing. `docs/releasing.md` is the full reference.
+
 ## Security and review
 
 - Never add, print, or expose secrets. Marketplace credentials belong only to the protected

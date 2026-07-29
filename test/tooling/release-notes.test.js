@@ -162,6 +162,20 @@ test('the release process documents the exact markers the parser looks for', () 
   );
 });
 
+test('the agent instructions show the block form and the trap next to it', () => {
+  const instructions = fs.readFileSync(repositoryPath('.github', 'copilot-instructions.md'), 'utf8');
+
+  assert.ok(
+    instructions.includes(BLOCK_START) && instructions.includes(BLOCK_END),
+    'An agent that never opens docs/releasing.md still has to know the exact markers.',
+  );
+  assert.match(
+    instructions,
+    /Never start a line in the body with a Conventional Commit prefix/,
+    'The instructions must warn that a bare prefix in the body silently becomes an entry.',
+  );
+});
+
 test('a block opened inside another block is rejected', () => {
   const result = check([BLOCK_START, BLOCK_START, 'feat: one thing', BLOCK_END, BLOCK_END].join('\n'));
 
