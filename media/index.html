@@ -1887,6 +1887,175 @@
         max-height: calc(100vh - 42px);
       }
 
+      .confirmation-dialog {
+        width: min(460px, calc(100vw - 28px));
+      }
+
+      .confirmation-body {
+        display: grid;
+        gap: 12px;
+        padding: 24px;
+      }
+
+      .confirmation-body h2,
+      .confirmation-body p {
+        margin: 0;
+      }
+
+      .confirmation-body p:last-child {
+        color: var(--ink-faint);
+        line-height: 1.5;
+      }
+
+      .card-action-menu {
+        min-width: 264px;
+        display: grid;
+        gap: 8px;
+        padding: 8px;
+        color: var(--ink);
+        background: var(--surface);
+        border: 1px solid color-mix(in srgb, var(--menu-entity-color, var(--line-strong)) 34%, var(--line));
+        border-radius: 11px;
+        box-shadow: 0 12px 30px rgb(23 32 42 / 18%), 0 2px 8px rgb(23 32 42 / 8%);
+        z-index: 120;
+      }
+
+      .card-action-menu-context {
+        display: grid;
+        gap: 7px;
+        padding: 9px 10px;
+        background: color-mix(in srgb, var(--menu-entity-color, var(--surface-raised)) 8%, var(--surface-raised));
+        border-left: 3px solid var(--menu-entity-color, var(--line-strong));
+        border-radius: 6px;
+      }
+
+      .card-action-menu-heading,
+      .card-action-menu-entity,
+      .card-action-menu-assignee {
+        display: flex;
+        align-items: center;
+      }
+
+      .card-action-menu-heading {
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .card-action-menu-id {
+        color: var(--ink-faint);
+        font-family: Consolas, monospace;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+      }
+
+      .card-action-menu-entity {
+        min-width: 0;
+        gap: 5px;
+        color: var(--ink-faint);
+        font-size: 11px;
+        font-weight: 650;
+      }
+
+      .card-action-menu-entity-swatch {
+        width: 8px;
+        height: 8px;
+        flex: 0 0 auto;
+        background: var(--menu-entity-color, var(--line-strong));
+        border-radius: 50%;
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--menu-entity-color, var(--line-strong)) 18%, transparent);
+      }
+
+      .card-action-menu-context p {
+        display: -webkit-box;
+        margin: 0;
+        overflow: hidden;
+        color: var(--ink);
+        font-size: 13px;
+        font-weight: 680;
+        line-height: 1.35;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+      }
+
+      .card-action-menu-assignee {
+        gap: 6px;
+        color: var(--ink-faint);
+        font-size: 11px;
+        font-weight: 600;
+      }
+
+      .card-action-menu-avatar {
+        width: 18px;
+        height: 18px;
+        display: grid;
+        flex: 0 0 auto;
+        place-items: center;
+        color: #fff;
+        background: var(--menu-person-color, var(--ink-faint));
+        border-radius: 50%;
+        font-size: 8px;
+        font-weight: 750;
+      }
+
+      .card-action-menu-actions {
+        display: grid;
+        gap: 3px;
+      }
+
+      .card-action-menu-item {
+        width: 100%;
+        min-height: 38px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        color: var(--ink);
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: 5px;
+        font: inherit;
+        font-size: 13px;
+        font-weight: 650;
+        text-align: left;
+      }
+
+      .card-action-menu-icon {
+        width: 18px;
+        height: 18px;
+        display: grid;
+        flex: 0 0 auto;
+        place-items: center;
+      }
+
+      .card-action-menu-icon svg {
+        width: 17px;
+        height: 17px;
+        fill: none;
+        stroke: currentColor;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        stroke-width: 1.8;
+      }
+
+      .card-action-menu-item:hover,
+      .card-action-menu-item:focus-visible {
+        background: var(--surface-raised);
+        border-color: var(--line);
+        outline: none;
+      }
+
+      .card-action-menu-item.is-danger {
+        color: var(--danger);
+      }
+
+      .card-action-menu-item.is-danger:hover,
+      .card-action-menu-item.is-danger:focus-visible {
+        color: #fff;
+        background: var(--danger);
+        border-color: var(--danger);
+      }
+
       .dialog-header {
         min-height: 72px;
         display: flex;
@@ -3042,6 +3211,50 @@
         </div>
       </form>
     </dialog>
+
+    <dialog class="confirmation-dialog" id="deleteConfirmationDialog" aria-labelledby="deleteConfirmationTitle" aria-describedby="deleteConfirmationMessage">
+      <div class="confirmation-body">
+        <p class="eyebrow">Deletion</p>
+        <h2 id="deleteConfirmationTitle">Delete outcome?</h2>
+        <p id="deleteConfirmationMessage"></p>
+      </div>
+      <div class="dialog-footer">
+        <span class="dialog-spacer"></span>
+        <button class="secondary-button" id="cancelDeleteCardButton" type="button" autofocus>Cancel</button>
+        <button class="danger-button" id="confirmDeleteCardButton" type="button">Delete outcome</button>
+      </div>
+    </dialog>
+
+    <div class="card-action-menu" id="cardActionMenu" role="menu" aria-label="Outcome actions" hidden>
+      <div class="card-action-menu-context" aria-hidden="true">
+        <div class="card-action-menu-heading">
+          <span class="card-action-menu-id" id="cardActionMenuCardId"></span>
+          <span class="card-action-menu-entity">
+            <span class="card-action-menu-entity-swatch" id="cardActionMenuEntitySwatch"></span>
+            <span id="cardActionMenuEntityName"></span>
+          </span>
+        </div>
+        <p id="cardActionMenuCardTitle"></p>
+        <span class="card-action-menu-assignee" id="cardActionMenuAssignee" hidden>
+          <span class="card-action-menu-avatar" id="cardActionMenuAvatar"></span>
+          <span id="cardActionMenuAssigneeName"></span>
+        </span>
+      </div>
+      <div class="card-action-menu-actions">
+        <button class="card-action-menu-item is-danger" id="deleteCardActionButton" type="button" role="menuitem">
+          <span class="card-action-menu-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false"><path d="M4 7h16M10 11v6m4-6v6M9 7l1-2h4l1 2m-9 0 1 13h10l1-13"/></svg>
+          </span>
+          Delete outcome
+        </button>
+        <button class="card-action-menu-item" id="editCardActionButton" type="button" role="menuitem">
+          <span class="card-action-menu-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false"><path d="m5 16-1 4 4-1L19 8a2.8 2.8 0 0 0-4-4L4 15m11-11 4 4"/></svg>
+          </span>
+          Edit outcome
+        </button>
+      </div>
+    </div>
 
     <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
 
@@ -4865,6 +5078,10 @@
           saveInFlight: false,
           saveQueued: false,
           pendingSave: null,
+          pendingDeletionCardId: null,
+          deleteConfirmationFocusTarget: null,
+          actionMenuCardId: null,
+          actionMenuTrigger: null,
           currentView: "board",
           mobileColumn: "doing",
           editingCardId: null,
@@ -4901,7 +5118,12 @@
             "configAccent", "configAccentValue", "peopleList", "addPersonButton", "entityList", "addEntityButton",
             "statusMessage", "unsavedIndicator", "lastLoadedLabel", "cardDialog", "cardForm",
             "cardDialogEyebrow", "cardDialogTitle", "cardId", "cardTitle", "cardDescription",
-            "cardArea", "cardAssignee", "cardColumn", "cardPriority", "deleteCardButton", "submitCardButton", "toastRegion",
+            "cardArea", "cardAssignee", "cardColumn", "cardPriority", "deleteCardButton", "submitCardButton",
+            "deleteConfirmationDialog", "deleteConfirmationMessage", "cancelDeleteCardButton", "confirmDeleteCardButton",
+            "cardActionMenu", "cardActionMenuCardId", "cardActionMenuCardTitle", "cardActionMenuEntitySwatch",
+            "cardActionMenuEntityName", "cardActionMenuAssignee", "cardActionMenuAvatar", "cardActionMenuAssigneeName",
+            "deleteCardActionButton", "editCardActionButton",
+            "toastRegion",
           ];
           return Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
         }
@@ -4973,7 +5195,17 @@
           });
 
           elements.cardForm.addEventListener("submit", submitCard);
-          elements.deleteCardButton.addEventListener("click", deleteCurrentCard);
+          elements.deleteCardButton.addEventListener("click", () => requestCardDeletion());
+          elements.cancelDeleteCardButton.addEventListener("click", cancelCardDeletion);
+          elements.confirmDeleteCardButton.addEventListener("click", confirmCardDeletion);
+          elements.deleteConfirmationDialog.addEventListener("cancel", (event) => {
+            event.preventDefault();
+            cancelCardDeletion();
+          });
+          elements.deleteCardActionButton.addEventListener("click", deleteCardFromActionMenu);
+          elements.editCardActionButton.addEventListener("click", editCardFromActionMenu);
+          elements.cardActionMenu.addEventListener("keydown", handleCardActionMenuKeydown);
+          document.addEventListener("pointerdown", dismissCardActionMenuOnOutsideClick);
           document.querySelectorAll("[data-close-dialog]").forEach((button) => {
             button.addEventListener("click", () => button.closest("dialog").close());
           });
@@ -5009,6 +5241,11 @@
           });
 
           document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape" && !elements.cardActionMenu.hidden) {
+              event.preventDefault();
+              closeCardActionMenu({ restoreFocus: true });
+              return;
+            }
             if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
               event.preventDefault();
               if (state.dirtyBoard || state.dirtyConfig) {
@@ -5029,6 +5266,8 @@
               event.returnValue = "";
             }
           });
+          window.addEventListener("resize", closeCardActionMenu);
+          document.addEventListener("scroll", closeCardActionMenu, true);
         }
 
         function populateColumnSelect() {
@@ -5168,6 +5407,7 @@
         }
 
         function renderBoard() {
+          closeCardActionMenu();
           if (!state.board) {
             elements.kanbanBoard.replaceChildren();
             elements.mobileColumnTabs.replaceChildren();
@@ -5260,6 +5500,9 @@
           button.className = "kanban-card";
           button.draggable = true;
           button.dataset.cardId = card.id;
+          button.setAttribute("aria-haspopup", "menu");
+          button.setAttribute("aria-controls", "cardActionMenu");
+          button.setAttribute("aria-expanded", "false");
           button.style.setProperty("--entity-color", entity.color);
           button.setAttribute(
             "aria-label",
@@ -5328,6 +5571,18 @@
               openCardDialog(card.id, card.columnId);
             }
           });
+          button.addEventListener("contextmenu", (event) => {
+            event.preventDefault();
+            if (!state.suppressCardClick) {
+              openCardActionMenu(card, button, { x: event.clientX, y: event.clientY });
+            }
+          });
+          button.addEventListener("keydown", (event) => {
+            if (event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey)) {
+              event.preventDefault();
+              openCardActionMenu(card, button);
+            }
+          });
           button.addEventListener("dragstart", (event) => {
             state.draggedCardId = card.id;
             state.suppressCardClick = true;
@@ -5343,6 +5598,101 @@
           });
 
           return button;
+        }
+
+        function openCardActionMenu(card, trigger, pointer = null) {
+          closeCardActionMenu();
+          state.actionMenuCardId = card.id;
+          state.actionMenuTrigger = trigger;
+          trigger.setAttribute("aria-expanded", "true");
+          populateCardActionMenuContext(card);
+          elements.cardActionMenu.hidden = false;
+          positionCardActionMenu(trigger, pointer);
+          elements.deleteCardActionButton.focus();
+        }
+
+        function closeCardActionMenu({ restoreFocus = false } = {}) {
+          const trigger = state.actionMenuTrigger;
+          if (trigger?.isConnected) {
+            trigger.setAttribute("aria-expanded", "false");
+          }
+          state.actionMenuCardId = null;
+          state.actionMenuTrigger = null;
+          elements.cardActionMenu.hidden = true;
+          if (restoreFocus && trigger?.isConnected) {
+            trigger.focus();
+          }
+        }
+
+        function populateCardActionMenuContext(card) {
+          const entity = getEntity(card.area);
+          const person = card.detailValues.assignee ? getPerson(card.detailValues.assignee) : null;
+          elements.cardActionMenu.style.setProperty("--menu-entity-color", entity.color);
+          elements.cardActionMenu.style.setProperty("--menu-person-color", person?.color || "");
+          elements.cardActionMenu.setAttribute("aria-label", `Actions for ${card.id}: ${card.title}`);
+          elements.cardActionMenuCardId.textContent = card.id;
+          elements.cardActionMenuCardTitle.textContent = card.title;
+          elements.cardActionMenuEntityName.textContent = entity.name;
+          elements.cardActionMenuEntitySwatch.style.background = entity.color;
+          elements.cardActionMenuAssignee.hidden = !person;
+          if (person) {
+            elements.cardActionMenuAvatar.textContent = initials(person.name);
+            elements.cardActionMenuAvatar.style.background = person.color;
+            elements.cardActionMenuAssigneeName.textContent = person.name;
+          }
+        }
+
+        function positionCardActionMenu(trigger, pointer) {
+          const bounds = trigger.getBoundingClientRect();
+          const menu = elements.cardActionMenu;
+          const margin = 12;
+          const requestedLeft = pointer?.x ?? bounds.left;
+          const requestedTop = pointer?.y ?? bounds.bottom + 8;
+          const left = Math.max(margin, Math.min(requestedLeft, window.innerWidth - menu.offsetWidth - margin));
+          const top = Math.max(margin, Math.min(requestedTop, window.innerHeight - menu.offsetHeight - margin));
+          menu.style.left = `${Math.round(left)}px`;
+          menu.style.top = `${Math.round(top)}px`;
+          menu.style.position = "fixed";
+        }
+
+        function dismissCardActionMenuOnOutsideClick(event) {
+          if (elements.cardActionMenu.hidden || !(event.target instanceof Node)) {
+            return;
+          }
+          if (!elements.cardActionMenu.contains(event.target) && !state.actionMenuTrigger?.contains(event.target)) {
+            closeCardActionMenu();
+          }
+        }
+
+        function handleCardActionMenuKeydown(event) {
+          const actions = [elements.deleteCardActionButton, elements.editCardActionButton];
+          const current = actions.indexOf(document.activeElement);
+          if (event.key === "Home" || event.key === "End") {
+            event.preventDefault();
+            actions[event.key === "Home" ? 0 : actions.length - 1].focus();
+            return;
+          }
+          if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            event.preventDefault();
+            const direction = event.key === "ArrowDown" ? 1 : -1;
+            const next = current === -1 ? 0 : (current + direction + actions.length) % actions.length;
+            actions[next].focus();
+          }
+        }
+
+        function editCardFromActionMenu() {
+          const cardId = state.actionMenuCardId;
+          closeCardActionMenu();
+          if (cardId) {
+            openCardDialog(cardId);
+          }
+        }
+
+        function deleteCardFromActionMenu() {
+          const cardId = state.actionMenuCardId;
+          const trigger = state.actionMenuTrigger;
+          closeCardActionMenu();
+          requestCardDeletion(cardId, trigger);
         }
 
         function createEmptyColumn(column) {
@@ -5571,6 +5921,8 @@
           const found = cardId ? model.findCard(state.board, cardId) : null;
           const card = found?.card;
           state.editingCardId = cardId;
+          state.pendingDeletionCardId = null;
+          state.deleteConfirmationFocusTarget = null;
 
           elements.cardId.value = card?.id || "";
           elements.cardTitle.value = card?.title || "";
@@ -5660,19 +6012,67 @@
           column.cards.push(card);
         }
 
-        function deleteCurrentCard() {
-          const found = model.findCard(state.board, state.editingCardId);
+        function requestCardDeletion(cardId = state.editingCardId, focusTarget = elements.deleteCardButton) {
+          const found = cardId ? model.findCard(state.board, cardId) : null;
           if (!found) {
+            showError(new Error("Could not find the selected outcome. Reload the board and try again."));
             return;
           }
-          if (!window.confirm(`Delete ${found.card.id} — ${found.card.title}?`)) {
+          state.pendingDeletionCardId = found.card.id;
+          state.deleteConfirmationFocusTarget = focusTarget;
+          elements.deleteConfirmationMessage.textContent = `Delete ${found.card.id}: ${found.card.title}? This cannot be undone.`;
+          elements.deleteConfirmationDialog.showModal();
+        }
+
+        function cancelCardDeletion() {
+          const focusTarget = state.deleteConfirmationFocusTarget;
+          state.pendingDeletionCardId = null;
+          state.deleteConfirmationFocusTarget = null;
+          if (elements.deleteConfirmationDialog.open) {
+            elements.deleteConfirmationDialog.close();
+          }
+          if (focusTarget?.isConnected) {
+            focusTarget.focus();
+          }
+        }
+
+        function confirmCardDeletion() {
+          const cardId = state.pendingDeletionCardId;
+          if (!cardId) {
+            showError(new Error("Choose an outcome to delete."));
             return;
           }
+          const found = model.findCard(state.board, cardId);
+          if (!found) {
+            state.pendingDeletionCardId = null;
+            elements.deleteConfirmationDialog.close();
+            showError(new Error(`Could not find ${cardId}. Reload the board and try again.`));
+            return;
+          }
+          const { id: columnId } = found.column;
+          const cardIndex = found.cardIndex;
           found.column.cards.splice(found.cardIndex, 1);
+          state.pendingDeletionCardId = null;
+          state.deleteConfirmationFocusTarget = null;
+          elements.deleteConfirmationDialog.close();
           markDirty("board");
           renderBoard();
-          elements.cardDialog.close();
+          if (elements.cardDialog.open) {
+            elements.cardDialog.close();
+          }
+          state.editingCardId = null;
+          focusCardAfterDeletion(columnId, cardIndex);
           showToast(`${found.card.id} deleted.`, "success");
+        }
+
+        function focusCardAfterDeletion(columnId, cardIndex) {
+          const cards = [...document.querySelectorAll(`.card-list[data-column="${columnId}"] .kanban-card`)];
+          const nextCard = cards[Math.min(cardIndex, cards.length - 1)];
+          if (nextCard) {
+            nextCard.focus();
+            return;
+          }
+          document.querySelector(`.kanban-column[data-column="${columnId}"] .column-add-button`)?.focus();
         }
 
         function renderSettings() {
