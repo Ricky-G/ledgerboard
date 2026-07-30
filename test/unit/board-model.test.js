@@ -85,6 +85,105 @@ test('legacy customer configuration migrates to canonical entities', () => {
   assert.equal(serialized.includes('"customers"'), false);
 });
 
+test('configures, persists, and reloads renamed and reordered board columns without losing cards', () => {
+  const source = buildBoard({
+    Inbox: '- [ ] AO-001 — Capture evidence · P2 · area:internal',
+    Doing: [
+      '- [ ] AO-002 — Prepare review · P2 · area:internal',
+      '- [ ] AO-003 — Publish decision · P1 · area:internal',
+    ].join('\n\n'),
+  });
+  const board = model.parseBoard(source);
+  const config = model.parseConfig(CONFIG);
+  config.columns = [
+    { id: 'doing', name: 'In delivery' },
+    { id: 'inbox', name: 'Evidence queue' },
+    { id: 'done', name: 'Accepted' },
+    { id: 'release', name: 'Release follow-through' },
+  ];
+
+  const configured = model.reconfigureColumns(board, config.columns);
+  const configuredSource = model.serializeBoard(configured);
+  const configuredConfig = model.serializeConfig(CONFIG, config);
+  const reloaded = model.parseBoard(configuredSource);
+
+  assert.deepEqual(reloaded.columns.map((column) => [column.id, column.label]), [
+    ['doing', 'In delivery'],
+    ['inbox', 'Evidence queue'],
+    ['done', 'Accepted'],
+    ['release', 'Release follow-through'],
+  ]);
+  assert.deepEqual(reloaded.columns[0].cards.map((card) => card.id), ['AO-002', 'AO-003']);
+  assert.deepEqual(reloaded.columns[1].cards.map((card) => card.id), ['AO-001']);
+  assert.match(configuredSource, /## In delivery <!-- ledgerboard-column:doing -->/);
+  assert.doesNotThrow(() => model.validateBundleSources(configuredSource, configuredConfig, HISTORY));
+});
+
+test('reconfiguring columns preserves trailing board notes', () => {
+  const source = `${buildBoard()}
+## Notes
+
+Keep this operational context after the workflow.
+`;
+  const board = model.parseBoard(source);
+  const config = model.parseConfig(CONFIG);
+  config.columns[0].name = 'Capture';
+
+  const configuredSource = model.serializeBoard(model.reconfigureColumns(board, config.columns));
+
+  assert.match(configuredSource, /## Notes\n\nKeep this operational context after the workflow\./);
+});
+
+test('rejects invalid column configuration and unresolved non-empty column removal', () => {
+  const board = model.parseBoard(buildBoard({
+    Doing: '- [ ] AO-001 — Prepare review · P2 · area:internal',
+  }));
+  const config = model.parseConfig(CONFIG);
+  config.columns = [
+    { id: 'inbox', name: 'Inbox' },
+    { id: 'done', name: 'Done' },
+  ];
+
+  assert.throws(
+    () => model.reconfigureColumns(board, config.columns),
+    /Doing still contains 1 outcome/,
+  );
+  assert.throws(
+    () => model.validateConfig({
+      ...config,
+      columns: Array.from({ length: 11 }, (_, index) => ({
+        id: `column-${index + 1}`,
+        name: `Column ${index + 1}`,
+      })),
+    }),
+    /A board can have a maximum of 10 columns/,
+  );
+  assert.throws(
+    () => model.validateConfig({
+      ...config,
+      columns: [
+        { id: 'one', name: ' Ready ' },
+        { id: 'two', name: 'ready' },
+      ],
+    }),
+    /Column names must be unique/,
+  );
+  assert.throws(
+    () => model.validateConfig({
+      ...config,
+      columns: [{ id: 'one', name: 'x'.repeat(41) }],
+    }),
+    /40 characters or fewer/,
+  );
+  assert.throws(
+    () => model.validateConfig({
+      ...config,
+      columns: [{ id: 'one', name: 'Ready\nNow' }],
+    }),
+    /control characters or Markdown markers/,
+  );
+});
+
 test('semantic diff records movement and edits separately', () => {
   const source = boardWith('- [ ] AO-001 — Prepare review · P2 · area:internal');
   const before = model.parseBoard(source);
@@ -313,8 +412,8 @@ test('malformed history events report their line', () => {
   assert.throws(() => model.parseHistory(history), /History event on line 4 requires an ISO timestamp/);
 });
 
-test('history rejects unsupported recorded statuses', () => {
-  const history = `${HISTORY}    {"at":"2026-01-01T10:00:00Z","card":"AO-001","event":"created","to":"later","area":"internal","priority":"P2","title":"Outcome"}\n`;
+test('history rejects malformed recorded statuses', () => {
+  const history = `${HISTORY}    {"at":"2026-01-01T10:00:00Z","card":"AO-001","event":"created","to":"not valid","area":"internal","priority":"P2","title":"Outcome"}\n`;
   assert.throws(() => model.parseHistory(history), /History event on line 4 has an invalid to status/);
 });
 
