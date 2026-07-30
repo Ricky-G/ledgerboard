@@ -2,6 +2,18 @@
 
 All notable changes to LedgerBoard are documented here.
 
+## [0.6.0](https://github.com/Ricky-G/ledgerboard/compare/v0.5.1...v0.6.0) (2026-07-30)
+
+
+### Added
+
+* add contextual right-click ticket actions ([492eb42](https://github.com/Ricky-G/ledgerboard/commit/492eb4254fb4d67c8df0807e99ec1466d48e3b33))
+
+
+### Fixed
+
+* restore reliable ticket deletion ([#49](https://github.com/Ricky-G/ledgerboard/issues/49)) ([492eb42](https://github.com/Ricky-G/ledgerboard/commit/492eb4254fb4d67c8df0807e99ec1466d48e3b33))
+
 ## [0.5.1](https://github.com/Ricky-G/ledgerboard/compare/v0.5.0...v0.5.1) (2026-07-27)
 
 
