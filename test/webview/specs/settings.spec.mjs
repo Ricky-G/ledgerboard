@@ -42,6 +42,56 @@ test.describe('settings view', () => {
     expect(config.match(/"id":/g).length).toBeGreaterThanOrEqual(8);
   });
 
+  test('removes an unreferenced entity from card options and saved configuration', async ({ page }) => {
+    await openBoard(page);
+    await page.locator('#addCardButton').click();
+    await page.locator('#cardArea').selectOption('internal');
+    await page.locator('[data-close-dialog]').click();
+    await expect(page.locator('#cardDialog')).toBeHidden();
+    await page.locator('.view-tab[data-view="settings"]').click();
+
+    page.once('dialog', (dialog) => dialog.accept());
+    await page.getByRole('button', { name: 'Remove Internal' }).click();
+
+    await expect(page.locator('#entityList > *')).toHaveCount(2);
+    await expect(page.locator('#cardArea option[value="internal"]')).toHaveCount(0);
+    await expect(page.locator('#cardArea')).toHaveValue('ledgerboard');
+    await saveNow(page);
+    expect(await configSource(page)).not.toContain('"id": "internal"');
+
+    await page.evaluate(() => window.ledgerboardHarness.externalChange('KANBAN-CONFIG.md'));
+    await expect(page.locator('#entityList > *')).toHaveCount(2);
+    await expect(page.locator('#cardArea option[value="internal"]')).toHaveCount(0);
+  });
+
+  test('leaves an entity unchanged when its removal confirmation is cancelled', async ({ page }) => {
+    await openBoard(page);
+    await page.locator('.view-tab[data-view="settings"]').click();
+
+    page.once('dialog', (dialog) => dialog.dismiss());
+    await page.getByRole('button', { name: 'Remove Internal' }).click();
+
+    await expect(page.locator('#entityList > *')).toHaveCount(3);
+    await expect(page.locator('#cardArea option[value="internal"]')).toHaveCount(1);
+    await expect(page.locator('#unsavedIndicator')).toBeHidden();
+    expect(await configSource(page)).toContain('"id": "internal"');
+  });
+
+  test('blocks removal of an entity referenced by current outcomes', async ({ page }) => {
+    await openBoard(page);
+    await page.locator('.view-tab[data-view="settings"]').click();
+
+    await page.getByRole('button', { name: 'Remove Northstar launch' }).click();
+
+    await expect(page.locator('.toast[data-tone="error"]')).toHaveText(
+      'Northstar launch is assigned to 3 outcome(s). Reassign them before removing it.',
+    );
+    await expect(page.locator('#entityList > *')).toHaveCount(3);
+    await expect(page.locator('.kanban-card')).toHaveCount(6);
+    await expect(page.locator('#unsavedIndicator')).toBeHidden();
+    expect(await configSource(page)).toContain('"id": "northstar"');
+  });
+
   test('adds a person and offers them as an assignee', async ({ page }) => {
     await openBoard(page);
     await page.locator('.view-tab[data-view="settings"]').click();
