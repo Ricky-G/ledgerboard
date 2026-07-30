@@ -46,7 +46,7 @@ test.describe('settings view', () => {
     await openBoard(page);
     await page.locator('#addCardButton').click();
     await page.locator('#cardArea').selectOption('internal');
-    await page.locator('[data-close-dialog]').click();
+    await page.locator('#cardDialog .close-dialog-button').click();
     await expect(page.locator('#cardDialog')).toBeHidden();
     await page.locator('.view-tab[data-view="settings"]').click();
 
