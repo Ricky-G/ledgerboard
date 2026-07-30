@@ -2,6 +2,13 @@
 
 All notable changes to LedgerBoard are documented here.
 
+## [0.6.1](https://github.com/Ricky-G/ledgerboard/compare/v0.6.0...v0.6.1) (2026-07-30)
+
+
+### Fixed
+
+* remove deleted entities from outcome selectors ([#52](https://github.com/Ricky-G/ledgerboard/issues/52)) ([80aa491](https://github.com/Ricky-G/ledgerboard/commit/80aa491cd29df07b4886f3189f75415b5d59de02))
+
 ## [0.6.0](https://github.com/Ricky-G/ledgerboard/compare/v0.5.1...v0.6.0) (2026-07-30)
 
 
