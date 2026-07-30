@@ -12,35 +12,35 @@ export const BOARD_TEMPLATE = `# Kanban Board
 
 ---
 
-## Inbox
+## Inbox <!-- ledgerboard-column:inbox -->
 _Captured outcomes awaiting triage and commitment._
 
 <!-- empty -->
 
 ---
 
-## Next
+## Next <!-- ledgerboard-column:next -->
 _Accepted and ready to pull._
 
 <!-- empty -->
 
 ---
 
-## Doing
+## Doing <!-- ledgerboard-column:doing -->
 _Actively receiving attention._
 
 <!-- empty -->
 
 ---
 
-## Review / Blocked
+## Review / Blocked <!-- ledgerboard-column:blocked -->
 _Waiting for review or an external dependency._
 
 <!-- empty -->
 
 ---
 
-## Done
+## Done <!-- ledgerboard-column:done -->
 _Delivered or conclusively closed._
 
 <!-- empty -->

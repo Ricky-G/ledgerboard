@@ -17,6 +17,11 @@
     { id: "blocked", label: "Review / Blocked", heading: /^## Review \/ Blocked\s*$/ },
     { id: "done", label: "Done", heading: /^## Done\s*$/ },
   ];
+  const MIN_COLUMNS = 1;
+  const MAX_COLUMNS = 10;
+  const MAX_COLUMN_NAME_LENGTH = 40;
+  const COLUMN_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
+  const COLUMN_MARKER_PATTERN = /^##\s+(.+?)\s*<!--\s*ledgerboard-column:([a-z0-9][a-z0-9-]*)\s*-->\s*$/;
 
   const CARD_PATTERN = /^- \[([ xX])\] (AO-\d{3,}) — (.+) · (P[1-4]) · area:([a-z0-9][a-z0-9-]*)$/;
   const DETAIL_PATTERN = /^\s{4}- \*\*([^*]+):\*\*\s*(.*)$/;
@@ -43,10 +48,7 @@
     const lines = markdown.split(/\r?\n/);
     const headings = findColumnHeadings(lines);
 
-    if (headings.length !== COLUMNS.length) {
-      const found = headings.map((item) => item.id).join(", ") || "none";
-      throw new Error(`Expected five board columns; found ${found}.`);
-    }
+    validateColumnHeadings(headings);
 
     const columns = headings.map((heading, index) => {
       const nextHeading = headings[index + 1];
@@ -112,6 +114,7 @@
     }
 
     const config = parseConfig(configSource);
+    validateBoardColumnsAgainstConfig(analysis.board, config.columns);
     const history = parseHistory(historySource);
     const cards = analysis.board.columns.flatMap((column) => column.cards);
     const entityIds = new Set(config.entities.map((entity) => entity.id));
@@ -331,13 +334,71 @@
         return;
       }
 
+      const customHeading = line.match(COLUMN_MARKER_PATTERN);
+      if (customHeading) {
+        headings.push({
+          id: customHeading[2],
+          label: customHeading[1].trim(),
+          headingIndex: lineIndex,
+          custom: true,
+        });
+        return;
+      }
+
       const definition = COLUMNS.find((column) => column.heading.test(line));
       if (definition) {
-        headings.push({ ...definition, headingIndex: lineIndex });
+        headings.push({ ...definition, headingIndex: lineIndex, custom: false });
       }
     });
 
     return headings;
+  }
+
+  function validateColumnHeadings(headings) {
+    if (headings.length === 0) {
+      throw new Error("Expected at least one board column; found none.");
+    }
+    if (headings.length > MAX_COLUMNS) {
+      throw new Error(`A board can have a maximum of ${MAX_COLUMNS} columns.`);
+    }
+
+    const ids = new Set();
+    headings.forEach((heading) => {
+      if (ids.has(heading.id)) {
+        throw new Error(`Duplicate board column ID: ${heading.id}.`);
+      }
+      ids.add(heading.id);
+    });
+
+    const usesCustomColumns = headings.some((heading) => heading.custom);
+    if (!usesCustomColumns) {
+      if (headings.length !== COLUMNS.length
+        || headings.some((heading, index) => heading.id !== COLUMNS[index].id)) {
+        const found = headings.map((item) => item.id).join(", ") || "none";
+        throw new Error(`Expected five board columns; found ${found}.`);
+      }
+      return;
+    }
+
+    if (headings.some((heading) => !heading.custom)) {
+      throw new Error("Custom board columns must include a ledgerboard-column marker in every heading.");
+    }
+  }
+
+  function validateBoardColumnsAgainstConfig(document, columns) {
+    if (document.columns.length !== columns.length) {
+      throw new Error("BOARD.md columns do not match the configured column count.");
+    }
+
+    document.columns.forEach((column, index) => {
+      const configured = columns[index];
+      if (column.id !== configured.id) {
+        throw new Error(`BOARD.md column ${column.label} does not match configured column ${configured.name}.`);
+      }
+      if (column.label !== configured.name) {
+        throw new Error(`BOARD.md column ${column.id} must be named ${configured.name}.`);
+      }
+    });
   }
 
   function findSeparator(lines, start, end) {
@@ -455,6 +516,58 @@
     return lines.join(document.newline);
   }
 
+  function reconfigureColumns(document, columns) {
+    validateBoard(document);
+    const configuredColumns = normalizeColumns(columns);
+    validateColumns(configuredColumns);
+
+    const currentById = new Map(document.columns.map((column) => [column.id, column]));
+    const configuredIds = new Set(configuredColumns.map((column) => column.id));
+    const finalColumn = document.columns.at(-1);
+    const trailingContent = document.lines.slice(finalColumn.zoneEnd);
+    document.columns.forEach((column) => {
+      if (!configuredIds.has(column.id) && column.cards.length > 0) {
+        throw new Error(
+          `${column.label} still contains ${column.cards.length} outcome(s). Move them before removing this column.`,
+        );
+      }
+    });
+
+    const prefix = document.lines.slice(0, document.columns[0].headingIndex);
+    const lines = prefix.slice();
+    configuredColumns.forEach((configured, index) => {
+      const current = currentById.get(configured.id);
+      if (lines.length > 0 && lines.at(-1) !== "") {
+        lines.push("");
+      }
+      lines.push(`## ${configured.name} <!-- ledgerboard-column:${configured.id} -->`);
+
+      const preamble = current
+        ? document.lines.slice(current.headingIndex + 1, current.zoneStart)
+        : [""];
+      if (preamble.length > 0) {
+        lines.push(...preamble);
+      }
+      if (lines.at(-1) !== "") {
+        lines.push("");
+      }
+      lines.push(...(current?.cards.length ? serializeCards(current.cards) : ["<!-- empty -->"]));
+      if (current && current !== finalColumn) {
+        lines.push(...document.lines.slice(current.zoneEnd, current.sectionEnd));
+      }
+
+      if (index < configuredColumns.length - 1) {
+        lines.push("", "---", "");
+      }
+    });
+
+    lines.push(...trailingContent);
+    if (document.source.endsWith(document.newline) && lines.at(-1) !== "") {
+      lines.push("");
+    }
+    return parseBoard(lines.join(document.newline));
+  }
+
   function serializeCards(cards) {
     const lines = [];
     cards.forEach((card, index) => {
@@ -506,9 +619,21 @@
 
   function validateBoard(document) {
     const seenIds = new Set();
+    const seenColumns = new Set();
     const issues = [];
 
+    if (!document || !Array.isArray(document.columns)
+      || document.columns.length < MIN_COLUMNS || document.columns.length > MAX_COLUMNS) {
+      throw new Error(`A board must contain between ${MIN_COLUMNS} and ${MAX_COLUMNS} columns.`);
+    }
+
     document.columns.forEach((column) => {
+      if (!COLUMN_ID_PATTERN.test(column.id || "")) {
+        issues.push(`Invalid board column ID ${column.id || "empty"}.`);
+      } else if (seenColumns.has(column.id)) {
+        issues.push(`Duplicate board column ID ${column.id}.`);
+      }
+      seenColumns.add(column.id);
       column.cards.forEach((card) => {
         if (seenIds.has(card.id)) {
           issues.push(`Duplicate card ID ${card.id}.`);
@@ -556,7 +681,7 @@
       title: values.title || "Untitled outcome",
       priority: values.priority || "P2",
       area: values.area || "meta",
-      columnId: values.columnId || "inbox",
+      columnId: values.columnId || document.columns[0]?.id,
       detailValues: { ...emptyDetailValues(), ...(values.detailValues || {}) },
       rawDetailLines: [],
     };
@@ -663,7 +788,7 @@
       throw new Error(`History event${location} has an unsupported type.`);
     }
     ["from", "to"].forEach((field) => {
-      if (event[field] !== undefined && !COLUMNS.some((column) => column.id === event[field])) {
+      if (event[field] !== undefined && !COLUMN_ID_PATTERN.test(event[field])) {
         throw new Error(`History event${location} has an invalid ${field} status.`);
       }
     });
@@ -762,6 +887,8 @@
 
   function buildAnalytics(document, historyEvents, options = {}) {
     validateBoard(document);
+    const columns = document.columns.map(({ id, label }) => ({ id, label }));
+    const doneColumnId = columns.some((column) => column.id === "done") ? "done" : null;
     const now = options.now ? new Date(options.now) : new Date();
     if (!Number.isFinite(now.valueOf())) {
       throw new Error("Analytics requires a valid current timestamp.");
@@ -770,7 +897,7 @@
     const timeZone = resolveAnalyticsTimeZone(options.timeZone);
     const dateFormatter = createDateKeyFormatter(timeZone);
     const range = resolveAnalyticsRange(options, now, dateFormatter);
-    const filters = normalizeAnalyticsFilters(options.filters);
+    const filters = normalizeAnalyticsFilters(options.filters, columns);
     const allCards = document.columns.flatMap((column) => column.cards.map((card) => ({
       ...card,
       columnId: column.id,
@@ -780,15 +907,15 @@
     const cardsById = new Map(cards.map((card) => [card.id, card]));
     const indexedEvents = indexAnalyticsEvents(historyEvents, dateFormatter)
       .filter((item) => eventMatchesFilters(item.record, cardsById, filters));
-    const history = analyzeHistory(indexedEvents, cardsById, now);
-    const activeCards = cards.filter((card) => card.columnId !== "done");
-    const status = Object.fromEntries(COLUMNS.map((column) => [column.id, 0]));
+    const history = analyzeHistory(indexedEvents, cardsById, now, columns);
+    const activeCards = cards.filter((card) => !card.checked);
+    const status = Object.fromEntries(columns.map((column) => [column.id, 0]));
     const priority = { P1: 0, P2: 0, P3: 0, P4: 0 };
     const entities = {};
     const assignees = {};
 
     cards.forEach((card) => {
-      status[card.columnId] += 1;
+      if (Object.hasOwn(status, card.columnId)) status[card.columnId] += 1;
       priority[card.priority] += 1;
       entities[card.area] = (entities[card.area] || 0) + 1;
       const key = card.assignee || "unassigned";
@@ -828,21 +955,27 @@
         counters.created += 1;
         if (counters.createdCardIds) counters.createdCardIds.push(item.record.card);
       }
-      if (isCompletion(item.record)) {
+      if (isCompletion(item.record, doneColumnId)) {
         counters.completed += 1;
         if (counters.completedCardIds) counters.completedCardIds.push(item.record.card);
       }
-      if (isReopen(item.record)) {
+      if (isReopen(item.record, doneColumnId)) {
         counters.reopened += 1;
         if (counters.reopenedCardIds) counters.reopenedCardIds.push(item.record.card);
       }
     });
 
-    const cycleTimes = completedFlowTimes(history.eventsByCard);
-    const aging = buildAging(activeCards, history.cardStates, history.lastMeaningfulEventByCard, now);
+    const cycleTimes = completedFlowTimes(history.eventsByCard, doneColumnId);
+    const aging = buildAging(
+      activeCards,
+      history.cardStates,
+      history.lastMeaningfulEventByCard,
+      now,
+      columns,
+    );
     const quality = buildDataQuality(activeCards, history, now);
-    const workload = buildWorkload(activeCards, rangeEvents, cardsById);
-    const cumulativeFlow = buildCumulativeFlow(indexedEvents, range);
+    const workload = buildWorkload(activeCards, rangeEvents, cardsById, doneColumnId);
+    const cumulativeFlow = buildCumulativeFlow(indexedEvents, range, columns);
     const completedInRange = daily.reduce((sum, bucket) => sum + bucket.completed, 0);
     const createdInRange = daily.reduce((sum, bucket) => sum + bucket.created, 0);
     const activityInRange = daily.reduce((sum, bucket) => sum + bucket.activity, 0);
@@ -874,9 +1007,11 @@
     return {
       total: cards.length,
       active: activeCards.length,
-      done: status.done,
-      blocked: status.blocked,
-      completionRate: cards.length === 0 ? 0 : Math.round((status.done / cards.length) * 100),
+      done: doneColumnId ? status[doneColumnId] : cards.filter((card) => card.checked).length,
+      blocked: status.blocked || 0,
+      completionRate: cards.length === 0 ? 0 : Math.round(
+        (cards.filter((card) => card.checked).length / cards.length) * 100,
+      ),
       activeEntities: new Set(activeCards.map((card) => card.area)).size,
       transitions: rangeEvents.filter((item) => item.record.event === "moved").length,
       completedInRange,
@@ -914,9 +1049,11 @@
           : "No history is available yet. Time-based metrics need future recorded changes.",
       },
       definitions: {
-        completion: "A completion is a created or moved event whose destination is Done.",
+        completion: doneColumnId
+          ? "A completion is a created or moved event whose destination is the configured completion column."
+          : "Completion metrics are unavailable until the board contains a completion column.",
         leadTime: "Lead time runs from a recorded creation to the first recorded completion. Baselines are excluded.",
-        cycleTime: "Cycle time runs from the first recorded move to Doing to the first recorded completion. Baselines are excluded.",
+        cycleTime: "Cycle time runs from the first recorded move to the active column to the first recorded completion. Baselines are excluded.",
         aging: "Age runs from the latest recorded entry into the current status. A baseline is an observed lower bound, not a start date.",
         timeInStatus: "Only intervals with a recorded non-baseline entry and exit are included.",
         forecast: "Forecasts use observed completion throughput and describe a range, not a delivery promise.",
@@ -992,9 +1129,9 @@
     return Math.round((new Date(`${end}T00:00:00Z`) - new Date(`${start}T00:00:00Z`)) / 86400000);
   }
 
-  function normalizeAnalyticsFilters(filters = {}) {
+  function normalizeAnalyticsFilters(filters = {}, columns = []) {
     return {
-      statuses: normalizeFilterValues(filters.statuses, COLUMNS.map((column) => column.id)),
+      statuses: normalizeFilterValues(filters.statuses, columns.map((column) => column.id)),
       priorities: normalizeFilterValues(filters.priorities, ["P1", "P2", "P3", "P4"]),
       areas: normalizeFilterValues(filters.areas),
       assignees: normalizeFilterValues(filters.assignees, undefined, true),
@@ -1063,15 +1200,21 @@
     return event.event === "created";
   }
 
-  function isCompletion(event) {
-    return (event.event === "created" || event.event === "moved") && event.to === "done";
+  function isCompletion(event, doneColumnId) {
+    return Boolean(doneColumnId)
+      && (event.event === "created" || event.event === "moved")
+      && event.to === doneColumnId;
   }
 
-  function isReopen(event) {
-    return event.event === "moved" && event.from === "done" && event.to && event.to !== "done";
+  function isReopen(event, doneColumnId) {
+    return Boolean(doneColumnId)
+      && event.event === "moved"
+      && event.from === doneColumnId
+      && event.to
+      && event.to !== doneColumnId;
   }
 
-  function analyzeHistory(indexedEvents, cardsById, now) {
+  function analyzeHistory(indexedEvents, cardsById, now, columns) {
     const eventsByCard = new Map();
     indexedEvents.forEach((item) => {
       const events = eventsByCard.get(item.record.card) || [];
@@ -1080,7 +1223,7 @@
     });
 
     const cardStates = new Map();
-    const timeSamples = Object.fromEntries(COLUMNS.map((column) => [column.id, []]));
+    const timeSamples = Object.fromEntries(columns.map((column) => [column.id, []]));
     const issues = [];
     const lastMeaningfulEventByCard = new Map();
     eventsByCard.forEach((events, cardId) => {
@@ -1119,7 +1262,7 @@
       cardStates,
       issues,
       lastMeaningfulEventByCard,
-      timeInStatus: COLUMNS.map((column) => ({
+      timeInStatus: columns.map((column) => ({
         status: column.id,
         ...durationStatistics(timeSamples[column.id]),
       })),
@@ -1131,12 +1274,12 @@
       return;
     }
     const durationDays = Math.max(0, (endedAt - startedAt) / 86400000);
-    if (Number.isFinite(durationDays)) {
+    if (Number.isFinite(durationDays) && Object.hasOwn(samples, status)) {
       samples[status].push(durationDays);
     }
   }
 
-  function completedFlowTimes(eventsByCard) {
+  function completedFlowTimes(eventsByCard, doneColumnId) {
     const lead = [];
     const cycle = [];
     eventsByCard.forEach((events) => {
@@ -1151,7 +1294,7 @@
         if (event.to === "doing" && event.event !== "baseline" && !doingAt) {
           doingAt = item.timestamp;
         }
-        if (!completed && isCompletion(event)) {
+        if (!completed && isCompletion(event, doneColumnId)) {
           if (createdAt) {
             lead.push(Math.max(0, (item.timestamp - createdAt) / 86400000));
           }
@@ -1190,7 +1333,7 @@
     return Math.round(value * 10) / 10;
   }
 
-  function buildAging(activeCards, cardStates, lastMeaningfulEventByCard, now) {
+  function buildAging(activeCards, cardStates, lastMeaningfulEventByCard, now, columns) {
     const known = [];
     const unknown = [];
     activeCards.forEach((card) => {
@@ -1212,7 +1355,7 @@
       items: known,
       unknown,
       stale: known.filter((item) => item.ageDays >= 14),
-      byStatus: Object.fromEntries(COLUMNS
+      byStatus: Object.fromEntries(columns
         .filter((column) => column.id !== "done")
         .map((column) => [column.id, known.filter((item) => item.columnId === column.id)])),
     };
@@ -1257,7 +1400,7 @@
     };
   }
 
-  function buildWorkload(activeCards, rangeEvents, cardsById) {
+  function buildWorkload(activeCards, rangeEvents, cardsById, doneColumnId) {
     const entries = new Map();
     const include = (assignee) => {
       const key = assignee || "unassigned";
@@ -1272,16 +1415,17 @@
       if (card.columnId === "blocked") item.blocked += 1;
       item.cardIds.push(card.id);
     });
-    rangeEvents.filter((item) => isCompletion(item.record)).forEach((item) => {
+    rangeEvents.filter((item) => isCompletion(item.record, doneColumnId)).forEach((item) => {
       const card = cardsById.get(item.record.card);
       include(item.record.assignee || card?.assignee).completed += 1;
     });
     return [...entries.values()].sort((left, right) => right.active - left.active || left.assignee.localeCompare(right.assignee));
   }
 
-  function buildCumulativeFlow(indexedEvents, range) {
+  function buildCumulativeFlow(indexedEvents, range, columns) {
     const states = new Map();
     const byDate = new Map();
+    const columnIds = new Set(columns.map((column) => column.id));
     indexedEvents.forEach((item) => {
       const events = byDate.get(item.date) || [];
       events.push(item);
@@ -1290,24 +1434,24 @@
     [...byDate.entries()]
       .filter(([date]) => date < range.start)
       .sort(([left], [right]) => left.localeCompare(right))
-      .forEach(([, events]) => events.forEach((item) => applyStateEvent(states, item.record)));
+      .forEach(([, events]) => events.forEach((item) => applyStateEvent(states, item.record, columnIds)));
 
     return range.dateKeys.map((date) => {
       (byDate.get(date) || [])
         .sort((left, right) => left.timestamp - right.timestamp || left.index - right.index)
-        .forEach((item) => applyStateEvent(states, item.record));
-      const counts = Object.fromEntries(COLUMNS.map((column) => [column.id, 0]));
+        .forEach((item) => applyStateEvent(states, item.record, columnIds));
+      const counts = Object.fromEntries(columns.map((column) => [column.id, 0]));
       states.forEach((status) => {
-        if (status) counts[status] += 1;
+        if (status && Object.hasOwn(counts, status)) counts[status] += 1;
       });
       return { date, ...counts, known: [...states.values()].filter(Boolean).length };
     });
   }
 
-  function applyStateEvent(states, event) {
+  function applyStateEvent(states, event, columnIds) {
     if (event.event === "deleted") {
       states.delete(event.card);
-    } else if (event.to && COLUMNS.some((column) => column.id === event.to)) {
+    } else if (event.to && columnIds.has(event.to)) {
       states.set(event.card, event.to);
     }
   }
@@ -1509,10 +1653,55 @@
     if (!Array.isArray(config.people)) {
       throw new Error("Configuration requires a people array.");
     }
+    if (!Array.isArray(config.columns)) {
+      throw new Error("Configuration requires a columns array.");
+    }
 
     validateDirectory(config.entities, "entity", false);
     validateDirectory(config.people, "person", true);
+    validateColumns(config.columns);
     return true;
+  }
+
+  function validateColumns(columns) {
+    if (!Array.isArray(columns)) {
+      throw new Error("Configuration requires a columns array.");
+    }
+    if (columns.length < MIN_COLUMNS) {
+      throw new Error(`A board must have at least ${MIN_COLUMNS} column.`);
+    }
+    if (columns.length > MAX_COLUMNS) {
+      throw new Error(`A board can have a maximum of ${MAX_COLUMNS} columns.`);
+    }
+
+    const ids = new Set();
+    const names = new Set();
+    columns.forEach((column) => {
+      if (!column || typeof column !== "object" || !COLUMN_ID_PATTERN.test(column.id || "")) {
+        throw new Error(`Invalid column ID: ${column?.id || "empty"}.`);
+      }
+      if (ids.has(column.id)) {
+        throw new Error(`Duplicate column ID: ${column.id}.`);
+      }
+
+      const name = typeof column.name === "string" ? column.name.trim() : "";
+      if (!name) {
+        throw new Error("Column names cannot be blank.");
+      }
+      if (name.length > MAX_COLUMN_NAME_LENGTH) {
+        throw new Error(`Column names must be ${MAX_COLUMN_NAME_LENGTH} characters or fewer.`);
+      }
+      if (/[\u0000-\u001F\u007F]/.test(name) || /<!--|--!?>/.test(name)) {
+        throw new Error("Column names cannot include control characters or Markdown markers.");
+      }
+
+      const nameKey = name.toLocaleLowerCase();
+      if (names.has(nameKey)) {
+        throw new Error("Column names must be unique without regard to case.");
+      }
+      ids.add(column.id);
+      names.add(nameKey);
+    });
   }
 
   function validateDirectory(items, type, requireName) {
@@ -1546,8 +1735,24 @@
     if (!Array.isArray(normalized.people)) {
       normalized.people = [];
     }
+    normalized.columns = normalizeColumns(normalized.columns);
     delete normalized.customers;
     return normalized;
+  }
+
+  function normalizeColumns(columns) {
+    const source = Array.isArray(columns)
+      ? columns
+      : COLUMNS.map(({ id, label }) => ({ id, name: label }));
+    return source.map((column) => {
+      if (!column || typeof column !== "object") {
+        return column;
+      }
+      return {
+        ...column,
+        name: typeof column.name === "string" ? column.name.trim() : column.name,
+      };
+    });
   }
 
   function createDefaultConfig() {
@@ -1566,11 +1771,15 @@
         { id: "meta", name: "Internal", color: "#167d74" },
       ],
       people: [],
+      columns: COLUMNS.map(({ id, label }) => ({ id, name: label })),
     };
   }
 
   return {
     COLUMNS,
+    MAX_COLUMNS,
+    MAX_COLUMN_NAME_LENGTH,
+    MIN_COLUMNS,
     analyzeBoardSource,
     appendHistory,
     buildAnalytics,
@@ -1585,6 +1794,7 @@
     parseBoard,
     parseConfig,
     parseHistory,
+    reconfigureColumns,
     serializeBoard,
     serializeConfig,
     validateBundleSources,

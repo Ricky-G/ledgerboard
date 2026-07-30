@@ -1,4 +1,4 @@
-export type ColumnId = 'inbox' | 'next' | 'doing' | 'blocked' | 'done';
+export type ColumnId = string;
 export type Priority = 'P1' | 'P2' | 'P3' | 'P4';
 export type HistoryEventType = 'baseline' | 'created' | 'moved' | 'updated' | 'deleted';
 
@@ -21,6 +21,11 @@ export interface BoardColumn {
   zoneStart: number;
   zoneEnd: number;
   cards: Card[];
+}
+
+export interface ColumnDefinition {
+  id: ColumnId;
+  name: string;
 }
 
 export interface BoardDocument {
@@ -55,6 +60,7 @@ export interface KanbanConfig {
   };
   entities: Entity[];
   people: Person[];
+  columns: ColumnDefinition[];
 }
 
 export interface HistoryEvent {
@@ -106,6 +112,9 @@ export interface BundleValidationResult {
 
 interface BoardModelApi {
   COLUMNS: Array<{ id: ColumnId; label: string }>;
+  MIN_COLUMNS: number;
+  MAX_COLUMNS: number;
+  MAX_COLUMN_NAME_LENGTH: number;
   analyzeBoardSource(markdown: string): BoardSourceAnalysis;
     normalizeBoardSource(markdown: string): { source: string; diagnostics: BoardDiagnostic[]; changed: boolean };
   appendHistory(markdown: string, events: HistoryEvent[]): string;
@@ -115,6 +124,7 @@ interface BoardModelApi {
   parseBoard(markdown: string): BoardDocument;
   parseConfig(markdown: string): KanbanConfig;
   parseHistory(markdown: string): { source: string; newline: string; events: HistoryEvent[] };
+  reconfigureColumns(document: BoardDocument, columns: ColumnDefinition[]): BoardDocument;
   serializeBoard(document: BoardDocument): string;
   serializeConfig(markdown: string, config: KanbanConfig): string;
     validateBundleSources(boardSource: string, configSource: string, historySource: string): BundleValidationResult;
