@@ -29,7 +29,7 @@ Do not rename the three board data files. The extension opens those fixed names.
 1. `BOARD.md` is authoritative for current cards and status.
 2. `KANBAN-CONFIG.md` defines board labels, appearance, people, and the entity color palette.
 3. `KANBAN-HISTORY.md` is an append-only semantic event ledger used by Analytics.
-4. Keep the five board columns in the exact order and spelling shown below.
+4. Define between 1 and 10 board columns in `KANBAN-CONFIG.md` and keep `BOARD.md` in that configured order.
 5. Use the exact one-line card grammar. Additional inline fields are invalid.
 6. Description and Assignee are the optional detail fields and must each stay on one physical Markdown line.
 7. Every card's `area` must match an entity ID in `KANBAN-CONFIG.md`.
@@ -41,49 +41,54 @@ Do not rename the three board data files. The extension opens those fixed names.
 
 ### Required structure
 
-Use these five H2 headings exactly and in this order:
+New boards use the configured headings and stable column markers shown below:
 
 ```markdown
 # Kanban Board
 
 ---
 
-## Inbox
+## Inbox <!-- ledgerboard-column:inbox -->
 _Captured outcomes awaiting triage and commitment._
 
 <!-- empty -->
 
 ---
 
-## Next
+## Next <!-- ledgerboard-column:next -->
 _Accepted and ready to pull._
 
 <!-- empty -->
 
 ---
 
-## Doing
+## Doing <!-- ledgerboard-column:doing -->
 _Actively receiving attention._
 
 <!-- empty -->
 
 ---
 
-## Review / Blocked
+## Review / Blocked <!-- ledgerboard-column:blocked -->
 _Waiting for acceptance or an external dependency._
 
 <!-- empty -->
 
 ---
 
-## Done
+## Done <!-- ledgerboard-column:done -->
 _Delivered or conclusively closed._
 
 <!-- empty -->
 ```
 
-The descriptive italic lines may be changed, but the five H2 headings, their order, and the `---`
-section separators must remain stable.
+The descriptive italic lines may be changed, but every H2 heading must have a matching configured
+column name and ID marker. Keep the headings in the same order as `columns` and retain the `---`
+section separators.
+
+Older boards using the unmarked `Inbox`, `Next`, `Doing`, `Review / Blocked`, and `Done` headings
+remain supported. LedgerBoard adds markers when a column configuration change is saved, without
+changing outcomes or their order.
 
 ### Exact card syntax
 
@@ -117,7 +122,7 @@ Formatting rules:
 
 - Use the Unicode em dash `—` between the ID and title.
 - Use the Unicode middle dot `·` around priority and area.
-- Use `[x]` only in `Done`; use `[ ]` in every other column.
+- Use `[x]` only in the configured column with ID `done`; use `[ ]` in every other column.
 - Do not add due dates, source fields, labels, estimates, tags, URLs, or other inline fields.
 - Put essential context in the one-line description.
 - Separate every pair of adjacent cards with exactly one blank physical line.
@@ -176,13 +181,17 @@ Only `P1`, `P2`, `P3`, and `P4` are valid. Do not use `P?`, `P0`, `P5`, High, Me
 
 Status is represented only by the section containing the card:
 
-| Column | Meaning |
+| Default column | Meaning |
 |---|---|
 | `Inbox` | Captured, but not yet accepted or fully triaged |
 | `Next` | Accepted, clear, and ready to start |
 | `Doing` | Actively receiving attention |
 | `Review / Blocked` | Waiting for review, acceptance, or an external dependency |
 | `Done` | Delivered or conclusively closed |
+
+The default workflow has five columns, but a board can configure from one to ten. The `done` column
+ID remains the completion column when its display name changes. Move its outcomes to another column
+before removing it so their state is explicitly resolved.
 
 ### ID allocation
 
@@ -262,6 +271,28 @@ the board can represent customers, projects, teams, products, or any other group
     "accent": "#e24a35",
     "density": "comfortable"
   },
+  "columns": [
+    {
+      "id": "inbox",
+      "name": "Inbox"
+    },
+    {
+      "id": "next",
+      "name": "Next"
+    },
+    {
+      "id": "doing",
+      "name": "Doing"
+    },
+    {
+      "id": "blocked",
+      "name": "Review / Blocked"
+    },
+    {
+      "id": "done",
+      "name": "Done"
+    }
+  ],
   "entities": [
     {
       "id": "meta",
@@ -296,6 +327,18 @@ Entity rules:
 - Preserve existing IDs when updating a board because cards and history reference them.
 - `density` is `comfortable` or `compact`.
 - Use the IANA timezone appropriate for the board, for example `Etc/UTC`.
+
+Column rules:
+
+- Configure at least one and no more than ten columns.
+- `id` uses only lowercase letters, numbers, and hyphens. IDs are stable because history records
+  transitions by ID.
+- `name` is the board heading shown in the editor. It must be non-empty after trimming, unique
+  without regard to case, at most 40 characters, and contain no control characters or HTML comment
+  markers.
+- The `columns` order is the board order. Reordering does not change card order within a column.
+- Rename columns through **People & entities** so LedgerBoard updates the matching board heading.
+- Before removing a non-empty column, move all of its outcomes to another configured column.
 
 People rules:
 
@@ -383,7 +426,8 @@ History rules:
 - Allowed event types: `baseline`, `created`, `moved`, `updated`, and `deleted`.
 - A duplicated outcome is a `created` event with `duplicatedFrom` set to its source card ID.
 - Use the actual current ISO 8601 timestamp with UTC offset.
-- Valid status values are `inbox`, `next`, `doing`, `blocked`, and `done`.
+- Status values are stable IDs from the current or previous column configuration. Do not rename IDs
+  in historical events.
 - Include only fields that actually changed in an `updated.changes` array.
 - Assignment changes include `previousAssignee` and `assignee`; either value can be `null`.
 - A direct Markdown mutation must append the corresponding semantic event at the same time.
@@ -463,7 +507,8 @@ PROCESS
 3. Dedupe against every existing board card before adding anything.
 4. Rewrite vague tasks as concise observable outcome titles.
 5. Use exactly P1, P2, P3, or P4.
-6. Use only the exact columns Inbox, Next, Doing, Review / Blocked, and Done.
+6. Use the configured column names and order from `KANBAN-CONFIG.md`. New board headings include
+   `<!-- ledgerboard-column:<id> -->` markers.
 7. Use exactly this card grammar:
    - [ ] AO-NNN — Outcome title · P1|P2|P3|P4 · area:<entity-id>
 8. Description and Assignee are optional details and must each be one physical Markdown line:
@@ -509,7 +554,8 @@ Kanban bundle valid: <card-count> cards, <entity-count> entities, <person-count>
 ## Common failure modes
 
 - Using a different filename such as `tasks.md` instead of `BOARD.md`.
-- Renaming or reordering a required H2 column.
+- Omitting a configured column, using a heading with a different name, or changing its stable marker ID.
+- Configuring no columns, more than ten columns, duplicate column names, or names longer than 40 characters.
 - Adding fields after `area:<entity-id>` on the card line.
 - Using multiline detail values. Keep each Description and Assignee value on one physical line.
 - Omitting the one blank physical line required between adjacent cards.

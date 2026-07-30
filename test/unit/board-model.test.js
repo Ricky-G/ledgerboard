@@ -8,6 +8,7 @@ const {
   boardWith,
   boardWithTwoCards,
   buildBoard,
+  card,
   legacyBoardWithManyDoingCards,
 } = require('../fixtures/board-fixtures.js');
 
@@ -83,6 +84,217 @@ test('legacy customer configuration migrates to canonical entities', () => {
   assert.deepEqual(parsed.people, []);
   assert.equal(Object.hasOwn(parsed, 'customers'), false);
   assert.equal(serialized.includes('"customers"'), false);
+});
+
+test('configures, persists, and reloads renamed and reordered board columns without losing cards', () => {
+  const source = buildBoard({
+    Inbox: '- [ ] AO-001 — Capture evidence · P2 · area:internal',
+    Doing: [
+      '- [ ] AO-002 — Prepare review · P2 · area:internal',
+      '- [ ] AO-003 — Publish decision · P1 · area:internal',
+    ].join('\n\n'),
+  });
+  const board = model.parseBoard(source);
+  const config = model.parseConfig(CONFIG);
+  config.columns = [
+    { id: 'doing', name: 'In delivery' },
+    { id: 'inbox', name: 'Evidence queue' },
+    { id: 'done', name: 'Accepted' },
+    { id: 'release', name: 'Release follow-through' },
+  ];
+
+  const configured = model.reconfigureColumns(board, config.columns);
+  const configuredSource = model.serializeBoard(configured);
+  const configuredConfig = model.serializeConfig(CONFIG, config);
+  const reloaded = model.parseBoard(configuredSource);
+
+  assert.deepEqual(reloaded.columns.map((column) => [column.id, column.label]), [
+    ['doing', 'In delivery'],
+    ['inbox', 'Evidence queue'],
+    ['done', 'Accepted'],
+    ['release', 'Release follow-through'],
+  ]);
+  assert.deepEqual(reloaded.columns[0].cards.map((card) => card.id), ['AO-002', 'AO-003']);
+  assert.deepEqual(reloaded.columns[1].cards.map((card) => card.id), ['AO-001']);
+  assert.match(configuredSource, /## In delivery <!-- ledgerboard-column:doing -->/);
+  assert.doesNotThrow(() => model.validateBundleSources(configuredSource, configuredConfig, HISTORY));
+});
+
+test('reconfiguring columns preserves trailing board notes', () => {
+  const source = `${buildBoard()}
+## Notes
+
+Keep this operational context after the workflow.
+`;
+  const board = model.parseBoard(source);
+  const config = model.parseConfig(CONFIG);
+  config.columns[0].name = 'Capture';
+
+  const configuredSource = model.serializeBoard(model.reconfigureColumns(board, config.columns));
+
+  assert.match(configuredSource, /## Notes\n\nKeep this operational context after the workflow\./);
+});
+
+test('rejects invalid column configuration and unresolved non-empty column removal', () => {
+  const board = model.parseBoard(buildBoard({
+    Doing: '- [ ] AO-001 — Prepare review · P2 · area:internal',
+  }));
+  const config = model.parseConfig(CONFIG);
+  config.columns = [
+    { id: 'inbox', name: 'Inbox' },
+    { id: 'done', name: 'Done' },
+  ];
+
+  assert.throws(
+    () => model.reconfigureColumns(board, config.columns),
+    /Doing still contains 1 outcome/,
+  );
+  assert.throws(
+    () => model.validateConfig({
+      ...config,
+      columns: Array.from({ length: 11 }, (_, index) => ({
+        id: `column-${index + 1}`,
+        name: `Column ${index + 1}`,
+      })),
+    }),
+    /A board can have a maximum of 10 columns/,
+  );
+  assert.throws(
+    () => model.validateConfig({
+      ...config,
+      columns: [
+        { id: 'one', name: ' Ready ' },
+        { id: 'two', name: 'ready' },
+      ],
+    }),
+    /Column names must be unique/,
+  );
+  assert.throws(
+    () => model.validateConfig({
+      ...config,
+      columns: [{ id: 'one', name: 'x'.repeat(41) }],
+    }),
+    /40 characters or fewer/,
+  );
+  assert.throws(
+    () => model.validateConfig({
+      ...config,
+      columns: [{ id: 'one', name: 'Ready\nNow' }],
+    }),
+    /control characters or Markdown markers/,
+  );
+});
+
+test('rejects malformed custom column markers and mismatched board configuration', () => {
+  assert.throws(() => model.parseBoard('# Board\n'), /Expected at least one board column/);
+  assert.equal(
+    model.parseBoard(`\`\`\`markdown\n## Ignored <!-- ledgerboard-column:ignored -->\n\`\`\`\n\n${buildBoard()}`).columns.length,
+    5,
+  );
+  assert.throws(
+    () => model.parseBoard(buildBoard().replace(
+      '## Inbox',
+      '## Inbox <!-- ledgerboard-column:inbox -->',
+    )),
+    /marker in every heading/,
+  );
+  assert.throws(
+    () => model.parseBoard([
+      '# Board',
+      '',
+      '## Intake <!-- ledgerboard-column:intake -->',
+      '',
+      '<!-- empty -->',
+      '',
+      '---',
+      '',
+      '## Duplicate intake <!-- ledgerboard-column:intake -->',
+      '',
+      '<!-- empty -->',
+      '',
+    ].join('\n')),
+    /Duplicate board column ID: intake/,
+  );
+
+  const columns = [
+    { id: 'intake', name: 'Intake' },
+    { id: 'delivery', name: 'Delivery' },
+    { id: 'accepted', name: 'Accepted' },
+  ];
+  const boardSource = model.serializeBoard(
+    model.reconfigureColumns(model.parseBoard(buildBoard()), columns),
+  );
+  const configSource = (updatedColumns) => {
+    const config = model.parseConfig(CONFIG);
+    config.columns = updatedColumns;
+    return model.serializeConfig(CONFIG, config);
+  };
+
+  assert.throws(
+    () => model.validateBundleSources(boardSource, configSource(columns.slice(1)), HISTORY),
+    /columns do not match the configured column count/,
+  );
+  assert.throws(
+    () => model.validateBundleSources(boardSource, configSource([
+      { ...columns[0], id: 'queued' },
+      ...columns.slice(1),
+    ]), HISTORY),
+    /does not match configured column/,
+  );
+  assert.throws(
+    () => model.validateBundleSources(boardSource, configSource([
+      { ...columns[0], name: 'Queued work' },
+      ...columns.slice(1),
+    ]), HISTORY),
+    /must be named Queued work/,
+  );
+});
+
+test('validates configurable column input and repairs card column identifiers', () => {
+  const config = model.parseConfig(CONFIG);
+
+  assert.throws(() => model.validateConfig(null), /must be an object/);
+  assert.throws(() => model.validateConfig({ ...config, columns: null }), /requires a columns array/);
+  assert.throws(() => model.validateConfig({ ...config, columns: [] }), /at least 1 column/);
+  assert.throws(
+    () => model.validateConfig({ ...config, columns: [{ id: 'not valid', name: 'Ready' }] }),
+    /Invalid column ID/,
+  );
+  assert.throws(
+    () => model.validateConfig({
+      ...config,
+      columns: [{ id: 'ready', name: 'Ready' }, { id: 'ready', name: 'Delivery' }],
+    }),
+    /Duplicate column ID/,
+  );
+  assert.throws(
+    () => model.validateConfig({ ...config, columns: [{ id: 'ready', name: '   ' }] }),
+    /Column names cannot be blank/,
+  );
+
+  const serialized = model.serializeConfig('', {
+    ...config,
+    columns: [{ id: 'ready', name: ' Ready ' }],
+  });
+  assert.match(serialized, /"name": "Ready"/);
+  assert.throws(
+    () => model.serializeConfig('', { ...config, columns: [null] }),
+    /Invalid column ID/,
+  );
+  assert.throws(() => model.validateBoard({ columns: [] }), /between 1 and 10 columns/);
+
+  const invalidId = model.parseBoard(buildBoard());
+  invalidId.columns[0].id = 'not valid';
+  assert.throws(() => model.validateBoard(invalidId), /Invalid board column ID/);
+
+  const duplicateId = model.parseBoard(buildBoard());
+  duplicateId.columns[1].id = duplicateId.columns[0].id;
+  assert.throws(() => model.validateBoard(duplicateId), /Duplicate board column ID/);
+
+  const board = model.parseBoard(boardWith('- [ ] AO-001 — Prepare review · P2 · area:internal'));
+  board.columns[0].cards[0].columnId = 'stale-column';
+  assert.doesNotThrow(() => model.validateBoard(board));
+  assert.equal(board.columns[0].cards[0].columnId, 'inbox');
 });
 
 test('semantic diff records movement and edits separately', () => {
@@ -313,8 +525,8 @@ test('malformed history events report their line', () => {
   assert.throws(() => model.parseHistory(history), /History event on line 4 requires an ISO timestamp/);
 });
 
-test('history rejects unsupported recorded statuses', () => {
-  const history = `${HISTORY}    {"at":"2026-01-01T10:00:00Z","card":"AO-001","event":"created","to":"later","area":"internal","priority":"P2","title":"Outcome"}\n`;
+test('history rejects malformed recorded statuses', () => {
+  const history = `${HISTORY}    {"at":"2026-01-01T10:00:00Z","card":"AO-001","event":"created","to":"not valid","area":"internal","priority":"P2","title":"Outcome"}\n`;
   assert.throws(() => model.parseHistory(history), /History event on line 4 has an invalid to status/);
 });
 
@@ -465,4 +677,42 @@ test('analytics offers a throughput range only after sufficient recorded history
   assert.equal(analytics.forecast.available, true);
   assert.ok(analytics.forecast.finishRangeWeeks.earliest >= 1);
   assert.ok(analytics.forecast.whatCanFinish >= 0);
+});
+
+test('analytics adapts to custom columns and flags growing operational risk', () => {
+  const customBoard = model.reconfigureColumns(
+    model.parseBoard(boardWith('- [ ] AO-001 — Prepare review · P2 · area:internal')),
+    [{ id: 'inbox', name: 'Ready' }, { id: 'delivery', name: 'Delivery' }],
+  );
+  const customAnalytics = model.buildAnalytics(customBoard, [], {
+    now: '2026-01-14T12:00:00Z',
+    startDate: '2026-01-08',
+    endDate: '2026-01-14',
+    timeZone: 'Etc/UTC',
+  });
+  assert.equal(customAnalytics.done, 0);
+  assert.equal(customAnalytics.status.inbox, 1);
+  assert.match(customAnalytics.definitions.completion, /unavailable until the board contains a completion column/);
+
+  const overloadedBoard = model.parseBoard(buildBoard({
+    Doing: [
+      card({ id: 'AO-001', title: 'One' }),
+      card({ id: 'AO-002', title: 'Two' }),
+      card({ id: 'AO-003', title: 'Three' }),
+      card({ id: 'AO-004', title: 'Four' }),
+    ].join('\n\n'),
+  }));
+  const analytics = model.buildAnalytics(overloadedBoard, [
+    { at: '2026-01-01T09:00:00Z', card: 'AO-001', event: 'created', to: 'inbox', area: 'internal', priority: 'P2', title: 'One' },
+    { at: '2026-01-02T09:00:00Z', card: 'AO-001', event: 'moved', from: 'next', to: 'done', area: 'internal', priority: 'P2', title: 'One' },
+  ], {
+    now: '2026-01-14T12:00:00Z',
+    startDate: '2026-01-08',
+    endDate: '2026-01-14',
+    timeZone: 'Etc/UTC',
+  });
+
+  assert.ok(analytics.insights.some((insight) => insight.id === 'wip-limit'));
+  assert.ok(analytics.insights.some((insight) => insight.id === 'throughput-change'));
+  assert.equal(analytics.comparison.previous.completed, 1);
 });

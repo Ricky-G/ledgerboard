@@ -137,8 +137,8 @@
           <div class="settings-heading">
             <div>
               <p class="eyebrow">Board configuration</p>
-              <h2 id="settingsTitle">People, entities &amp; appearance</h2>
-              <p>People, entity identity, and board presentation are persisted in KANBAN-CONFIG.md.</p>
+              <h2 id="settingsTitle">People, entities, columns &amp; appearance</h2>
+              <p>People, entity identity, column workflow, and board presentation are persisted in KANBAN-CONFIG.md.</p>
             </div>
             <button class="primary-button" id="settingsSaveButton" type="button" disabled>
               Save now
@@ -229,6 +229,30 @@
                   <span>Color</span><span>Entity name</span><span>Area ID</span><span></span>
                 </div>
                 <div class="entity-list" id="entityList"></div>
+              </div>
+            </section>
+
+            <section class="settings-section column-settings-section" aria-labelledby="columnSettingsTitle">
+              <div class="section-number" aria-hidden="true">05</div>
+              <div class="settings-section-content">
+                <div class="column-heading-row">
+                  <div>
+                    <h3 id="columnSettingsTitle">Columns</h3>
+                    <p>Configure between 1 and 10 workflow columns. Renaming and reordering preserve each column's outcomes.</p>
+                  </div>
+                  <div class="column-heading-actions">
+                    <button class="secondary-button" id="discardColumnChangesButton" type="button" disabled>
+                      Discard column changes
+                    </button>
+                    <button class="secondary-button" id="addColumnButton" type="button">
+                      <span aria-hidden="true">+</span>
+                      Add column
+                    </button>
+                  </div>
+                </div>
+                <p class="column-limit-message" id="columnsLimitMessage" role="status" hidden></p>
+                <p class="column-validation-message" id="columnValidationMessage" role="alert" hidden></p>
+                <div class="column-list" id="columnList" aria-label="Board columns"></div>
               </div>
             </section>
           </div>
@@ -602,6 +626,23 @@
         <span class="dialog-spacer"></span>
         <button class="secondary-button" id="cancelDeleteCardButton" type="button" autofocus>Cancel</button>
         <button class="danger-button" id="confirmDeleteCardButton" type="button">Delete outcome</button>
+      </div>
+    </dialog>
+
+    <dialog class="confirmation-dialog" id="columnRemovalDialog" aria-labelledby="columnRemovalTitle" aria-describedby="columnRemovalMessage">
+      <div class="confirmation-body">
+        <p class="eyebrow">Column removal</p>
+        <h2 id="columnRemovalTitle">Remove column?</h2>
+        <p id="columnRemovalMessage"></p>
+        <label class="field column-resolution-field" id="columnRemovalTargetField" hidden>
+          <span>Move outcomes to</span>
+          <select id="columnRemovalTarget"></select>
+        </label>
+      </div>
+      <div class="dialog-footer">
+        <span class="dialog-spacer"></span>
+        <button class="secondary-button" id="cancelColumnRemovalButton" type="button" autofocus>Cancel</button>
+        <button class="danger-button" id="confirmColumnRemovalButton" type="button">Remove column</button>
       </div>
     </dialog>
 

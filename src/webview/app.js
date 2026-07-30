@@ -6,20 +6,7 @@
   const standalone = vscode.mode === "standalone";
   const BOARD_FILE = "BOARD.md";
   const AUTOSAVE_DELAY_MS = 1000;
-  const COLUMN_DESCRIPTIONS = {
-    inbox: "Awaiting triage",
-    next: "Accepted and ready",
-    doing: "Actively moving",
-    blocked: "Waiting or reviewing",
-    done: "Delivered and evidenced",
-  };
-  const COLUMN_EMPTY_COPY = {
-    inbox: ["Inbox is clear", "New evidence-backed candidates land here."],
-    next: ["Nothing queued", "Accepted outcomes ready to pull appear here."],
-    doing: ["No active outcome", "Pull the next clear finish when work begins."],
-    blocked: ["Nothing waiting", "Dependencies and review states appear here."],
-    done: ["Nothing closed yet", "Delivered outcomes appear here until weekly reset."],
-  };
+  const COLUMN_COLORS = ["#7d8890", "#2e6ea6", "#e24a35", "#a96912", "#167d74", "#7a5ca8"];
 
   const state = {
     rootName: "",
@@ -49,6 +36,9 @@
     suppressCardClick: false,
     analytics: null,
     analyticsPendingPreset: vscode.getState()?.analytics || null,
+    columnEditBaseline: null,
+    pendingColumnRemoval: null,
+    columnRemovalFocusTarget: null,
   };
 
   const elements = collectElements();
@@ -76,6 +66,9 @@
       "welcomeConnectButton", "welcomeNormalizeButton", "browserNote", "kanbanBoard", "settingsSaveButton",
       "settingsContent", "configWorkspaceName", "configBoardTitle", "configTimezone",
       "configAccent", "configAccentValue", "peopleList", "addPersonButton", "entityList", "addEntityButton",
+      "columnList", "addColumnButton", "discardColumnChangesButton", "columnsLimitMessage",
+      "columnValidationMessage", "columnRemovalDialog", "columnRemovalMessage", "columnRemovalTargetField",
+      "columnRemovalTarget", "cancelColumnRemovalButton", "confirmColumnRemovalButton",
       "statusMessage", "unsavedIndicator", "lastLoadedLabel", "cardDialog", "cardForm",
       "cardDialogEyebrow", "cardDialogTitle", "cardId", "cardTitle", "cardDescription",
       "cardArea", "cardAssignee", "cardColumn", "cardPriority", "deleteCardButton", "submitCardButton",
@@ -117,7 +110,7 @@
     elements.reloadButton.addEventListener("click", reloadRepository);
     elements.saveButton.addEventListener("click", () => persistChanges({ manual: true }));
     elements.settingsSaveButton.addEventListener("click", () => persistChanges({ manual: true }));
-    elements.addCardButton.addEventListener("click", () => openCardDialog(null, "inbox"));
+    elements.addCardButton.addEventListener("click", () => openCardDialog(null, firstColumnId()));
     elements.searchInput.addEventListener("input", renderBoard);
     elements.areaFilter.addEventListener("change", renderBoard);
     elements.assigneeFilter.addEventListener("change", renderBoard);
@@ -149,6 +142,14 @@
     elements.analyticsExport.addEventListener("click", exportAnalytics);
     elements.addPersonButton.addEventListener("click", addPerson);
     elements.addEntityButton.addEventListener("click", addEntity);
+    elements.addColumnButton.addEventListener("click", addColumn);
+    elements.discardColumnChangesButton.addEventListener("click", discardColumnChanges);
+    elements.cancelColumnRemovalButton.addEventListener("click", cancelColumnRemoval);
+    elements.confirmColumnRemovalButton.addEventListener("click", confirmColumnRemoval);
+    elements.columnRemovalDialog.addEventListener("cancel", (event) => {
+      event.preventDefault();
+      cancelColumnRemoval();
+    });
 
     document.querySelectorAll(".view-tab").forEach((button) => {
       button.addEventListener("click", () => setView(button.dataset.view));
@@ -233,12 +234,23 @@
 
   function populateColumnSelect() {
     elements.cardColumn.replaceChildren();
-    model.COLUMNS.forEach((column) => {
+    currentColumns().forEach((column) => {
       const option = document.createElement("option");
       option.value = column.id;
       option.textContent = column.label;
       elements.cardColumn.append(option);
     });
+  }
+
+  function currentColumns() {
+    if (state.board) {
+      return state.board.columns.map(({ id, label }) => ({ id, label }));
+    }
+    return state.config.columns.map(({ id, name }) => ({ id, label: name }));
+  }
+
+  function firstColumnId() {
+    return currentColumns()[0]?.id || "";
   }
 
   function connectRepository() {
@@ -255,8 +267,8 @@
   function loadRepository(payload) {
     clearAutosaveTimer();
     const { rootName, boardSource, configSource, historySource } = payload;
-    const board = model.parseBoard(boardSource);
     const config = model.parseConfig(configSource);
+    const board = model.parseBoard(boardSource);
     const history = model.parseHistory(historySource);
 
     state.rootName = rootName;
@@ -274,6 +286,11 @@
     state.saveQueued = false;
     state.pendingSave = null;
     state.duplicateSources = {};
+    state.columnEditBaseline = null;
+    state.pendingColumnRemoval = null;
+    state.mobileColumn = board.columns.some((column) => column.id === state.mobileColumn)
+      ? state.mobileColumn
+      : board.columns[0].id;
 
     elements.welcomePanel.hidden = true;
     elements.welcomePanel.dataset.state = "ready";
@@ -319,7 +336,7 @@
     } else if (message.type === "externalChange") {
       handleExternalChange(message.fileName);
     } else if (message.type === "openNewCard" && state.board) {
-      openCardDialog(null, "inbox");
+      openCardDialog(null, firstColumnId());
     }
   }
 
@@ -334,6 +351,7 @@
     state.duplicateSources = {};
     elements.kanbanBoard.replaceChildren();
     elements.mobileColumnTabs.replaceChildren();
+    elements.kanbanBoard.style.removeProperty("grid-template-columns");
     elements.welcomePanel.hidden = false;
     elements.welcomePanel.dataset.state = "error";
     elements.welcomeTitle.textContent = "This board could not be loaded.";
@@ -362,6 +380,7 @@
 
   function renderAll() {
     renderSettings();
+    populateColumnSelect();
     populateAreaFilter();
     populateAssigneeFilter();
     populateEntityOptions();
@@ -381,6 +400,7 @@
 
     elements.kanbanBoard.replaceChildren();
     elements.mobileColumnTabs.replaceChildren();
+    elements.kanbanBoard.style.gridTemplateColumns = `repeat(${state.board.columns.length}, minmax(var(--column-width), 1fr))`;
     const query = elements.searchInput.value.trim().toLowerCase();
     const area = elements.areaFilter.value;
     const assignee = elements.assigneeFilter.value;
@@ -390,6 +410,7 @@
       const columnElement = document.createElement("section");
       columnElement.className = "kanban-column";
       columnElement.dataset.column = column.id;
+      columnElement.style.setProperty("--column-color", columnColor(column.id, columnIndex));
       if (column.id === state.mobileColumn) {
         columnElement.classList.add("is-mobile-active");
       }
@@ -404,7 +425,7 @@
       const title = document.createElement("h2");
       title.textContent = column.label;
       const description = document.createElement("p");
-      description.textContent = COLUMN_DESCRIPTIONS[column.id];
+      description.textContent = `Workflow stage ${columnIndex + 1} of ${state.board.columns.length}`;
       titleBlock.append(title, description);
       const count = document.createElement("span");
       count.className = "column-count";
@@ -691,8 +712,8 @@
     empty.className = "empty-column";
     const copy = document.createElement("div");
     const strong = document.createElement("strong");
-    strong.textContent = COLUMN_EMPTY_COPY[column.id][0];
-    copy.append(strong, document.createTextNode(COLUMN_EMPTY_COPY[column.id][1]));
+    strong.textContent = `${column.label} is clear`;
+    copy.append(strong, document.createTextNode("Add an outcome or move one here."));
     empty.append(copy);
     return empty;
   }
@@ -778,11 +799,16 @@
     const active = state.board.columns
       .filter((column) => column.id !== "done")
       .reduce((sum, column) => sum + column.cards.length, 0);
-    const blocked = state.board.columns.find((column) => column.id === "blocked").cards.length;
-    const doing = state.board.columns.find((column) => column.id === "doing").cards.length;
+    const blocked = state.board.columns.find((column) => column.id === "blocked")?.cards.length || 0;
+    const doing = state.board.columns.find((column) => column.id === "doing")?.cards.length || 0;
     elements.activeCount.textContent = String(active);
     elements.blockedCount.textContent = String(blocked);
     elements.doingCount.textContent = String(doing);
+  }
+
+  function columnColor(columnId, index) {
+    if (columnId === "doing") return state.config.appearance.accent;
+    return COLUMN_COLORS[index % COLUMN_COLORS.length];
   }
 
   function populateAreaFilter() {
@@ -920,7 +946,7 @@
     elements.cardDescription.value = card?.detailValues.description || "";
     elements.cardArea.value = card?.area || state.config.entities[0]?.id || "meta";
     elements.cardAssignee.value = card?.detailValues.assignee || "";
-    elements.cardColumn.value = card?.columnId || defaultColumn || "inbox";
+    elements.cardColumn.value = card?.columnId || defaultColumn || firstColumnId();
     elements.cardPriority.value = card?.priority || "P2";
     elements.cardDialogEyebrow.textContent = card ? card.id : "New outcome";
     elements.cardDialogTitle.textContent = card ? "Edit outcome" : "Add an outcome";
@@ -1101,6 +1127,261 @@
     config.entities.forEach((entity, index) => {
       elements.entityList.append(createDirectoryRow(entity, index, "entity"));
     });
+    renderColumns();
+  }
+
+  function renderColumns() {
+    const columns = state.config.columns;
+    const atLimit = columns.length >= model.MAX_COLUMNS;
+    elements.addColumnButton.disabled = atLimit;
+    elements.columnsLimitMessage.hidden = !atLimit;
+    elements.columnsLimitMessage.textContent = atLimit
+      ? `A board can have a maximum of ${model.MAX_COLUMNS} columns.`
+      : "";
+    elements.discardColumnChangesButton.disabled = !state.columnEditBaseline;
+    elements.columnList.replaceChildren();
+    columns.forEach((column, index) => {
+      elements.columnList.append(createColumnRow(column, index));
+    });
+  }
+
+  function createColumnRow(column, index) {
+    const row = document.createElement("div");
+    row.className = "column-row";
+
+    const order = document.createElement("div");
+    order.className = "column-order-actions";
+    const moveEarlier = document.createElement("button");
+    moveEarlier.type = "button";
+    moveEarlier.className = "column-order-button";
+    moveEarlier.textContent = "↑";
+    moveEarlier.title = `Move ${column.name} earlier`;
+    moveEarlier.setAttribute("aria-label", `Move ${column.name} earlier`);
+    moveEarlier.disabled = index === 0;
+    moveEarlier.addEventListener("click", () => moveColumn(index, -1));
+    const moveLater = document.createElement("button");
+    moveLater.type = "button";
+    moveLater.className = "column-order-button";
+    moveLater.textContent = "↓";
+    moveLater.title = `Move ${column.name} later`;
+    moveLater.setAttribute("aria-label", `Move ${column.name} later`);
+    moveLater.disabled = index === state.config.columns.length - 1;
+    moveLater.addEventListener("click", () => moveColumn(index, 1));
+    order.append(moveEarlier, moveLater);
+
+    const name = document.createElement("input");
+    name.type = "text";
+    name.className = "column-name-input";
+    name.value = column.name;
+    name.maxLength = model.MAX_COLUMN_NAME_LENGTH;
+    name.setAttribute("aria-label", `Column ${index + 1} name`);
+    name.addEventListener("input", () => validateColumnNameInput(name, index));
+    name.addEventListener("change", () => changeColumnName(column, index, name));
+    name.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        name.value = column.name;
+        clearColumnValidation();
+        name.blur();
+      }
+    });
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "remove-column-button";
+    remove.textContent = "×";
+    remove.title = `Remove ${column.name}`;
+    remove.setAttribute("aria-label", `Remove ${column.name}`);
+    remove.disabled = state.config.columns.length <= model.MIN_COLUMNS;
+    remove.addEventListener("click", () => requestColumnRemoval(index, remove));
+
+    row.append(order, name, remove);
+    return row;
+  }
+
+  function validateColumnNameInput(input, index) {
+    const candidate = {
+      ...state.config,
+      columns: state.config.columns.map((column, columnIndex) => (
+        columnIndex === index ? { ...column, name: input.value } : column
+      )),
+    };
+    try {
+      model.validateConfig(candidate);
+      input.setAttribute("aria-invalid", "false");
+      clearColumnValidation();
+      return true;
+    } catch (error) {
+      input.setAttribute("aria-invalid", "true");
+      showColumnValidation(error.message || String(error));
+      return false;
+    }
+  }
+
+  function changeColumnName(column, index, input) {
+    if (!validateColumnNameInput(input, index)) {
+      return;
+    }
+    const next = input.value.trim();
+    if (next === column.name) {
+      input.value = column.name;
+      return;
+    }
+    beginColumnEdit();
+    column.name = next;
+    applyColumnChanges();
+  }
+
+  function moveColumn(index, direction) {
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= state.config.columns.length) {
+      return;
+    }
+    beginColumnEdit();
+    const [column] = state.config.columns.splice(index, 1);
+    state.config.columns.splice(targetIndex, 0, column);
+    applyColumnChanges();
+    elements.columnList.children[targetIndex]?.querySelector(".column-order-button")?.focus();
+  }
+
+  function addColumn() {
+    if (state.config.columns.length >= model.MAX_COLUMNS) {
+      showColumnValidation(`A board can have a maximum of ${model.MAX_COLUMNS} columns.`);
+      return;
+    }
+    beginColumnEdit();
+    let suffix = state.config.columns.length + 1;
+    while (state.config.columns.some((column) => column.id === `column-${suffix}`)) {
+      suffix += 1;
+    }
+    state.config.columns.push({ id: `column-${suffix}`, name: "New column" });
+    applyColumnChanges();
+    elements.columnList.lastElementChild?.querySelector(".column-name-input")?.select();
+  }
+
+  function requestColumnRemoval(index, focusTarget) {
+    if (state.config.columns.length <= model.MIN_COLUMNS) {
+      showColumnValidation(`A board must have at least ${model.MIN_COLUMNS} column.`);
+      return;
+    }
+    const column = state.config.columns[index];
+    const current = state.board?.columns.find((item) => item.id === column.id);
+    const cardCount = current?.cards.length || 0;
+    state.pendingColumnRemoval = { id: column.id, index };
+    state.columnRemovalFocusTarget = focusTarget;
+    elements.columnRemovalMessage.textContent = cardCount > 0
+      ? `${column.name} contains ${cardCount} outcome(s). Choose a destination before removing it.`
+      : `Remove the empty ${column.name} column?`;
+    elements.columnRemovalTargetField.hidden = cardCount === 0;
+    elements.columnRemovalTarget.replaceChildren();
+    state.config.columns
+      .filter((item) => item.id !== column.id)
+      .forEach((item) => {
+        const option = document.createElement("option");
+        option.value = item.id;
+        option.textContent = item.name;
+        elements.columnRemovalTarget.append(option);
+      });
+    elements.columnRemovalDialog.showModal();
+  }
+
+  function cancelColumnRemoval() {
+    const focusTarget = state.columnRemovalFocusTarget;
+    state.pendingColumnRemoval = null;
+    state.columnRemovalFocusTarget = null;
+    if (elements.columnRemovalDialog.open) {
+      elements.columnRemovalDialog.close();
+    }
+    if (focusTarget?.isConnected) {
+      focusTarget.focus();
+    }
+  }
+
+  function confirmColumnRemoval() {
+    const pending = state.pendingColumnRemoval;
+    if (!pending) {
+      showColumnValidation("Choose a column to remove.");
+      return;
+    }
+    const current = state.board?.columns.find((column) => column.id === pending.id);
+    const targetId = elements.columnRemovalTarget.value;
+    if (current?.cards.length > 0 && !targetId) {
+      showColumnValidation("Choose a destination for the outcomes in this column.");
+      return;
+    }
+
+    beginColumnEdit();
+    current?.cards.slice().forEach((card) => {
+      model.moveCard(state.board, card.id, targetId);
+    });
+    state.config.columns = state.config.columns.filter((column) => column.id !== pending.id);
+    state.pendingColumnRemoval = null;
+    state.columnRemovalFocusTarget = null;
+    elements.columnRemovalDialog.close();
+    applyColumnChanges();
+  }
+
+  function beginColumnEdit() {
+    if (state.columnEditBaseline) {
+      return;
+    }
+    clearAutosaveTimer();
+    state.columnEditBaseline = {
+      columns: structuredClone(state.config.columns),
+      board: structuredClone(state.board),
+      dirtyBoard: state.dirtyBoard,
+      dirtyConfig: state.dirtyConfig,
+      boardRevision: state.boardRevision,
+      configRevision: state.configRevision,
+    };
+  }
+
+  function applyColumnChanges() {
+    try {
+      state.board = model.reconfigureColumns(state.board, state.config.columns);
+      if (!state.board.columns.some((column) => column.id === state.mobileColumn)) {
+        state.mobileColumn = state.board.columns[0].id;
+      }
+      clearColumnValidation();
+      markDirty("board", { autosave: false });
+      markDirty("config", { autosave: false });
+      renderAll();
+    } catch (error) {
+      showColumnValidation(error.message || String(error));
+    }
+  }
+
+  function discardColumnChanges() {
+    const baseline = state.columnEditBaseline;
+    if (!baseline) {
+      return;
+    }
+    clearAutosaveTimer();
+    state.config.columns = baseline.columns;
+    state.board = baseline.board;
+    state.dirtyBoard = baseline.dirtyBoard;
+    state.dirtyConfig = baseline.dirtyConfig;
+    state.boardRevision = baseline.boardRevision;
+    state.configRevision = baseline.configRevision;
+    state.columnEditBaseline = null;
+    state.mobileColumn = state.board.columns.some((column) => column.id === state.mobileColumn)
+      ? state.mobileColumn
+      : state.board.columns[0].id;
+    clearColumnValidation();
+    renderAll();
+    updateDirtyState();
+    if (!state.dirtyBoard && !state.dirtyConfig) {
+      updateSaveState("saved", "Up to date", "Column changes discarded");
+    }
+  }
+
+  function showColumnValidation(message) {
+    elements.columnValidationMessage.textContent = message;
+    elements.columnValidationMessage.hidden = false;
+  }
+
+  function clearColumnValidation() {
+    elements.columnValidationMessage.textContent = "";
+    elements.columnValidationMessage.hidden = true;
   }
 
   function createDirectoryRow(item, index, type) {
@@ -1413,6 +1694,7 @@
 
   function syncAnalyticsFilterOptions() {
     const cards = state.board.columns.flatMap((column) => column.cards);
+    const statuses = state.board.columns.map((column) => ({ value: column.id, label: column.label }));
     const entities = state.config.entities
       .map((entity) => ({ value: entity.id, label: entity.name }))
       .sort((left, right) => left.label.localeCompare(right.label));
@@ -1420,6 +1702,7 @@
       .map((person) => ({ value: person.id, label: person.name }))
       .sort((left, right) => left.label.localeCompare(right.label));
     const assigned = new Set(cards.map((card) => card.detailValues.assignee).filter(Boolean));
+    populateAnalyticsSelect(elements.analyticsStatus, "All statuses", statuses);
     populateAnalyticsSelect(elements.analyticsArea, "All entities", entities);
     populateAnalyticsSelect(elements.analyticsAssignee, "All assignees", [
       { value: "unassigned", label: "Unassigned" },
@@ -1617,16 +1900,9 @@
       elements.statusChart.append(createAnalyticsEmpty("No current outcomes match this filter."));
       return;
     }
-    const colors = {
-      inbox: "#7d8890",
-      next: "#2e6ea6",
-      doing: state.config.appearance.accent,
-      blocked: "#a96912",
-      done: "#167d74",
-    };
     const track = document.createElement("div");
     track.className = "status-track";
-    model.COLUMNS.forEach((column) => {
+    currentColumns().forEach((column) => {
       const count = analytics.status[column.id];
       if (count === 0) return;
       const segment = createAnalyticsAction(
@@ -1643,14 +1919,14 @@
 
     const legend = document.createElement("div");
     legend.className = "status-legend";
-    model.COLUMNS.forEach((column) => {
+    currentColumns().forEach((column, index) => {
       const item = createAnalyticsAction(
         `${column.label}: ${analytics.status[column.id]} outcomes`,
         "status-legend-item",
         analytics.cards.filter((card) => card.columnId === column.id).map((card) => card.id),
       );
       item.className = "status-legend-item";
-      item.style.setProperty("--legend-color", colors[column.id]);
+      item.style.setProperty("--legend-color", columnColor(column.id, index));
       const swatch = document.createElement("i");
       const label = document.createElement("span");
       label.textContent = column.label;
@@ -1782,10 +2058,10 @@
     const rows = sampleAnalyticsRows(analytics.cumulativeFlow, 12);
     renderAnalyticsTable(
       elements.cumulativeFlow,
-      ["Date", ...model.COLUMNS.map((column) => column.label), "Known"],
+      ["Date", ...currentColumns().map((column) => column.label), "Known"],
       rows.map((row) => [
         formatChartDate(row.date),
-        ...model.COLUMNS.map((column) => String(row[column.id])),
+        ...currentColumns().map((column) => String(row[column.id])),
         String(row.known),
       ]),
       "No recorded state history matches this range.",
@@ -2102,7 +2378,7 @@
   }
 
   function statusLabel(status) {
-    return model.COLUMNS.find((column) => column.id === status)?.label || status;
+    return currentColumns().find((column) => column.id === status)?.label || status;
   }
 
   function createAnalyticsEmpty(message) {
@@ -2136,7 +2412,7 @@
     }).format(new Date(timestamp));
   }
 
-  function markDirty(target) {
+  function markDirty(target, { autosave = true } = {}) {
     if (target === "board") {
       state.dirtyBoard = true;
       state.boardRevision += 1;
@@ -2145,6 +2421,10 @@
       state.configRevision += 1;
     }
     updateDirtyState();
+    if (!autosave) {
+      updateSaveState("pending", "Unsaved changes", "Save column changes or discard them");
+      return;
+    }
     if (state.saveInFlight) {
       state.saveQueued = true;
       return;
@@ -2251,7 +2531,10 @@
     state.historySource = result.historySource;
     state.historyEvents.push(...result.events);
     if (pending.saveBoard && state.boardRevision === pending.boardRevision) state.dirtyBoard = false;
-    if (pending.saveConfig && state.configRevision === pending.configRevision) state.dirtyConfig = false;
+    if (pending.saveConfig && state.configRevision === pending.configRevision) {
+      state.dirtyConfig = false;
+      state.columnEditBaseline = null;
+    }
     state.pendingSave = null;
     state.saveInFlight = false;
     updateDirtyState();

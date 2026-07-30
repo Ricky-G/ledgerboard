@@ -66,11 +66,22 @@ test('parseHistory rejects invalid duplicate source metadata', () => {
   );
 });
 
-test('parseHistory rejects invalid statuses, assignees, and actors', () => {
-  assert.throws(() => model.parseHistory(historyWith({ ...BASE_EVENT, to: 'archive' })), /invalid to status/);
-  assert.throws(() => model.parseHistory(historyWith({ ...BASE_EVENT, from: 'archive' })), /invalid from status/);
+test('parseHistory rejects malformed statuses, assignees, and actors', () => {
+  assert.throws(() => model.parseHistory(historyWith({ ...BASE_EVENT, to: 'archive!' })), /invalid to status/);
+  assert.throws(() => model.parseHistory(historyWith({ ...BASE_EVENT, from: 'archive!' })), /invalid from status/);
   assert.throws(() => model.parseHistory(historyWith({ ...BASE_EVENT, assignee: 'Not An Id' })), /invalid assignee/);
   assert.throws(() => model.parseHistory(historyWith({ ...BASE_EVENT, actor: '   ' })), /invalid actor/);
+});
+
+test('parseHistory preserves transitions to removed custom columns', () => {
+  const history = model.parseHistory(historyWith({
+    ...BASE_EVENT,
+    from: 'release-follow-through',
+    to: 'archive',
+  }));
+
+  assert.equal(history.events[0].from, 'release-follow-through');
+  assert.equal(history.events[0].to, 'archive');
 });
 
 test('an assignment event must carry both the previous and the new assignee', () => {

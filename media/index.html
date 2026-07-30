@@ -551,9 +551,9 @@
       }
 
       .kanban-board {
-        min-width: 0;
+        min-width: 100%;
         display: grid;
-        grid-template-columns: repeat(5, minmax(0, 1fr));
+        grid-template-columns: repeat(5, minmax(var(--column-width), 1fr));
         align-items: start;
         gap: 12px;
       }
@@ -1736,7 +1736,8 @@
       }
 
       .entity-heading-row,
-      .people-heading-row {
+      .people-heading-row,
+      .column-heading-row {
         display: flex;
         align-items: flex-end;
         justify-content: space-between;
@@ -1829,6 +1830,99 @@
         color: var(--danger);
         background: #fff;
         border-color: color-mix(in srgb, var(--danger) 25%, var(--line));
+      }
+
+      .column-heading-actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 8px;
+      }
+
+      .column-limit-message,
+      .column-validation-message {
+        margin: 14px 0 0;
+        font-size: 12px;
+        line-height: 1.45;
+      }
+
+      .column-limit-message {
+        color: var(--warning);
+        font-weight: 700;
+      }
+
+      .column-validation-message {
+        color: var(--danger);
+        font-weight: 650;
+      }
+
+      .column-list {
+        display: grid;
+        gap: 8px;
+        margin-top: 20px;
+      }
+
+      .column-row {
+        display: grid;
+        grid-template-columns: auto minmax(180px, 1fr) auto;
+        align-items: center;
+        gap: 12px;
+        min-height: 58px;
+        padding: 9px 10px;
+        background: var(--surface-raised);
+        border: 1px solid var(--line);
+        border-radius: 5px;
+      }
+
+      .column-order-actions {
+        display: flex;
+        gap: 4px;
+      }
+
+      .column-order-button,
+      .remove-column-button {
+        width: 32px;
+        height: 32px;
+        display: grid;
+        place-items: center;
+        padding: 0;
+        color: var(--ink-soft);
+        background: var(--surface);
+        border: 1px solid var(--line-strong);
+        border-radius: 4px;
+        font-size: 15px;
+      }
+
+      .column-order-button:disabled,
+      .remove-column-button:disabled {
+        cursor: not-allowed;
+        opacity: 0.5;
+      }
+
+      .remove-column-button:hover:not(:disabled) {
+        color: var(--danger);
+        background: #fff;
+        border-color: color-mix(in srgb, var(--danger) 25%, var(--line));
+      }
+
+      .column-name-input {
+        width: 100%;
+        min-width: 0;
+        height: 36px;
+        padding: 6px 9px;
+        color: var(--ink);
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 4px;
+      }
+
+      .column-name-input[aria-invalid="true"] {
+        border-color: var(--danger);
+        box-shadow: 0 0 0 1px var(--danger);
+      }
+
+      .column-resolution-field {
+        margin-top: 16px;
       }
 
       .statusbar {
@@ -2579,13 +2673,28 @@
         }
 
         .entity-heading-row,
-        .people-heading-row {
+        .people-heading-row,
+        .column-heading-row {
           display: grid;
         }
 
         .entity-heading-row .secondary-button,
-        .people-heading-row .secondary-button {
+        .people-heading-row .secondary-button,
+        .column-heading-row .secondary-button {
           justify-self: start;
+        }
+
+        .column-heading-actions {
+          justify-content: flex-start;
+        }
+
+        .column-row {
+          grid-template-columns: auto minmax(0, 1fr);
+        }
+
+        .remove-column-button {
+          grid-column: 2;
+          justify-self: end;
         }
 
         .dialog-body {
@@ -2757,8 +2866,8 @@
           <div class="settings-heading">
             <div>
               <p class="eyebrow">Board configuration</p>
-              <h2 id="settingsTitle">People, entities &amp; appearance</h2>
-              <p>People, entity identity, and board presentation are persisted in KANBAN-CONFIG.md.</p>
+              <h2 id="settingsTitle">People, entities, columns &amp; appearance</h2>
+              <p>People, entity identity, column workflow, and board presentation are persisted in KANBAN-CONFIG.md.</p>
             </div>
             <button class="primary-button" id="settingsSaveButton" type="button" disabled>
               Save now
@@ -2849,6 +2958,30 @@
                   <span>Color</span><span>Entity name</span><span>Area ID</span><span></span>
                 </div>
                 <div class="entity-list" id="entityList"></div>
+              </div>
+            </section>
+
+            <section class="settings-section column-settings-section" aria-labelledby="columnSettingsTitle">
+              <div class="section-number" aria-hidden="true">05</div>
+              <div class="settings-section-content">
+                <div class="column-heading-row">
+                  <div>
+                    <h3 id="columnSettingsTitle">Columns</h3>
+                    <p>Configure between 1 and 10 workflow columns. Renaming and reordering preserve each column's outcomes.</p>
+                  </div>
+                  <div class="column-heading-actions">
+                    <button class="secondary-button" id="discardColumnChangesButton" type="button" disabled>
+                      Discard column changes
+                    </button>
+                    <button class="secondary-button" id="addColumnButton" type="button">
+                      <span aria-hidden="true">+</span>
+                      Add column
+                    </button>
+                  </div>
+                </div>
+                <p class="column-limit-message" id="columnsLimitMessage" role="status" hidden></p>
+                <p class="column-validation-message" id="columnValidationMessage" role="alert" hidden></p>
+                <div class="column-list" id="columnList" aria-label="Board columns"></div>
               </div>
             </section>
           </div>
@@ -3225,6 +3358,23 @@
       </div>
     </dialog>
 
+    <dialog class="confirmation-dialog" id="columnRemovalDialog" aria-labelledby="columnRemovalTitle" aria-describedby="columnRemovalMessage">
+      <div class="confirmation-body">
+        <p class="eyebrow">Column removal</p>
+        <h2 id="columnRemovalTitle">Remove column?</h2>
+        <p id="columnRemovalMessage"></p>
+        <label class="field column-resolution-field" id="columnRemovalTargetField" hidden>
+          <span>Move outcomes to</span>
+          <select id="columnRemovalTarget"></select>
+        </label>
+      </div>
+      <div class="dialog-footer">
+        <span class="dialog-spacer"></span>
+        <button class="secondary-button" id="cancelColumnRemovalButton" type="button" autofocus>Cancel</button>
+        <button class="danger-button" id="confirmColumnRemovalButton" type="button">Remove column</button>
+      </div>
+    </dialog>
+
     <div class="card-action-menu" id="cardActionMenu" role="menu" aria-label="Outcome actions" hidden>
       <div class="card-action-menu-context" aria-hidden="true">
         <div class="card-action-menu-heading">
@@ -3285,6 +3435,11 @@
           { id: "blocked", label: "Review / Blocked", heading: /^## Review \/ Blocked\s*$/ },
           { id: "done", label: "Done", heading: /^## Done\s*$/ },
         ];
+        const MIN_COLUMNS = 1;
+        const MAX_COLUMNS = 10;
+        const MAX_COLUMN_NAME_LENGTH = 40;
+        const COLUMN_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
+        const COLUMN_MARKER_PATTERN = /^##\s+(.+?)\s*<!--\s*ledgerboard-column:([a-z0-9][a-z0-9-]*)\s*-->\s*$/;
 
         const CARD_PATTERN = /^- \[([ xX])\] (AO-\d{3,}) — (.+) · (P[1-4]) · area:([a-z0-9][a-z0-9-]*)$/;
         const DETAIL_PATTERN = /^\s{4}- \*\*([^*]+):\*\*\s*(.*)$/;
@@ -3311,10 +3466,7 @@
           const lines = markdown.split(/\r?\n/);
           const headings = findColumnHeadings(lines);
 
-          if (headings.length !== COLUMNS.length) {
-            const found = headings.map((item) => item.id).join(", ") || "none";
-            throw new Error(`Expected five board columns; found ${found}.`);
-          }
+          validateColumnHeadings(headings);
 
           const columns = headings.map((heading, index) => {
             const nextHeading = headings[index + 1];
@@ -3380,6 +3532,7 @@
           }
 
           const config = parseConfig(configSource);
+          validateBoardColumnsAgainstConfig(analysis.board, config.columns);
           const history = parseHistory(historySource);
           const cards = analysis.board.columns.flatMap((column) => column.cards);
           const entityIds = new Set(config.entities.map((entity) => entity.id));
@@ -3599,13 +3752,71 @@
               return;
             }
 
+            const customHeading = line.match(COLUMN_MARKER_PATTERN);
+            if (customHeading) {
+              headings.push({
+                id: customHeading[2],
+                label: customHeading[1].trim(),
+                headingIndex: lineIndex,
+                custom: true,
+              });
+              return;
+            }
+
             const definition = COLUMNS.find((column) => column.heading.test(line));
             if (definition) {
-              headings.push({ ...definition, headingIndex: lineIndex });
+              headings.push({ ...definition, headingIndex: lineIndex, custom: false });
             }
           });
 
           return headings;
+        }
+
+        function validateColumnHeadings(headings) {
+          if (headings.length === 0) {
+            throw new Error("Expected at least one board column; found none.");
+          }
+          if (headings.length > MAX_COLUMNS) {
+            throw new Error(`A board can have a maximum of ${MAX_COLUMNS} columns.`);
+          }
+
+          const ids = new Set();
+          headings.forEach((heading) => {
+            if (ids.has(heading.id)) {
+              throw new Error(`Duplicate board column ID: ${heading.id}.`);
+            }
+            ids.add(heading.id);
+          });
+
+          const usesCustomColumns = headings.some((heading) => heading.custom);
+          if (!usesCustomColumns) {
+            if (headings.length !== COLUMNS.length
+              || headings.some((heading, index) => heading.id !== COLUMNS[index].id)) {
+              const found = headings.map((item) => item.id).join(", ") || "none";
+              throw new Error(`Expected five board columns; found ${found}.`);
+            }
+            return;
+          }
+
+          if (headings.some((heading) => !heading.custom)) {
+            throw new Error("Custom board columns must include a ledgerboard-column marker in every heading.");
+          }
+        }
+
+        function validateBoardColumnsAgainstConfig(document, columns) {
+          if (document.columns.length !== columns.length) {
+            throw new Error("BOARD.md columns do not match the configured column count.");
+          }
+
+          document.columns.forEach((column, index) => {
+            const configured = columns[index];
+            if (column.id !== configured.id) {
+              throw new Error(`BOARD.md column ${column.label} does not match configured column ${configured.name}.`);
+            }
+            if (column.label !== configured.name) {
+              throw new Error(`BOARD.md column ${column.id} must be named ${configured.name}.`);
+            }
+          });
         }
 
         function findSeparator(lines, start, end) {
@@ -3723,6 +3934,58 @@
           return lines.join(document.newline);
         }
 
+        function reconfigureColumns(document, columns) {
+          validateBoard(document);
+          const configuredColumns = normalizeColumns(columns);
+          validateColumns(configuredColumns);
+
+          const currentById = new Map(document.columns.map((column) => [column.id, column]));
+          const configuredIds = new Set(configuredColumns.map((column) => column.id));
+          const finalColumn = document.columns.at(-1);
+          const trailingContent = document.lines.slice(finalColumn.zoneEnd);
+          document.columns.forEach((column) => {
+            if (!configuredIds.has(column.id) && column.cards.length > 0) {
+              throw new Error(
+                `${column.label} still contains ${column.cards.length} outcome(s). Move them before removing this column.`,
+              );
+            }
+          });
+
+          const prefix = document.lines.slice(0, document.columns[0].headingIndex);
+          const lines = prefix.slice();
+          configuredColumns.forEach((configured, index) => {
+            const current = currentById.get(configured.id);
+            if (lines.length > 0 && lines.at(-1) !== "") {
+              lines.push("");
+            }
+            lines.push(`## ${configured.name} <!-- ledgerboard-column:${configured.id} -->`);
+
+            const preamble = current
+              ? document.lines.slice(current.headingIndex + 1, current.zoneStart)
+              : [""];
+            if (preamble.length > 0) {
+              lines.push(...preamble);
+            }
+            if (lines.at(-1) !== "") {
+              lines.push("");
+            }
+            lines.push(...(current?.cards.length ? serializeCards(current.cards) : ["<!-- empty -->"]));
+            if (current && current !== finalColumn) {
+              lines.push(...document.lines.slice(current.zoneEnd, current.sectionEnd));
+            }
+
+            if (index < configuredColumns.length - 1) {
+              lines.push("", "---", "");
+            }
+          });
+
+          lines.push(...trailingContent);
+          if (document.source.endsWith(document.newline) && lines.at(-1) !== "") {
+            lines.push("");
+          }
+          return parseBoard(lines.join(document.newline));
+        }
+
         function serializeCards(cards) {
           const lines = [];
           cards.forEach((card, index) => {
@@ -3774,9 +4037,21 @@
 
         function validateBoard(document) {
           const seenIds = new Set();
+          const seenColumns = new Set();
           const issues = [];
 
+          if (!document || !Array.isArray(document.columns)
+            || document.columns.length < MIN_COLUMNS || document.columns.length > MAX_COLUMNS) {
+            throw new Error(`A board must contain between ${MIN_COLUMNS} and ${MAX_COLUMNS} columns.`);
+          }
+
           document.columns.forEach((column) => {
+            if (!COLUMN_ID_PATTERN.test(column.id || "")) {
+              issues.push(`Invalid board column ID ${column.id || "empty"}.`);
+            } else if (seenColumns.has(column.id)) {
+              issues.push(`Duplicate board column ID ${column.id}.`);
+            }
+            seenColumns.add(column.id);
             column.cards.forEach((card) => {
               if (seenIds.has(card.id)) {
                 issues.push(`Duplicate card ID ${card.id}.`);
@@ -3824,7 +4099,7 @@
             title: values.title || "Untitled outcome",
             priority: values.priority || "P2",
             area: values.area || "meta",
-            columnId: values.columnId || "inbox",
+            columnId: values.columnId || document.columns[0]?.id,
             detailValues: { ...emptyDetailValues(), ...(values.detailValues || {}) },
             rawDetailLines: [],
           };
@@ -3960,7 +4235,7 @@
             throw new Error(`History event${location} has an unsupported type.`);
           }
           ["from", "to"].forEach((field) => {
-            if (event[field] !== undefined && !COLUMNS.some((column) => column.id === event[field])) {
+            if (event[field] !== undefined && !COLUMN_ID_PATTERN.test(event[field])) {
               throw new Error(`History event${location} has an invalid ${field} status.`);
             }
           });
@@ -4089,6 +4364,8 @@
 
         function buildAnalytics(document, historyEvents, options = {}) {
           validateBoard(document);
+          const columns = document.columns.map(({ id, label }) => ({ id, label }));
+          const doneColumnId = columns.some((column) => column.id === "done") ? "done" : null;
           const now = options.now ? new Date(options.now) : new Date();
           if (!Number.isFinite(now.valueOf())) {
             throw new Error("Analytics requires a valid current timestamp.");
@@ -4097,7 +4374,7 @@
           const timeZone = resolveAnalyticsTimeZone(options.timeZone);
           const dateFormatter = createDateKeyFormatter(timeZone);
           const range = resolveAnalyticsRange(options, now, dateFormatter);
-          const filters = normalizeAnalyticsFilters(options.filters);
+          const filters = normalizeAnalyticsFilters(options.filters, columns);
           const allCards = document.columns.flatMap((column) => column.cards.map((card) => ({
             ...card,
             columnId: column.id,
@@ -4107,15 +4384,15 @@
           const cardsById = new Map(cards.map((card) => [card.id, card]));
           const indexedEvents = indexAnalyticsEvents(historyEvents, dateFormatter)
             .filter((item) => eventMatchesFilters(item.record, cardsById, filters));
-          const history = analyzeHistory(indexedEvents, cardsById, now);
-          const activeCards = cards.filter((card) => card.columnId !== "done");
-          const status = Object.fromEntries(COLUMNS.map((column) => [column.id, 0]));
+          const history = analyzeHistory(indexedEvents, cardsById, now, columns);
+          const activeCards = cards.filter((card) => !card.checked);
+          const status = Object.fromEntries(columns.map((column) => [column.id, 0]));
           const priority = { P1: 0, P2: 0, P3: 0, P4: 0 };
           const entities = {};
           const assignees = {};
 
           cards.forEach((card) => {
-            status[card.columnId] += 1;
+            if (Object.hasOwn(status, card.columnId)) status[card.columnId] += 1;
             priority[card.priority] += 1;
             entities[card.area] = (entities[card.area] || 0) + 1;
             const key = card.assignee || "unassigned";
@@ -4155,21 +4432,27 @@
               counters.created += 1;
               if (counters.createdCardIds) counters.createdCardIds.push(item.record.card);
             }
-            if (isCompletion(item.record)) {
+            if (isCompletion(item.record, doneColumnId)) {
               counters.completed += 1;
               if (counters.completedCardIds) counters.completedCardIds.push(item.record.card);
             }
-            if (isReopen(item.record)) {
+            if (isReopen(item.record, doneColumnId)) {
               counters.reopened += 1;
               if (counters.reopenedCardIds) counters.reopenedCardIds.push(item.record.card);
             }
           });
 
-          const cycleTimes = completedFlowTimes(history.eventsByCard);
-          const aging = buildAging(activeCards, history.cardStates, history.lastMeaningfulEventByCard, now);
+          const cycleTimes = completedFlowTimes(history.eventsByCard, doneColumnId);
+          const aging = buildAging(
+            activeCards,
+            history.cardStates,
+            history.lastMeaningfulEventByCard,
+            now,
+            columns,
+          );
           const quality = buildDataQuality(activeCards, history, now);
-          const workload = buildWorkload(activeCards, rangeEvents, cardsById);
-          const cumulativeFlow = buildCumulativeFlow(indexedEvents, range);
+          const workload = buildWorkload(activeCards, rangeEvents, cardsById, doneColumnId);
+          const cumulativeFlow = buildCumulativeFlow(indexedEvents, range, columns);
           const completedInRange = daily.reduce((sum, bucket) => sum + bucket.completed, 0);
           const createdInRange = daily.reduce((sum, bucket) => sum + bucket.created, 0);
           const activityInRange = daily.reduce((sum, bucket) => sum + bucket.activity, 0);
@@ -4201,9 +4484,11 @@
           return {
             total: cards.length,
             active: activeCards.length,
-            done: status.done,
-            blocked: status.blocked,
-            completionRate: cards.length === 0 ? 0 : Math.round((status.done / cards.length) * 100),
+            done: doneColumnId ? status[doneColumnId] : cards.filter((card) => card.checked).length,
+            blocked: status.blocked || 0,
+            completionRate: cards.length === 0 ? 0 : Math.round(
+              (cards.filter((card) => card.checked).length / cards.length) * 100,
+            ),
             activeEntities: new Set(activeCards.map((card) => card.area)).size,
             transitions: rangeEvents.filter((item) => item.record.event === "moved").length,
             completedInRange,
@@ -4241,9 +4526,11 @@
                 : "No history is available yet. Time-based metrics need future recorded changes.",
             },
             definitions: {
-              completion: "A completion is a created or moved event whose destination is Done.",
+              completion: doneColumnId
+                ? "A completion is a created or moved event whose destination is the configured completion column."
+                : "Completion metrics are unavailable until the board contains a completion column.",
               leadTime: "Lead time runs from a recorded creation to the first recorded completion. Baselines are excluded.",
-              cycleTime: "Cycle time runs from the first recorded move to Doing to the first recorded completion. Baselines are excluded.",
+              cycleTime: "Cycle time runs from the first recorded move to the active column to the first recorded completion. Baselines are excluded.",
               aging: "Age runs from the latest recorded entry into the current status. A baseline is an observed lower bound, not a start date.",
               timeInStatus: "Only intervals with a recorded non-baseline entry and exit are included.",
               forecast: "Forecasts use observed completion throughput and describe a range, not a delivery promise.",
@@ -4319,9 +4606,9 @@
           return Math.round((new Date(`${end}T00:00:00Z`) - new Date(`${start}T00:00:00Z`)) / 86400000);
         }
 
-        function normalizeAnalyticsFilters(filters = {}) {
+        function normalizeAnalyticsFilters(filters = {}, columns = []) {
           return {
-            statuses: normalizeFilterValues(filters.statuses, COLUMNS.map((column) => column.id)),
+            statuses: normalizeFilterValues(filters.statuses, columns.map((column) => column.id)),
             priorities: normalizeFilterValues(filters.priorities, ["P1", "P2", "P3", "P4"]),
             areas: normalizeFilterValues(filters.areas),
             assignees: normalizeFilterValues(filters.assignees, undefined, true),
@@ -4390,15 +4677,21 @@
           return event.event === "created";
         }
 
-        function isCompletion(event) {
-          return (event.event === "created" || event.event === "moved") && event.to === "done";
+        function isCompletion(event, doneColumnId) {
+          return Boolean(doneColumnId)
+            && (event.event === "created" || event.event === "moved")
+            && event.to === doneColumnId;
         }
 
-        function isReopen(event) {
-          return event.event === "moved" && event.from === "done" && event.to && event.to !== "done";
+        function isReopen(event, doneColumnId) {
+          return Boolean(doneColumnId)
+            && event.event === "moved"
+            && event.from === doneColumnId
+            && event.to
+            && event.to !== doneColumnId;
         }
 
-        function analyzeHistory(indexedEvents, cardsById, now) {
+        function analyzeHistory(indexedEvents, cardsById, now, columns) {
           const eventsByCard = new Map();
           indexedEvents.forEach((item) => {
             const events = eventsByCard.get(item.record.card) || [];
@@ -4407,7 +4700,7 @@
           });
 
           const cardStates = new Map();
-          const timeSamples = Object.fromEntries(COLUMNS.map((column) => [column.id, []]));
+          const timeSamples = Object.fromEntries(columns.map((column) => [column.id, []]));
           const issues = [];
           const lastMeaningfulEventByCard = new Map();
           eventsByCard.forEach((events, cardId) => {
@@ -4446,7 +4739,7 @@
             cardStates,
             issues,
             lastMeaningfulEventByCard,
-            timeInStatus: COLUMNS.map((column) => ({
+            timeInStatus: columns.map((column) => ({
               status: column.id,
               ...durationStatistics(timeSamples[column.id]),
             })),
@@ -4458,12 +4751,12 @@
             return;
           }
           const durationDays = Math.max(0, (endedAt - startedAt) / 86400000);
-          if (Number.isFinite(durationDays)) {
+          if (Number.isFinite(durationDays) && Object.hasOwn(samples, status)) {
             samples[status].push(durationDays);
           }
         }
 
-        function completedFlowTimes(eventsByCard) {
+        function completedFlowTimes(eventsByCard, doneColumnId) {
           const lead = [];
           const cycle = [];
           eventsByCard.forEach((events) => {
@@ -4478,7 +4771,7 @@
               if (event.to === "doing" && event.event !== "baseline" && !doingAt) {
                 doingAt = item.timestamp;
               }
-              if (!completed && isCompletion(event)) {
+              if (!completed && isCompletion(event, doneColumnId)) {
                 if (createdAt) {
                   lead.push(Math.max(0, (item.timestamp - createdAt) / 86400000));
                 }
@@ -4517,7 +4810,7 @@
           return Math.round(value * 10) / 10;
         }
 
-        function buildAging(activeCards, cardStates, lastMeaningfulEventByCard, now) {
+        function buildAging(activeCards, cardStates, lastMeaningfulEventByCard, now, columns) {
           const known = [];
           const unknown = [];
           activeCards.forEach((card) => {
@@ -4539,7 +4832,7 @@
             items: known,
             unknown,
             stale: known.filter((item) => item.ageDays >= 14),
-            byStatus: Object.fromEntries(COLUMNS
+            byStatus: Object.fromEntries(columns
               .filter((column) => column.id !== "done")
               .map((column) => [column.id, known.filter((item) => item.columnId === column.id)])),
           };
@@ -4584,7 +4877,7 @@
           };
         }
 
-        function buildWorkload(activeCards, rangeEvents, cardsById) {
+        function buildWorkload(activeCards, rangeEvents, cardsById, doneColumnId) {
           const entries = new Map();
           const include = (assignee) => {
             const key = assignee || "unassigned";
@@ -4599,16 +4892,17 @@
             if (card.columnId === "blocked") item.blocked += 1;
             item.cardIds.push(card.id);
           });
-          rangeEvents.filter((item) => isCompletion(item.record)).forEach((item) => {
+          rangeEvents.filter((item) => isCompletion(item.record, doneColumnId)).forEach((item) => {
             const card = cardsById.get(item.record.card);
             include(item.record.assignee || card?.assignee).completed += 1;
           });
           return [...entries.values()].sort((left, right) => right.active - left.active || left.assignee.localeCompare(right.assignee));
         }
 
-        function buildCumulativeFlow(indexedEvents, range) {
+        function buildCumulativeFlow(indexedEvents, range, columns) {
           const states = new Map();
           const byDate = new Map();
+          const columnIds = new Set(columns.map((column) => column.id));
           indexedEvents.forEach((item) => {
             const events = byDate.get(item.date) || [];
             events.push(item);
@@ -4617,24 +4911,24 @@
           [...byDate.entries()]
             .filter(([date]) => date < range.start)
             .sort(([left], [right]) => left.localeCompare(right))
-            .forEach(([, events]) => events.forEach((item) => applyStateEvent(states, item.record)));
+            .forEach(([, events]) => events.forEach((item) => applyStateEvent(states, item.record, columnIds)));
 
           return range.dateKeys.map((date) => {
             (byDate.get(date) || [])
               .sort((left, right) => left.timestamp - right.timestamp || left.index - right.index)
-              .forEach((item) => applyStateEvent(states, item.record));
-            const counts = Object.fromEntries(COLUMNS.map((column) => [column.id, 0]));
+              .forEach((item) => applyStateEvent(states, item.record, columnIds));
+            const counts = Object.fromEntries(columns.map((column) => [column.id, 0]));
             states.forEach((status) => {
-              if (status) counts[status] += 1;
+              if (status && Object.hasOwn(counts, status)) counts[status] += 1;
             });
             return { date, ...counts, known: [...states.values()].filter(Boolean).length };
           });
         }
 
-        function applyStateEvent(states, event) {
+        function applyStateEvent(states, event, columnIds) {
           if (event.event === "deleted") {
             states.delete(event.card);
-          } else if (event.to && COLUMNS.some((column) => column.id === event.to)) {
+          } else if (event.to && columnIds.has(event.to)) {
             states.set(event.card, event.to);
           }
         }
@@ -4836,10 +5130,55 @@
           if (!Array.isArray(config.people)) {
             throw new Error("Configuration requires a people array.");
           }
+          if (!Array.isArray(config.columns)) {
+            throw new Error("Configuration requires a columns array.");
+          }
 
           validateDirectory(config.entities, "entity", false);
           validateDirectory(config.people, "person", true);
+          validateColumns(config.columns);
           return true;
+        }
+
+        function validateColumns(columns) {
+          if (!Array.isArray(columns)) {
+            throw new Error("Configuration requires a columns array.");
+          }
+          if (columns.length < MIN_COLUMNS) {
+            throw new Error(`A board must have at least ${MIN_COLUMNS} column.`);
+          }
+          if (columns.length > MAX_COLUMNS) {
+            throw new Error(`A board can have a maximum of ${MAX_COLUMNS} columns.`);
+          }
+
+          const ids = new Set();
+          const names = new Set();
+          columns.forEach((column) => {
+            if (!column || typeof column !== "object" || !COLUMN_ID_PATTERN.test(column.id || "")) {
+              throw new Error(`Invalid column ID: ${column?.id || "empty"}.`);
+            }
+            if (ids.has(column.id)) {
+              throw new Error(`Duplicate column ID: ${column.id}.`);
+            }
+
+            const name = typeof column.name === "string" ? column.name.trim() : "";
+            if (!name) {
+              throw new Error("Column names cannot be blank.");
+            }
+            if (name.length > MAX_COLUMN_NAME_LENGTH) {
+              throw new Error(`Column names must be ${MAX_COLUMN_NAME_LENGTH} characters or fewer.`);
+            }
+            if (/[\u0000-\u001F\u007F]/.test(name) || /<!--|--!?>/.test(name)) {
+              throw new Error("Column names cannot include control characters or Markdown markers.");
+            }
+
+            const nameKey = name.toLocaleLowerCase();
+            if (names.has(nameKey)) {
+              throw new Error("Column names must be unique without regard to case.");
+            }
+            ids.add(column.id);
+            names.add(nameKey);
+          });
         }
 
         function validateDirectory(items, type, requireName) {
@@ -4873,8 +5212,24 @@
           if (!Array.isArray(normalized.people)) {
             normalized.people = [];
           }
+          normalized.columns = normalizeColumns(normalized.columns);
           delete normalized.customers;
           return normalized;
+        }
+
+        function normalizeColumns(columns) {
+          const source = Array.isArray(columns)
+            ? columns
+            : COLUMNS.map(({ id, label }) => ({ id, name: label }));
+          return source.map((column) => {
+            if (!column || typeof column !== "object") {
+              return column;
+            }
+            return {
+              ...column,
+              name: typeof column.name === "string" ? column.name.trim() : column.name,
+            };
+          });
         }
 
         function createDefaultConfig() {
@@ -4893,11 +5248,15 @@
               { id: "meta", name: "Internal", color: "#167d74" },
             ],
             people: [],
+            columns: COLUMNS.map(({ id, label }) => ({ id, name: label })),
           };
         }
 
         return {
           COLUMNS,
+          MAX_COLUMNS,
+          MAX_COLUMN_NAME_LENGTH,
+          MIN_COLUMNS,
           analyzeBoardSource,
           appendHistory,
           buildAnalytics,
@@ -4913,6 +5272,7 @@
           parseBoard,
           parseConfig,
           parseHistory,
+          reconfigureColumns,
           serializeBoard,
           serializeConfig,
           validateBundleSources,
@@ -5114,20 +5474,7 @@
         const standalone = vscode.mode === "standalone";
         const BOARD_FILE = "BOARD.md";
         const AUTOSAVE_DELAY_MS = 1000;
-        const COLUMN_DESCRIPTIONS = {
-          inbox: "Awaiting triage",
-          next: "Accepted and ready",
-          doing: "Actively moving",
-          blocked: "Waiting or reviewing",
-          done: "Delivered and evidenced",
-        };
-        const COLUMN_EMPTY_COPY = {
-          inbox: ["Inbox is clear", "New evidence-backed candidates land here."],
-          next: ["Nothing queued", "Accepted outcomes ready to pull appear here."],
-          doing: ["No active outcome", "Pull the next clear finish when work begins."],
-          blocked: ["Nothing waiting", "Dependencies and review states appear here."],
-          done: ["Nothing closed yet", "Delivered outcomes appear here until weekly reset."],
-        };
+        const COLUMN_COLORS = ["#7d8890", "#2e6ea6", "#e24a35", "#a96912", "#167d74", "#7a5ca8"];
 
         const state = {
           rootName: "",
@@ -5157,6 +5504,9 @@
           suppressCardClick: false,
           analytics: null,
           analyticsPendingPreset: vscode.getState()?.analytics || null,
+          columnEditBaseline: null,
+          pendingColumnRemoval: null,
+          columnRemovalFocusTarget: null,
         };
 
         const elements = collectElements();
@@ -5184,6 +5534,9 @@
             "welcomeConnectButton", "welcomeNormalizeButton", "browserNote", "kanbanBoard", "settingsSaveButton",
             "settingsContent", "configWorkspaceName", "configBoardTitle", "configTimezone",
             "configAccent", "configAccentValue", "peopleList", "addPersonButton", "entityList", "addEntityButton",
+            "columnList", "addColumnButton", "discardColumnChangesButton", "columnsLimitMessage",
+            "columnValidationMessage", "columnRemovalDialog", "columnRemovalMessage", "columnRemovalTargetField",
+            "columnRemovalTarget", "cancelColumnRemovalButton", "confirmColumnRemovalButton",
             "statusMessage", "unsavedIndicator", "lastLoadedLabel", "cardDialog", "cardForm",
             "cardDialogEyebrow", "cardDialogTitle", "cardId", "cardTitle", "cardDescription",
             "cardArea", "cardAssignee", "cardColumn", "cardPriority", "deleteCardButton", "submitCardButton",
@@ -5225,7 +5578,7 @@
           elements.reloadButton.addEventListener("click", reloadRepository);
           elements.saveButton.addEventListener("click", () => persistChanges({ manual: true }));
           elements.settingsSaveButton.addEventListener("click", () => persistChanges({ manual: true }));
-          elements.addCardButton.addEventListener("click", () => openCardDialog(null, "inbox"));
+          elements.addCardButton.addEventListener("click", () => openCardDialog(null, firstColumnId()));
           elements.searchInput.addEventListener("input", renderBoard);
           elements.areaFilter.addEventListener("change", renderBoard);
           elements.assigneeFilter.addEventListener("change", renderBoard);
@@ -5257,6 +5610,14 @@
           elements.analyticsExport.addEventListener("click", exportAnalytics);
           elements.addPersonButton.addEventListener("click", addPerson);
           elements.addEntityButton.addEventListener("click", addEntity);
+          elements.addColumnButton.addEventListener("click", addColumn);
+          elements.discardColumnChangesButton.addEventListener("click", discardColumnChanges);
+          elements.cancelColumnRemovalButton.addEventListener("click", cancelColumnRemoval);
+          elements.confirmColumnRemovalButton.addEventListener("click", confirmColumnRemoval);
+          elements.columnRemovalDialog.addEventListener("cancel", (event) => {
+            event.preventDefault();
+            cancelColumnRemoval();
+          });
 
           document.querySelectorAll(".view-tab").forEach((button) => {
             button.addEventListener("click", () => setView(button.dataset.view));
@@ -5341,12 +5702,23 @@
 
         function populateColumnSelect() {
           elements.cardColumn.replaceChildren();
-          model.COLUMNS.forEach((column) => {
+          currentColumns().forEach((column) => {
             const option = document.createElement("option");
             option.value = column.id;
             option.textContent = column.label;
             elements.cardColumn.append(option);
           });
+        }
+
+        function currentColumns() {
+          if (state.board) {
+            return state.board.columns.map(({ id, label }) => ({ id, label }));
+          }
+          return state.config.columns.map(({ id, name }) => ({ id, label: name }));
+        }
+
+        function firstColumnId() {
+          return currentColumns()[0]?.id || "";
         }
 
         function connectRepository() {
@@ -5363,8 +5735,8 @@
         function loadRepository(payload) {
           clearAutosaveTimer();
           const { rootName, boardSource, configSource, historySource } = payload;
-          const board = model.parseBoard(boardSource);
           const config = model.parseConfig(configSource);
+          const board = model.parseBoard(boardSource);
           const history = model.parseHistory(historySource);
 
           state.rootName = rootName;
@@ -5382,6 +5754,11 @@
           state.saveQueued = false;
           state.pendingSave = null;
           state.duplicateSources = {};
+          state.columnEditBaseline = null;
+          state.pendingColumnRemoval = null;
+          state.mobileColumn = board.columns.some((column) => column.id === state.mobileColumn)
+            ? state.mobileColumn
+            : board.columns[0].id;
 
           elements.welcomePanel.hidden = true;
           elements.welcomePanel.dataset.state = "ready";
@@ -5427,7 +5804,7 @@
           } else if (message.type === "externalChange") {
             handleExternalChange(message.fileName);
           } else if (message.type === "openNewCard" && state.board) {
-            openCardDialog(null, "inbox");
+            openCardDialog(null, firstColumnId());
           }
         }
 
@@ -5442,6 +5819,7 @@
           state.duplicateSources = {};
           elements.kanbanBoard.replaceChildren();
           elements.mobileColumnTabs.replaceChildren();
+          elements.kanbanBoard.style.removeProperty("grid-template-columns");
           elements.welcomePanel.hidden = false;
           elements.welcomePanel.dataset.state = "error";
           elements.welcomeTitle.textContent = "This board could not be loaded.";
@@ -5470,6 +5848,7 @@
 
         function renderAll() {
           renderSettings();
+          populateColumnSelect();
           populateAreaFilter();
           populateAssigneeFilter();
           populateEntityOptions();
@@ -5489,6 +5868,7 @@
 
           elements.kanbanBoard.replaceChildren();
           elements.mobileColumnTabs.replaceChildren();
+          elements.kanbanBoard.style.gridTemplateColumns = `repeat(${state.board.columns.length}, minmax(var(--column-width), 1fr))`;
           const query = elements.searchInput.value.trim().toLowerCase();
           const area = elements.areaFilter.value;
           const assignee = elements.assigneeFilter.value;
@@ -5498,6 +5878,7 @@
             const columnElement = document.createElement("section");
             columnElement.className = "kanban-column";
             columnElement.dataset.column = column.id;
+            columnElement.style.setProperty("--column-color", columnColor(column.id, columnIndex));
             if (column.id === state.mobileColumn) {
               columnElement.classList.add("is-mobile-active");
             }
@@ -5512,7 +5893,7 @@
             const title = document.createElement("h2");
             title.textContent = column.label;
             const description = document.createElement("p");
-            description.textContent = COLUMN_DESCRIPTIONS[column.id];
+            description.textContent = `Workflow stage ${columnIndex + 1} of ${state.board.columns.length}`;
             titleBlock.append(title, description);
             const count = document.createElement("span");
             count.className = "column-count";
@@ -5799,8 +6180,8 @@
           empty.className = "empty-column";
           const copy = document.createElement("div");
           const strong = document.createElement("strong");
-          strong.textContent = COLUMN_EMPTY_COPY[column.id][0];
-          copy.append(strong, document.createTextNode(COLUMN_EMPTY_COPY[column.id][1]));
+          strong.textContent = `${column.label} is clear`;
+          copy.append(strong, document.createTextNode("Add an outcome or move one here."));
           empty.append(copy);
           return empty;
         }
@@ -5886,11 +6267,16 @@
           const active = state.board.columns
             .filter((column) => column.id !== "done")
             .reduce((sum, column) => sum + column.cards.length, 0);
-          const blocked = state.board.columns.find((column) => column.id === "blocked").cards.length;
-          const doing = state.board.columns.find((column) => column.id === "doing").cards.length;
+          const blocked = state.board.columns.find((column) => column.id === "blocked")?.cards.length || 0;
+          const doing = state.board.columns.find((column) => column.id === "doing")?.cards.length || 0;
           elements.activeCount.textContent = String(active);
           elements.blockedCount.textContent = String(blocked);
           elements.doingCount.textContent = String(doing);
+        }
+
+        function columnColor(columnId, index) {
+          if (columnId === "doing") return state.config.appearance.accent;
+          return COLUMN_COLORS[index % COLUMN_COLORS.length];
         }
 
         function populateAreaFilter() {
@@ -6028,7 +6414,7 @@
           elements.cardDescription.value = card?.detailValues.description || "";
           elements.cardArea.value = card?.area || state.config.entities[0]?.id || "meta";
           elements.cardAssignee.value = card?.detailValues.assignee || "";
-          elements.cardColumn.value = card?.columnId || defaultColumn || "inbox";
+          elements.cardColumn.value = card?.columnId || defaultColumn || firstColumnId();
           elements.cardPriority.value = card?.priority || "P2";
           elements.cardDialogEyebrow.textContent = card ? card.id : "New outcome";
           elements.cardDialogTitle.textContent = card ? "Edit outcome" : "Add an outcome";
@@ -6209,6 +6595,261 @@
           config.entities.forEach((entity, index) => {
             elements.entityList.append(createDirectoryRow(entity, index, "entity"));
           });
+          renderColumns();
+        }
+
+        function renderColumns() {
+          const columns = state.config.columns;
+          const atLimit = columns.length >= model.MAX_COLUMNS;
+          elements.addColumnButton.disabled = atLimit;
+          elements.columnsLimitMessage.hidden = !atLimit;
+          elements.columnsLimitMessage.textContent = atLimit
+            ? `A board can have a maximum of ${model.MAX_COLUMNS} columns.`
+            : "";
+          elements.discardColumnChangesButton.disabled = !state.columnEditBaseline;
+          elements.columnList.replaceChildren();
+          columns.forEach((column, index) => {
+            elements.columnList.append(createColumnRow(column, index));
+          });
+        }
+
+        function createColumnRow(column, index) {
+          const row = document.createElement("div");
+          row.className = "column-row";
+
+          const order = document.createElement("div");
+          order.className = "column-order-actions";
+          const moveEarlier = document.createElement("button");
+          moveEarlier.type = "button";
+          moveEarlier.className = "column-order-button";
+          moveEarlier.textContent = "↑";
+          moveEarlier.title = `Move ${column.name} earlier`;
+          moveEarlier.setAttribute("aria-label", `Move ${column.name} earlier`);
+          moveEarlier.disabled = index === 0;
+          moveEarlier.addEventListener("click", () => moveColumn(index, -1));
+          const moveLater = document.createElement("button");
+          moveLater.type = "button";
+          moveLater.className = "column-order-button";
+          moveLater.textContent = "↓";
+          moveLater.title = `Move ${column.name} later`;
+          moveLater.setAttribute("aria-label", `Move ${column.name} later`);
+          moveLater.disabled = index === state.config.columns.length - 1;
+          moveLater.addEventListener("click", () => moveColumn(index, 1));
+          order.append(moveEarlier, moveLater);
+
+          const name = document.createElement("input");
+          name.type = "text";
+          name.className = "column-name-input";
+          name.value = column.name;
+          name.maxLength = model.MAX_COLUMN_NAME_LENGTH;
+          name.setAttribute("aria-label", `Column ${index + 1} name`);
+          name.addEventListener("input", () => validateColumnNameInput(name, index));
+          name.addEventListener("change", () => changeColumnName(column, index, name));
+          name.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") {
+              name.value = column.name;
+              clearColumnValidation();
+              name.blur();
+            }
+          });
+
+          const remove = document.createElement("button");
+          remove.type = "button";
+          remove.className = "remove-column-button";
+          remove.textContent = "×";
+          remove.title = `Remove ${column.name}`;
+          remove.setAttribute("aria-label", `Remove ${column.name}`);
+          remove.disabled = state.config.columns.length <= model.MIN_COLUMNS;
+          remove.addEventListener("click", () => requestColumnRemoval(index, remove));
+
+          row.append(order, name, remove);
+          return row;
+        }
+
+        function validateColumnNameInput(input, index) {
+          const candidate = {
+            ...state.config,
+            columns: state.config.columns.map((column, columnIndex) => (
+              columnIndex === index ? { ...column, name: input.value } : column
+            )),
+          };
+          try {
+            model.validateConfig(candidate);
+            input.setAttribute("aria-invalid", "false");
+            clearColumnValidation();
+            return true;
+          } catch (error) {
+            input.setAttribute("aria-invalid", "true");
+            showColumnValidation(error.message || String(error));
+            return false;
+          }
+        }
+
+        function changeColumnName(column, index, input) {
+          if (!validateColumnNameInput(input, index)) {
+            return;
+          }
+          const next = input.value.trim();
+          if (next === column.name) {
+            input.value = column.name;
+            return;
+          }
+          beginColumnEdit();
+          column.name = next;
+          applyColumnChanges();
+        }
+
+        function moveColumn(index, direction) {
+          const targetIndex = index + direction;
+          if (targetIndex < 0 || targetIndex >= state.config.columns.length) {
+            return;
+          }
+          beginColumnEdit();
+          const [column] = state.config.columns.splice(index, 1);
+          state.config.columns.splice(targetIndex, 0, column);
+          applyColumnChanges();
+          elements.columnList.children[targetIndex]?.querySelector(".column-order-button")?.focus();
+        }
+
+        function addColumn() {
+          if (state.config.columns.length >= model.MAX_COLUMNS) {
+            showColumnValidation(`A board can have a maximum of ${model.MAX_COLUMNS} columns.`);
+            return;
+          }
+          beginColumnEdit();
+          let suffix = state.config.columns.length + 1;
+          while (state.config.columns.some((column) => column.id === `column-${suffix}`)) {
+            suffix += 1;
+          }
+          state.config.columns.push({ id: `column-${suffix}`, name: "New column" });
+          applyColumnChanges();
+          elements.columnList.lastElementChild?.querySelector(".column-name-input")?.select();
+        }
+
+        function requestColumnRemoval(index, focusTarget) {
+          if (state.config.columns.length <= model.MIN_COLUMNS) {
+            showColumnValidation(`A board must have at least ${model.MIN_COLUMNS} column.`);
+            return;
+          }
+          const column = state.config.columns[index];
+          const current = state.board?.columns.find((item) => item.id === column.id);
+          const cardCount = current?.cards.length || 0;
+          state.pendingColumnRemoval = { id: column.id, index };
+          state.columnRemovalFocusTarget = focusTarget;
+          elements.columnRemovalMessage.textContent = cardCount > 0
+            ? `${column.name} contains ${cardCount} outcome(s). Choose a destination before removing it.`
+            : `Remove the empty ${column.name} column?`;
+          elements.columnRemovalTargetField.hidden = cardCount === 0;
+          elements.columnRemovalTarget.replaceChildren();
+          state.config.columns
+            .filter((item) => item.id !== column.id)
+            .forEach((item) => {
+              const option = document.createElement("option");
+              option.value = item.id;
+              option.textContent = item.name;
+              elements.columnRemovalTarget.append(option);
+            });
+          elements.columnRemovalDialog.showModal();
+        }
+
+        function cancelColumnRemoval() {
+          const focusTarget = state.columnRemovalFocusTarget;
+          state.pendingColumnRemoval = null;
+          state.columnRemovalFocusTarget = null;
+          if (elements.columnRemovalDialog.open) {
+            elements.columnRemovalDialog.close();
+          }
+          if (focusTarget?.isConnected) {
+            focusTarget.focus();
+          }
+        }
+
+        function confirmColumnRemoval() {
+          const pending = state.pendingColumnRemoval;
+          if (!pending) {
+            showColumnValidation("Choose a column to remove.");
+            return;
+          }
+          const current = state.board?.columns.find((column) => column.id === pending.id);
+          const targetId = elements.columnRemovalTarget.value;
+          if (current?.cards.length > 0 && !targetId) {
+            showColumnValidation("Choose a destination for the outcomes in this column.");
+            return;
+          }
+
+          beginColumnEdit();
+          current?.cards.slice().forEach((card) => {
+            model.moveCard(state.board, card.id, targetId);
+          });
+          state.config.columns = state.config.columns.filter((column) => column.id !== pending.id);
+          state.pendingColumnRemoval = null;
+          state.columnRemovalFocusTarget = null;
+          elements.columnRemovalDialog.close();
+          applyColumnChanges();
+        }
+
+        function beginColumnEdit() {
+          if (state.columnEditBaseline) {
+            return;
+          }
+          clearAutosaveTimer();
+          state.columnEditBaseline = {
+            columns: structuredClone(state.config.columns),
+            board: structuredClone(state.board),
+            dirtyBoard: state.dirtyBoard,
+            dirtyConfig: state.dirtyConfig,
+            boardRevision: state.boardRevision,
+            configRevision: state.configRevision,
+          };
+        }
+
+        function applyColumnChanges() {
+          try {
+            state.board = model.reconfigureColumns(state.board, state.config.columns);
+            if (!state.board.columns.some((column) => column.id === state.mobileColumn)) {
+              state.mobileColumn = state.board.columns[0].id;
+            }
+            clearColumnValidation();
+            markDirty("board", { autosave: false });
+            markDirty("config", { autosave: false });
+            renderAll();
+          } catch (error) {
+            showColumnValidation(error.message || String(error));
+          }
+        }
+
+        function discardColumnChanges() {
+          const baseline = state.columnEditBaseline;
+          if (!baseline) {
+            return;
+          }
+          clearAutosaveTimer();
+          state.config.columns = baseline.columns;
+          state.board = baseline.board;
+          state.dirtyBoard = baseline.dirtyBoard;
+          state.dirtyConfig = baseline.dirtyConfig;
+          state.boardRevision = baseline.boardRevision;
+          state.configRevision = baseline.configRevision;
+          state.columnEditBaseline = null;
+          state.mobileColumn = state.board.columns.some((column) => column.id === state.mobileColumn)
+            ? state.mobileColumn
+            : state.board.columns[0].id;
+          clearColumnValidation();
+          renderAll();
+          updateDirtyState();
+          if (!state.dirtyBoard && !state.dirtyConfig) {
+            updateSaveState("saved", "Up to date", "Column changes discarded");
+          }
+        }
+
+        function showColumnValidation(message) {
+          elements.columnValidationMessage.textContent = message;
+          elements.columnValidationMessage.hidden = false;
+        }
+
+        function clearColumnValidation() {
+          elements.columnValidationMessage.textContent = "";
+          elements.columnValidationMessage.hidden = true;
         }
 
         function createDirectoryRow(item, index, type) {
@@ -6521,6 +7162,7 @@
 
         function syncAnalyticsFilterOptions() {
           const cards = state.board.columns.flatMap((column) => column.cards);
+          const statuses = state.board.columns.map((column) => ({ value: column.id, label: column.label }));
           const entities = state.config.entities
             .map((entity) => ({ value: entity.id, label: entity.name }))
             .sort((left, right) => left.label.localeCompare(right.label));
@@ -6528,6 +7170,7 @@
             .map((person) => ({ value: person.id, label: person.name }))
             .sort((left, right) => left.label.localeCompare(right.label));
           const assigned = new Set(cards.map((card) => card.detailValues.assignee).filter(Boolean));
+          populateAnalyticsSelect(elements.analyticsStatus, "All statuses", statuses);
           populateAnalyticsSelect(elements.analyticsArea, "All entities", entities);
           populateAnalyticsSelect(elements.analyticsAssignee, "All assignees", [
             { value: "unassigned", label: "Unassigned" },
@@ -6725,16 +7368,9 @@
             elements.statusChart.append(createAnalyticsEmpty("No current outcomes match this filter."));
             return;
           }
-          const colors = {
-            inbox: "#7d8890",
-            next: "#2e6ea6",
-            doing: state.config.appearance.accent,
-            blocked: "#a96912",
-            done: "#167d74",
-          };
           const track = document.createElement("div");
           track.className = "status-track";
-          model.COLUMNS.forEach((column) => {
+          currentColumns().forEach((column) => {
             const count = analytics.status[column.id];
             if (count === 0) return;
             const segment = createAnalyticsAction(
@@ -6751,14 +7387,14 @@
 
           const legend = document.createElement("div");
           legend.className = "status-legend";
-          model.COLUMNS.forEach((column) => {
+          currentColumns().forEach((column, index) => {
             const item = createAnalyticsAction(
               `${column.label}: ${analytics.status[column.id]} outcomes`,
               "status-legend-item",
               analytics.cards.filter((card) => card.columnId === column.id).map((card) => card.id),
             );
             item.className = "status-legend-item";
-            item.style.setProperty("--legend-color", colors[column.id]);
+            item.style.setProperty("--legend-color", columnColor(column.id, index));
             const swatch = document.createElement("i");
             const label = document.createElement("span");
             label.textContent = column.label;
@@ -6890,10 +7526,10 @@
           const rows = sampleAnalyticsRows(analytics.cumulativeFlow, 12);
           renderAnalyticsTable(
             elements.cumulativeFlow,
-            ["Date", ...model.COLUMNS.map((column) => column.label), "Known"],
+            ["Date", ...currentColumns().map((column) => column.label), "Known"],
             rows.map((row) => [
               formatChartDate(row.date),
-              ...model.COLUMNS.map((column) => String(row[column.id])),
+              ...currentColumns().map((column) => String(row[column.id])),
               String(row.known),
             ]),
             "No recorded state history matches this range.",
@@ -7210,7 +7846,7 @@
         }
 
         function statusLabel(status) {
-          return model.COLUMNS.find((column) => column.id === status)?.label || status;
+          return currentColumns().find((column) => column.id === status)?.label || status;
         }
 
         function createAnalyticsEmpty(message) {
@@ -7244,7 +7880,7 @@
           }).format(new Date(timestamp));
         }
 
-        function markDirty(target) {
+        function markDirty(target, { autosave = true } = {}) {
           if (target === "board") {
             state.dirtyBoard = true;
             state.boardRevision += 1;
@@ -7253,6 +7889,10 @@
             state.configRevision += 1;
           }
           updateDirtyState();
+          if (!autosave) {
+            updateSaveState("pending", "Unsaved changes", "Save column changes or discard them");
+            return;
+          }
           if (state.saveInFlight) {
             state.saveQueued = true;
             return;
@@ -7359,7 +7999,10 @@
           state.historySource = result.historySource;
           state.historyEvents.push(...result.events);
           if (pending.saveBoard && state.boardRevision === pending.boardRevision) state.dirtyBoard = false;
-          if (pending.saveConfig && state.configRevision === pending.configRevision) state.dirtyConfig = false;
+          if (pending.saveConfig && state.configRevision === pending.configRevision) {
+            state.dirtyConfig = false;
+            state.columnEditBaseline = null;
+          }
           state.pendingSave = null;
           state.saveInFlight = false;
           updateDirtyState();
