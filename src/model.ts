@@ -61,6 +61,7 @@ export interface HistoryEvent {
   at: string;
   card: string;
   event: HistoryEventType;
+  duplicatedFrom?: string;
   from?: ColumnId;
   to?: ColumnId;
   area: string;
@@ -109,9 +110,17 @@ interface BoardModelApi {
   analyzeBoardSource(markdown: string): BoardSourceAnalysis;
     normalizeBoardSource(markdown: string): { source: string; diagnostics: BoardDiagnostic[]; changed: boolean };
   appendHistory(markdown: string, events: HistoryEvent[]): string;
+  createCard(document: BoardDocument, values?: Partial<Card> & { historyEvents?: HistoryEvent[] }): Card;
   createBaselineEvents(document: BoardDocument, at: string): HistoryEvent[];
   createDefaultConfig(): KanbanConfig;
-  diffBoardEvents(before: BoardDocument, after: BoardDocument, at: string): HistoryEvent[];
+  diffBoardEvents(
+    before: BoardDocument,
+    after: BoardDocument,
+    at: string,
+    duplicateSources?: Record<string, string>,
+  ): HistoryEvent[];
+  duplicateCard(document: BoardDocument, cardId: string, historyEvents?: HistoryEvent[]): Card;
+  findCard(document: BoardDocument, cardId: string): { column: BoardColumn; card: Card; cardIndex: number } | null;
   parseBoard(markdown: string): BoardDocument;
   parseConfig(markdown: string): KanbanConfig;
   parseHistory(markdown: string): { source: string; newline: string; events: HistoryEvent[] };

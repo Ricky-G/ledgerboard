@@ -108,6 +108,7 @@
         model.parseBoard(bundle.boardSource),
         model.parseBoard(nextBoardSource),
         new Date().toISOString(),
+        request.duplicateSources,
       )
       : [];
     if (events.length > 0 && bundle.historySource !== request.base.historySource) {

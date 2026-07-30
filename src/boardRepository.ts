@@ -36,6 +36,7 @@ export interface SaveRequest {
   nextConfigSource: string;
   saveBoard: boolean;
   saveConfig: boolean;
+  duplicateSources?: Record<string, string>;
 }
 
 export interface SaveResult extends BoardBundle {
@@ -134,8 +135,16 @@ export class BoardRepository {
     const beforeBoard = boardModel.parseBoard(current.boardSource);
     const afterBoard = boardModel.parseBoard(nextBoardSource);
     boardModel.parseConfig(nextConfigSource);
+    if (!request.saveBoard && request.duplicateSources && Object.keys(request.duplicateSources).length > 0) {
+      throw new Error('Duplicate source metadata requires a board save.');
+    }
     const events = request.saveBoard
-      ? boardModel.diffBoardEvents(beforeBoard, afterBoard, localIsoTimestamp())
+      ? boardModel.diffBoardEvents(
+        beforeBoard,
+        afterBoard,
+        localIsoTimestamp(),
+        request.duplicateSources,
+      )
       : [];
 
     if (events.length > 0 && current.historySource !== request.base.historySource) {

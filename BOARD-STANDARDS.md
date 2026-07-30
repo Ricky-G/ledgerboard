@@ -345,6 +345,12 @@ Created:
     {"at":"<actual ISO timestamp>","card":"AO-035","event":"created","to":"inbox","area":"client-a","priority":"P2","title":"Prepare architecture review"}
 ```
 
+Duplicated:
+
+```text
+    {"at":"<actual ISO timestamp>","card":"AO-036","event":"created","to":"inbox","duplicatedFrom":"AO-035","area":"client-a","priority":"P2","title":"Prepare architecture review (Copy)"}
+```
+
 Moved:
 
 ```text
@@ -375,6 +381,7 @@ Deleted:
 History rules:
 
 - Allowed event types: `baseline`, `created`, `moved`, `updated`, and `deleted`.
+- A duplicated outcome is a `created` event with `duplicatedFrom` set to its source card ID.
 - Use the actual current ISO 8601 timestamp with UTC offset.
 - Valid status values are `inbox`, `next`, `doing`, `blocked`, and `done`.
 - Include only fields that actually changed in an `updated.changes` array.

@@ -212,6 +212,46 @@ suite('Extension Test Suite', function () {
 		}
 	});
 
+	test('persists a duplicated card with its creation source', async () => {
+		await withWorkspace('duplicate-history', async (root) => {
+			const repository = new BoardRepository(root);
+			await repository.initialize();
+			const base = await repository.read();
+			const created = await repository.save({
+				base,
+				nextBoardSource: base.boardSource.replace(
+					'<!-- empty -->',
+					'- [ ] AO-001 — Prepare the release · P1 · area:meta\n'
+						+ '    - **Description:** Collect final approval evidence.',
+				),
+				nextConfigSource: base.configSource,
+				saveBoard: true,
+				saveConfig: false,
+			});
+			const board = boardModel.parseBoard(created.boardSource);
+			const duplicate = boardModel.duplicateCard(
+				board,
+				'AO-001',
+				boardModel.parseHistory(created.historySource).events,
+			);
+
+			const saved = await repository.save({
+				base: created,
+				nextBoardSource: boardModel.serializeBoard(board),
+				nextConfigSource: created.configSource,
+				saveBoard: true,
+				saveConfig: false,
+				duplicateSources: { [duplicate.id]: 'AO-001' },
+			});
+
+			assert.equal(saved.events.length, 1);
+			assert.equal(saved.events[0].event, 'created');
+			assert.equal(saved.events[0].duplicatedFrom, 'AO-001');
+			assert.equal(saved.events[0].card, duplicate.id);
+			assert.equal(boardModel.parseHistory(saved.historySource).events.at(-1)?.duplicatedFrom, 'AO-001');
+		});
+	});
+
 	test('prefers a valid workspace-root board over invalid nested bundles', async () => {
 		const root = vscode.Uri.file(path.join(os.tmpdir(), `ledgerboard-discovery-${Date.now()}`));
 		const nested = vscode.Uri.joinPath(root, 'reference', 'nested-board');

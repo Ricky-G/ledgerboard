@@ -41,6 +41,49 @@ test('createCard reserves the next free ID and applies defaults', () => {
   assert.equal(created.checked, false);
 });
 
+test('duplicateCard inserts an independent copy after its source', () => {
+  const board = model.parseBoard(buildBoard({
+    Inbox: [
+      card({
+        id: 'AO-004',
+        title: 'Prepare the release',
+        priority: 'P1',
+        details: [
+          ['Description', 'Collect final approval evidence.'],
+          ['Assignee', 'alex-smith'],
+          ['Reference', 'release-checklist'],
+        ],
+      }),
+      card({ id: 'AO-005', title: 'Publish the release' }),
+    ].join('\n\n'),
+  }));
+
+  const duplicate = model.duplicateCard(board, 'AO-004', [{ card: 'AO-099' }]);
+  const source = model.findCard(board, 'AO-004').card;
+
+  assert.equal(duplicate.id, 'AO-100');
+  assert.equal(duplicate.title, 'Prepare the release (Copy)');
+  assert.equal(duplicate.priority, 'P1');
+  assert.equal(duplicate.area, 'internal');
+  assert.deepEqual(duplicate.detailValues, {
+    description: 'Collect final approval evidence.',
+    assignee: 'alex-smith',
+  });
+  assert.notStrictEqual(duplicate.detailValues, source.detailValues);
+  assert.deepEqual(duplicate.rawDetailLines, source.rawDetailLines);
+  assert.notStrictEqual(duplicate.rawDetailLines, source.rawDetailLines);
+  assert.deepEqual(board.columns[0].cards.map((item) => item.id), ['AO-004', 'AO-100', 'AO-005']);
+
+  const reloaded = model.parseBoard(model.serializeBoard(board));
+  assert.deepEqual(reloaded.columns[0].cards.map((item) => item.id), ['AO-004', 'AO-100', 'AO-005']);
+  assert.equal(reloaded.columns[0].cards[1].detailValues.assignee, 'alex-smith');
+});
+
+test('duplicateCard rejects a missing source card', () => {
+  const board = model.parseBoard(boardWith(card({ id: 'AO-001', title: 'Existing' })));
+  assert.throws(() => model.duplicateCard(board, 'AO-404'), /Could not find AO-404 to duplicate/);
+});
+
 test('nextCardId takes the highest of board and history identifiers', () => {
   const board = model.parseBoard(boardWith(card({ id: 'AO-012', title: 'Board card' })));
   assert.equal(model.nextCardId(board), 'AO-013');

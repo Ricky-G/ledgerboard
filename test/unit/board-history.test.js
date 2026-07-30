@@ -51,6 +51,21 @@ test('parseHistory rejects malformed timestamps and card identifiers', () => {
   assert.throws(() => model.parseHistory(historyWith({ ...BASE_EVENT, card: 'XX-1' })), /requires a card ID/);
 });
 
+test('parseHistory rejects invalid duplicate source metadata', () => {
+  assert.throws(
+    () => model.parseHistory(historyWith({ ...BASE_EVENT, duplicatedFrom: 'XX-1' })),
+    /invalid duplicate source/,
+  );
+  assert.throws(
+    () => model.parseHistory(historyWith({ ...BASE_EVENT, event: 'moved', duplicatedFrom: 'AO-002' })),
+    /must be a creation/,
+  );
+  assert.throws(
+    () => model.parseHistory(historyWith({ ...BASE_EVENT, duplicatedFrom: BASE_EVENT.card })),
+    /invalid duplicate source/,
+  );
+});
+
 test('parseHistory rejects invalid statuses, assignees, and actors', () => {
   assert.throws(() => model.parseHistory(historyWith({ ...BASE_EVENT, to: 'archive' })), /invalid to status/);
   assert.throws(() => model.parseHistory(historyWith({ ...BASE_EVENT, from: 'archive' })), /invalid from status/);
@@ -133,6 +148,55 @@ test('diffBoardEvents detects creation, movement, updates, and deletion', () => 
   assert.equal(byType.get('deleted').card, 'AO-002');
   assert.equal(byType.get('created').card, 'AO-003');
   assert.equal(model.parseHistory(model.appendHistory(HISTORY, events)).events.length, events.length);
+});
+
+test('diffBoardEvents records the source of a duplicated card', () => {
+  const before = model.parseBoard(boardWith(card({
+    id: 'AO-001',
+    title: 'Prepare the release',
+    priority: 'P1',
+    details: [['Assignee', 'alex-smith']],
+  })));
+  const after = model.parseBoard(model.serializeBoard(before));
+  const duplicate = model.duplicateCard(after, 'AO-001');
+
+  const [event] = model.diffBoardEvents(before, after, AT, {
+    [duplicate.id]: 'AO-001',
+  });
+
+  assert.equal(event.event, 'created');
+  assert.equal(event.card, duplicate.id);
+  assert.equal(event.to, 'inbox');
+  assert.equal(event.duplicatedFrom, 'AO-001');
+  assert.equal(event.assignee, 'alex-smith');
+  assert.doesNotThrow(() => model.appendHistory(HISTORY, [event]));
+});
+
+test('diffBoardEvents rejects invalid duplicate source maps', () => {
+  const before = model.parseBoard(boardWith(card({ id: 'AO-001', title: 'Source' })));
+  const after = model.parseBoard(model.serializeBoard(before));
+  const duplicate = model.duplicateCard(after, 'AO-001');
+
+  assert.throws(
+    () => model.diffBoardEvents(before, after, AT, []),
+    /must map duplicated card IDs to source card IDs/,
+  );
+  assert.throws(
+    () => model.diffBoardEvents(before, after, AT, { invalid: 'AO-001' }),
+    /must use valid card IDs/,
+  );
+  assert.throws(
+    () => model.diffBoardEvents(before, after, AT, { [duplicate.id]: duplicate.id }),
+    /cannot be its own source/,
+  );
+  assert.throws(
+    () => model.diffBoardEvents(before, after, AT, { 'AO-001': duplicate.id }),
+    /must identify a newly created card/,
+  );
+  assert.throws(
+    () => model.diffBoardEvents(before, after, AT, { [duplicate.id]: 'AO-404' }),
+    /source card was not found/,
+  );
 });
 
 test('diffBoardEvents records an assignment with both sides of the change', () => {

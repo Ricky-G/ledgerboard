@@ -70,6 +70,27 @@ test('opens, styles, edits, and saves a local Markdown bundle without companion 
   expect(saved['KANBAN-HISTORY.md']).toContain('"event":"updated"');
 });
 
+test('duplicates an outcome and records its source in a local Markdown bundle', async ({ page }) => {
+  const bundle = createBundle(model);
+  await installStandaloneFolder(page, bundle);
+  await page.goto('/?standalone=1');
+  await page.locator('#welcomeConnectButton').click();
+
+  await page.locator('[data-card-id="AO-001"]').click({ button: 'right' });
+  await page.locator('#duplicateCardActionButton').click();
+  await expect(page.locator('[data-card-id="AO-007"]')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await page.locator('#saveButton').click();
+  await expect(page.locator('#saveState')).toHaveAttribute('data-state', 'saved');
+
+  const saved = await page.evaluate(() => ({ ...window.__standaloneSources }));
+  expect(saved['BOARD.md']).toContain('AO-007 — Confirm research themes (Copy)');
+  expect(saved['KANBAN-HISTORY.md']).toContain('"duplicatedFrom":"AO-001"');
+
+  await page.locator('#reloadButton').click();
+  await expect(page.locator('[data-card-id="AO-007"]')).toContainText('Confirm research themes (Copy)');
+});
+
 test('normalizes a repairable board in the selected standalone folder', async ({ page }) => {
   const bundle = createBundle(model);
   bundle.boardSource = bundle.boardSource.replace(

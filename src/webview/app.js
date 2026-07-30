@@ -37,6 +37,7 @@
     saveInFlight: false,
     saveQueued: false,
     pendingSave: null,
+    duplicateSources: {},
     pendingDeletionCardId: null,
     deleteConfirmationFocusTarget: null,
     actionMenuCardId: null,
@@ -81,7 +82,7 @@
       "deleteConfirmationDialog", "deleteConfirmationMessage", "cancelDeleteCardButton", "confirmDeleteCardButton",
       "cardActionMenu", "cardActionMenuCardId", "cardActionMenuCardTitle", "cardActionMenuEntitySwatch",
       "cardActionMenuEntityName", "cardActionMenuAssignee", "cardActionMenuAvatar", "cardActionMenuAssigneeName",
-      "deleteCardActionButton", "editCardActionButton",
+      "duplicateCardActionButton", "deleteCardActionButton", "editCardActionButton",
       "toastRegion",
     ];
     return Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
@@ -161,8 +162,9 @@
       event.preventDefault();
       cancelCardDeletion();
     });
-    elements.deleteCardActionButton.addEventListener("click", deleteCardFromActionMenu);
     elements.editCardActionButton.addEventListener("click", editCardFromActionMenu);
+    elements.duplicateCardActionButton.addEventListener("click", duplicateCardFromActionMenu);
+    elements.deleteCardActionButton.addEventListener("click", deleteCardFromActionMenu);
     elements.cardActionMenu.addEventListener("keydown", handleCardActionMenuKeydown);
     document.addEventListener("pointerdown", dismissCardActionMenuOnOutsideClick);
     document.querySelectorAll("[data-close-dialog]").forEach((button) => {
@@ -270,6 +272,8 @@
     state.configRevision = 0;
     state.saveInFlight = false;
     state.saveQueued = false;
+    state.pendingSave = null;
+    state.duplicateSources = {};
 
     elements.welcomePanel.hidden = true;
     elements.welcomePanel.dataset.state = "ready";
@@ -327,6 +331,7 @@
     state.dirtyConfig = false;
     state.saveInFlight = false;
     state.pendingSave = null;
+    state.duplicateSources = {};
     elements.kanbanBoard.replaceChildren();
     elements.mobileColumnTabs.replaceChildren();
     elements.welcomePanel.hidden = false;
@@ -567,7 +572,7 @@
     populateCardActionMenuContext(card);
     elements.cardActionMenu.hidden = false;
     positionCardActionMenu(trigger, pointer);
-    elements.deleteCardActionButton.focus();
+    elements.editCardActionButton.focus();
   }
 
   function closeCardActionMenu({ restoreFocus = false } = {}) {
@@ -624,7 +629,11 @@
   }
 
   function handleCardActionMenuKeydown(event) {
-    const actions = [elements.deleteCardActionButton, elements.editCardActionButton];
+    const actions = [
+      elements.editCardActionButton,
+      elements.duplicateCardActionButton,
+      elements.deleteCardActionButton,
+    ];
     const current = actions.indexOf(document.activeElement);
     if (event.key === "Home" || event.key === "End") {
       event.preventDefault();
@@ -644,6 +653,29 @@
     closeCardActionMenu();
     if (cardId) {
       openCardDialog(cardId);
+    }
+  }
+
+  function duplicateCardFromActionMenu() {
+    const sourceCardId = state.actionMenuCardId;
+    closeCardActionMenu();
+    if (!sourceCardId) {
+      showError(new Error("Choose an outcome to duplicate."));
+      return;
+    }
+
+    try {
+      const duplicate = model.duplicateCard(state.board, sourceCardId, state.historyEvents);
+      state.duplicateSources[duplicate.id] = sourceCardId;
+      markDirty("board");
+      renderBoard();
+      populateAreaFilter();
+      openCardDialog(duplicate.id);
+      elements.cardTitle.focus();
+      elements.cardTitle.select();
+      showToast(`${duplicate.id} duplicated.`, "success");
+    } catch (error) {
+      showError(error);
     }
   }
 
@@ -1010,6 +1042,7 @@
     }
     const { id: columnId } = found.column;
     const cardIndex = found.cardIndex;
+    rebaseDuplicateSources(found.card.id);
     found.column.cards.splice(found.cardIndex, 1);
     state.pendingDeletionCardId = null;
     state.deleteConfirmationFocusTarget = null;
@@ -1022,6 +1055,19 @@
     state.editingCardId = null;
     focusCardAfterDeletion(columnId, cardIndex);
     showToast(`${found.card.id} deleted.`, "success");
+  }
+
+  function rebaseDuplicateSources(cardId) {
+    const sourceCardId = state.duplicateSources[cardId];
+    delete state.duplicateSources[cardId];
+    if (!sourceCardId) {
+      return;
+    }
+    Object.entries(state.duplicateSources).forEach(([duplicateId, duplicateSourceId]) => {
+      if (duplicateSourceId === cardId) {
+        state.duplicateSources[duplicateId] = sourceCardId;
+      }
+    });
   }
 
   function focusCardAfterDeletion(columnId, cardIndex) {
@@ -2162,7 +2208,20 @@
       const nextConfigSource = saveConfig
         ? model.serializeConfig(state.configSource, state.config)
         : state.configSource;
-      state.pendingSave = { saveBoard, saveConfig, boardRevision, configRevision, manual };
+      const duplicateSources = saveBoard && Object.keys(state.duplicateSources).length > 0
+        ? { ...state.duplicateSources }
+        : undefined;
+      state.pendingSave = {
+        saveBoard,
+        saveConfig,
+        boardRevision,
+        configRevision,
+        manual,
+        duplicateSources,
+      };
+      if (duplicateSources) {
+        state.duplicateSources = {};
+      }
       vscode.postMessage({
         type: "save",
         request: {
@@ -2175,6 +2234,7 @@
           nextConfigSource,
           saveBoard,
           saveConfig,
+          duplicateSources,
         },
       });
     } catch (error) {
@@ -2212,6 +2272,10 @@
   }
 
   function failSave(message) {
+    const pending = state.pendingSave;
+    if (pending?.duplicateSources) {
+      state.duplicateSources = { ...pending.duplicateSources, ...state.duplicateSources };
+    }
     state.pendingSave = null;
     state.saveInFlight = false;
     updateDirtyState();

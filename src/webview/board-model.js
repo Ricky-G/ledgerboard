@@ -562,6 +562,27 @@
     };
   }
 
+  function duplicateCard(document, cardId, historyEvents = []) {
+    const source = findCard(document, cardId);
+    if (!source) {
+      throw new Error(`Could not find ${cardId} to duplicate.`);
+    }
+
+    const duplicate = createCard(document, {
+      historyEvents,
+      title: `${source.card.title} (Copy)`,
+      priority: source.card.priority,
+      area: source.card.area,
+      columnId: source.column.id,
+      detailValues: { ...source.card.detailValues },
+    });
+    duplicate.checked = source.column.id === "done";
+    duplicate.rawDetailLines = [...source.card.rawDetailLines];
+    source.column.cards.splice(source.cardIndex + 1, 0, duplicate);
+    validateBoard(document);
+    return duplicate;
+  }
+
   function findCard(document, cardId) {
     for (const column of document.columns) {
       const cardIndex = column.cards.findIndex((card) => card.id === cardId);
@@ -659,6 +680,14 @@
     if (!/^AO-\d{3,}$/.test(event.card || "")) {
       throw new Error(`History event${location} requires a card ID.`);
     }
+    if (event.duplicatedFrom !== undefined) {
+      if (event.event !== "created") {
+        throw new Error(`Duplicate source history event${location} must be a creation.`);
+      }
+      if (!/^AO-\d{3,}$/.test(event.duplicatedFrom) || event.duplicatedFrom === event.card) {
+        throw new Error(`History event${location} has an invalid duplicate source.`);
+      }
+    }
     if (!HISTORY_EVENTS.has(event.event)) {
       throw new Error(`History event${location} has an unsupported type.`);
     }
@@ -693,17 +722,22 @@
     )));
   }
 
-  function diffBoardEvents(before, after, at) {
+  function diffBoardEvents(before, after, at, duplicateSources = undefined) {
     validateBoard(before);
     validateBoard(after);
     const events = [];
     const beforeCards = boardCardMap(before);
     const afterCards = boardCardMap(after);
+    const sourcesByDuplicate = normalizeDuplicateSources(duplicateSources, beforeCards, afterCards);
 
     afterCards.forEach((current, cardId) => {
       const previous = beforeCards.get(cardId);
       if (!previous) {
-        events.push(historyEvent(at, current.card, "created", { to: current.columnId }));
+        const duplicatedFrom = sourcesByDuplicate.get(cardId);
+        events.push(historyEvent(at, current.card, "created", {
+          to: current.columnId,
+          ...(duplicatedFrom ? { duplicatedFrom } : {}),
+        }));
         return;
       }
 
@@ -745,6 +779,31 @@
       card.id,
       { card, columnId: column.id },
     ])));
+  }
+
+  function normalizeDuplicateSources(duplicateSources, beforeCards, afterCards) {
+    if (duplicateSources === undefined) {
+      return new Map();
+    }
+    if (!duplicateSources || typeof duplicateSources !== "object" || Array.isArray(duplicateSources)) {
+      throw new Error("Duplicate sources must map duplicated card IDs to source card IDs.");
+    }
+
+    return new Map(Object.entries(duplicateSources).map(([cardId, sourceCardId]) => {
+      if (!/^AO-\d{3,}$/.test(cardId) || !/^AO-\d{3,}$/.test(sourceCardId)) {
+        throw new Error("Duplicate sources must use valid card IDs.");
+      }
+      if (cardId === sourceCardId) {
+        throw new Error("A duplicated card cannot be its own source.");
+      }
+      if (beforeCards.has(cardId) || !afterCards.has(cardId)) {
+        throw new Error(`Duplicate source metadata must identify a newly created card: ${cardId}.`);
+      }
+      if (!beforeCards.has(sourceCardId) && !afterCards.has(sourceCardId)) {
+        throw new Error(`Duplicate source card was not found: ${sourceCardId}.`);
+      }
+      return [cardId, sourceCardId];
+    }));
   }
 
   function historyEvent(at, card, event, extra) {
@@ -1578,6 +1637,7 @@
     createBaselineEvents,
     createDefaultConfig,
     diffBoardEvents,
+    duplicateCard,
     findCard,
     moveCard,
     nextCardId,
