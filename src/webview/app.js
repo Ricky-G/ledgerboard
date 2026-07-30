@@ -1254,6 +1254,9 @@
       return;
     }
     state.config.entities.splice(index, 1);
+    if (elements.cardArea.value === entity.id) {
+      elements.cardArea.value = "";
+    }
     markDirty("config");
     renderSettings();
     populateAreaFilter();

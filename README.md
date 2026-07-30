@@ -76,6 +76,7 @@ reassigning, and clearing an assignee writes the previous and new person IDs to 
 Every card has an `area` linked to a generic entity. An entity can be a project, account, product,
 team, department, or any grouping that makes the board useful. Names and colors live in
 `KANBAN-CONFIG.md`, alongside the people directory, board title, timezone, accent, and density.
+Reassign current cards before removing their entity so every card keeps a valid area.
 
 ### Analytics
 
