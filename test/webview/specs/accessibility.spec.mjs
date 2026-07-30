@@ -36,29 +36,47 @@ test.describe('accessibility and keyboard use', () => {
     await expect(board).toHaveAttribute('aria-pressed', 'false');
   });
 
-  test('reaches a card with the keyboard and opens it with Enter', async ({ page }) => {
+  test('reaches a card with the keyboard and opens its editor with Enter', async ({ page }) => {
     await openBoard(page);
-    await page.locator('[data-card-id="AO-001"]').focus();
+    const card = page.locator('[data-card-id="AO-001"]');
+    await card.focus();
     await page.keyboard.press('Enter');
 
     await expect(page.locator('#cardDialog')).toBeVisible();
     await expect(page.locator('#cardDialogEyebrow')).toHaveText('AO-001');
   });
 
-  test('traps focus inside the dialog and restores it on close', async ({ page }) => {
+  test('supports keyboard context-menu keys, arrow keys, and Escape', async ({ page }) => {
     await openBoard(page);
     const card = page.locator('[data-card-id="AO-001"]');
     await card.focus();
-    await page.keyboard.press('Enter');
-    await expect(page.locator('#cardDialog')).toBeVisible();
-
-    const insideDialog = await page.evaluate(() =>
-      document.getElementById('cardDialog').contains(document.activeElement));
-    expect(insideDialog).toBe(true);
+    await page.keyboard.press('Shift+F10');
+    await expect(page.locator('#cardActionMenu')).toBeVisible();
+    await page.keyboard.press('ArrowDown');
+    await expect(page.locator('#editCardActionButton')).toBeFocused();
+    await page.keyboard.press('Home');
+    await expect(page.locator('#deleteCardActionButton')).toBeFocused();
 
     await page.keyboard.press('Escape');
-    await expect(page.locator('#cardDialog')).toBeHidden();
+    await expect(page.locator('#cardActionMenu')).toBeHidden();
     await expect(card).toBeFocused();
+  });
+
+  test('keeps deletion confirmation keyboard accessible and restores edit focus on cancel', async ({ page }) => {
+    await openBoard(page);
+    await page.locator('[data-card-id="AO-001"]').focus();
+    await page.keyboard.press('Enter');
+    await page.locator('#deleteCardButton').click();
+
+    const confirmation = page.locator('#deleteConfirmationDialog');
+    await expect(confirmation).toBeVisible();
+    await expect(confirmation).toHaveAccessibleName('Delete outcome?');
+    await expect(page.locator('#cancelDeleteCardButton')).toBeFocused();
+
+    await page.keyboard.press('Escape');
+    await expect(confirmation).toBeHidden();
+    await expect(page.locator('#cardDialog')).toBeVisible();
+    await expect(page.locator('#deleteCardButton')).toBeFocused();
   });
 
   test('announces status changes in a live region', async ({ page }) => {

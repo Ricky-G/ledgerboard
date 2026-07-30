@@ -3,6 +3,25 @@ import { expect, test } from '@playwright/test';
 import { boardSource, historySource, openBoard, openCardDialog, saveNow } from './helpers.mjs';
 
 test.describe('card editing', () => {
+  test('opens a themed card action menu on right-click with Delete before Edit', async ({ page }) => {
+    await openBoard(page);
+    const card = page.locator('[data-card-id="AO-005"]');
+    await card.click({ button: 'right' });
+
+    const menu = page.locator('#cardActionMenu');
+    await expect(menu).toBeVisible();
+    await expect(card).toHaveAttribute('aria-expanded', 'true');
+    await expect(menu).toHaveAccessibleName('Actions for AO-005: Approve the visual system');
+    await expect(page.locator('#cardActionMenuCardId')).toHaveText('AO-005');
+    await expect(page.locator('#cardActionMenuEntityName')).toHaveText('Northstar launch');
+    await expect(page.locator('#cardActionMenuEntitySwatch')).toHaveCSS('background-color', 'rgb(114, 87, 181)');
+    await expect(page.locator('#cardActionMenuAvatar')).toHaveText('JL');
+    await expect(page.locator('#cardActionMenuAssigneeName')).toHaveText('Jordan Lee');
+    await expect(menu.getByRole('menuitem')).toHaveText(['Delete outcome', 'Edit outcome']);
+    await expect(menu.locator('svg')).toHaveCount(2);
+    await expect(page.locator('#deleteCardActionButton')).toBeFocused();
+  });
+
   test('creates a card and persists it to BOARD.md and history', async ({ page }) => {
     await openBoard(page);
     await openCardDialog(page, null);
@@ -63,11 +82,29 @@ test.describe('card editing', () => {
     expect(history).toContain('"assignee":"maya-chen"');
   });
 
-  test('deletes a card after the removal is applied', async ({ page }) => {
+  test('cancels card deletion and keeps the card open for editing', async ({ page }) => {
     await openBoard(page);
-    page.on('dialog', (dialog) => dialog.accept());
     await openCardDialog(page, 'AO-005');
     await page.locator('#deleteCardButton').click();
+
+    await expect(page.locator('#deleteConfirmationDialog')).toBeVisible();
+    await expect(page.locator('#deleteConfirmationMessage')).toHaveText(
+      'Delete AO-005: Approve the visual system? This cannot be undone.',
+    );
+    await page.locator('#cancelDeleteCardButton').click();
+
+    await expect(page.locator('#deleteConfirmationDialog')).toBeHidden();
+    await expect(page.locator('#cardDialog')).toBeVisible();
+    await expect(page.locator('[data-card-id="AO-005"]')).toBeVisible();
+    await expect(page.locator('#unsavedIndicator')).toBeHidden();
+  });
+
+  test('deletes a card after explicit confirmation and persists it', async ({ page }) => {
+    await openBoard(page);
+    await openCardDialog(page, 'AO-005');
+    await page.locator('#deleteCardButton').click();
+    await expect(page.locator('#deleteConfirmationDialog')).toBeVisible();
+    await page.locator('#confirmDeleteCardButton').click();
 
     await expect(page.locator('[data-card-id="AO-005"]')).toHaveCount(0);
     await expect(page.locator('.kanban-card')).toHaveCount(5);
@@ -76,6 +113,36 @@ test.describe('card editing', () => {
     const markdown = await boardSource(page);
     expect(markdown).not.toContain('AO-005');
     expect(await historySource(page)).toContain('"event":"deleted"');
+  });
+
+  test('deletes a card from its action menu and moves focus to the next card', async ({ page }) => {
+    await openBoard(page);
+    const card = page.locator('[data-card-id="AO-001"]');
+    await card.click({ button: 'right' });
+    await page.locator('#deleteCardActionButton').click();
+    await expect(page.locator('#deleteConfirmationDialog')).toBeVisible();
+    await page.locator('#confirmDeleteCardButton').click();
+
+    await expect(card).toHaveCount(0);
+    await expect(page.locator('[data-card-id="AO-002"]')).toBeFocused();
+    await saveNow(page);
+    expect(await boardSource(page)).not.toContain('AO-001');
+    expect(await historySource(page)).toContain('"card":"AO-001","event":"deleted"');
+  });
+
+  test('cancels deletion from the action menu without changing the card', async ({ page }) => {
+    await openBoard(page);
+    const card = page.locator('[data-card-id="AO-005"]');
+    await card.click({ button: 'right' });
+    await page.locator('#deleteCardActionButton').click();
+    await expect(page.locator('#deleteConfirmationDialog')).toBeVisible();
+
+    await page.keyboard.press('Escape');
+
+    await expect(page.locator('#deleteConfirmationDialog')).toBeHidden();
+    await expect(card).toBeVisible();
+    await expect(card).toBeFocused();
+    await expect(page.locator('#unsavedIndicator')).toBeHidden();
   });
 
   test('rejects a card with no title and keeps the dialog open', async ({ page }) => {

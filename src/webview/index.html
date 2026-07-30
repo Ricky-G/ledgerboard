@@ -592,6 +592,50 @@
       </form>
     </dialog>
 
+    <dialog class="confirmation-dialog" id="deleteConfirmationDialog" aria-labelledby="deleteConfirmationTitle" aria-describedby="deleteConfirmationMessage">
+      <div class="confirmation-body">
+        <p class="eyebrow">Deletion</p>
+        <h2 id="deleteConfirmationTitle">Delete outcome?</h2>
+        <p id="deleteConfirmationMessage"></p>
+      </div>
+      <div class="dialog-footer">
+        <span class="dialog-spacer"></span>
+        <button class="secondary-button" id="cancelDeleteCardButton" type="button" autofocus>Cancel</button>
+        <button class="danger-button" id="confirmDeleteCardButton" type="button">Delete outcome</button>
+      </div>
+    </dialog>
+
+    <div class="card-action-menu" id="cardActionMenu" role="menu" aria-label="Outcome actions" hidden>
+      <div class="card-action-menu-context" aria-hidden="true">
+        <div class="card-action-menu-heading">
+          <span class="card-action-menu-id" id="cardActionMenuCardId"></span>
+          <span class="card-action-menu-entity">
+            <span class="card-action-menu-entity-swatch" id="cardActionMenuEntitySwatch"></span>
+            <span id="cardActionMenuEntityName"></span>
+          </span>
+        </div>
+        <p id="cardActionMenuCardTitle"></p>
+        <span class="card-action-menu-assignee" id="cardActionMenuAssignee" hidden>
+          <span class="card-action-menu-avatar" id="cardActionMenuAvatar"></span>
+          <span id="cardActionMenuAssigneeName"></span>
+        </span>
+      </div>
+      <div class="card-action-menu-actions">
+        <button class="card-action-menu-item is-danger" id="deleteCardActionButton" type="button" role="menuitem">
+          <span class="card-action-menu-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false"><path d="M4 7h16M10 11v6m4-6v6M9 7l1-2h4l1 2m-9 0 1 13h10l1-13"/></svg>
+          </span>
+          Delete outcome
+        </button>
+        <button class="card-action-menu-item" id="editCardActionButton" type="button" role="menuitem">
+          <span class="card-action-menu-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false"><path d="m5 16-1 4 4-1L19 8a2.8 2.8 0 0 0-4-4L4 15m11-11 4 4"/></svg>
+          </span>
+          Edit outcome
+        </button>
+      </div>
+    </div>
+
     <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
 
     <!-- LEDGERBOARD_HOST -->

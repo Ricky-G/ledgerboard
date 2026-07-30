@@ -37,6 +37,10 @@
     saveInFlight: false,
     saveQueued: false,
     pendingSave: null,
+    pendingDeletionCardId: null,
+    deleteConfirmationFocusTarget: null,
+    actionMenuCardId: null,
+    actionMenuTrigger: null,
     currentView: "board",
     mobileColumn: "doing",
     editingCardId: null,
@@ -73,7 +77,12 @@
       "configAccent", "configAccentValue", "peopleList", "addPersonButton", "entityList", "addEntityButton",
       "statusMessage", "unsavedIndicator", "lastLoadedLabel", "cardDialog", "cardForm",
       "cardDialogEyebrow", "cardDialogTitle", "cardId", "cardTitle", "cardDescription",
-      "cardArea", "cardAssignee", "cardColumn", "cardPriority", "deleteCardButton", "submitCardButton", "toastRegion",
+      "cardArea", "cardAssignee", "cardColumn", "cardPriority", "deleteCardButton", "submitCardButton",
+      "deleteConfirmationDialog", "deleteConfirmationMessage", "cancelDeleteCardButton", "confirmDeleteCardButton",
+      "cardActionMenu", "cardActionMenuCardId", "cardActionMenuCardTitle", "cardActionMenuEntitySwatch",
+      "cardActionMenuEntityName", "cardActionMenuAssignee", "cardActionMenuAvatar", "cardActionMenuAssigneeName",
+      "deleteCardActionButton", "editCardActionButton",
+      "toastRegion",
     ];
     return Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
   }
@@ -145,7 +154,17 @@
     });
 
     elements.cardForm.addEventListener("submit", submitCard);
-    elements.deleteCardButton.addEventListener("click", deleteCurrentCard);
+    elements.deleteCardButton.addEventListener("click", () => requestCardDeletion());
+    elements.cancelDeleteCardButton.addEventListener("click", cancelCardDeletion);
+    elements.confirmDeleteCardButton.addEventListener("click", confirmCardDeletion);
+    elements.deleteConfirmationDialog.addEventListener("cancel", (event) => {
+      event.preventDefault();
+      cancelCardDeletion();
+    });
+    elements.deleteCardActionButton.addEventListener("click", deleteCardFromActionMenu);
+    elements.editCardActionButton.addEventListener("click", editCardFromActionMenu);
+    elements.cardActionMenu.addEventListener("keydown", handleCardActionMenuKeydown);
+    document.addEventListener("pointerdown", dismissCardActionMenuOnOutsideClick);
     document.querySelectorAll("[data-close-dialog]").forEach((button) => {
       button.addEventListener("click", () => button.closest("dialog").close());
     });
@@ -181,6 +200,11 @@
     });
 
     document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !elements.cardActionMenu.hidden) {
+        event.preventDefault();
+        closeCardActionMenu({ restoreFocus: true });
+        return;
+      }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
         event.preventDefault();
         if (state.dirtyBoard || state.dirtyConfig) {
@@ -201,6 +225,8 @@
         event.returnValue = "";
       }
     });
+    window.addEventListener("resize", closeCardActionMenu);
+    document.addEventListener("scroll", closeCardActionMenu, true);
   }
 
   function populateColumnSelect() {
@@ -340,6 +366,7 @@
   }
 
   function renderBoard() {
+    closeCardActionMenu();
     if (!state.board) {
       elements.kanbanBoard.replaceChildren();
       elements.mobileColumnTabs.replaceChildren();
@@ -432,6 +459,9 @@
     button.className = "kanban-card";
     button.draggable = true;
     button.dataset.cardId = card.id;
+    button.setAttribute("aria-haspopup", "menu");
+    button.setAttribute("aria-controls", "cardActionMenu");
+    button.setAttribute("aria-expanded", "false");
     button.style.setProperty("--entity-color", entity.color);
     button.setAttribute(
       "aria-label",
@@ -500,6 +530,18 @@
         openCardDialog(card.id, card.columnId);
       }
     });
+    button.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+      if (!state.suppressCardClick) {
+        openCardActionMenu(card, button, { x: event.clientX, y: event.clientY });
+      }
+    });
+    button.addEventListener("keydown", (event) => {
+      if (event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey)) {
+        event.preventDefault();
+        openCardActionMenu(card, button);
+      }
+    });
     button.addEventListener("dragstart", (event) => {
       state.draggedCardId = card.id;
       state.suppressCardClick = true;
@@ -515,6 +557,101 @@
     });
 
     return button;
+  }
+
+  function openCardActionMenu(card, trigger, pointer = null) {
+    closeCardActionMenu();
+    state.actionMenuCardId = card.id;
+    state.actionMenuTrigger = trigger;
+    trigger.setAttribute("aria-expanded", "true");
+    populateCardActionMenuContext(card);
+    elements.cardActionMenu.hidden = false;
+    positionCardActionMenu(trigger, pointer);
+    elements.deleteCardActionButton.focus();
+  }
+
+  function closeCardActionMenu({ restoreFocus = false } = {}) {
+    const trigger = state.actionMenuTrigger;
+    if (trigger?.isConnected) {
+      trigger.setAttribute("aria-expanded", "false");
+    }
+    state.actionMenuCardId = null;
+    state.actionMenuTrigger = null;
+    elements.cardActionMenu.hidden = true;
+    if (restoreFocus && trigger?.isConnected) {
+      trigger.focus();
+    }
+  }
+
+  function populateCardActionMenuContext(card) {
+    const entity = getEntity(card.area);
+    const person = card.detailValues.assignee ? getPerson(card.detailValues.assignee) : null;
+    elements.cardActionMenu.style.setProperty("--menu-entity-color", entity.color);
+    elements.cardActionMenu.style.setProperty("--menu-person-color", person?.color || "");
+    elements.cardActionMenu.setAttribute("aria-label", `Actions for ${card.id}: ${card.title}`);
+    elements.cardActionMenuCardId.textContent = card.id;
+    elements.cardActionMenuCardTitle.textContent = card.title;
+    elements.cardActionMenuEntityName.textContent = entity.name;
+    elements.cardActionMenuEntitySwatch.style.background = entity.color;
+    elements.cardActionMenuAssignee.hidden = !person;
+    if (person) {
+      elements.cardActionMenuAvatar.textContent = initials(person.name);
+      elements.cardActionMenuAvatar.style.background = person.color;
+      elements.cardActionMenuAssigneeName.textContent = person.name;
+    }
+  }
+
+  function positionCardActionMenu(trigger, pointer) {
+    const bounds = trigger.getBoundingClientRect();
+    const menu = elements.cardActionMenu;
+    const margin = 12;
+    const requestedLeft = pointer?.x ?? bounds.left;
+    const requestedTop = pointer?.y ?? bounds.bottom + 8;
+    const left = Math.max(margin, Math.min(requestedLeft, window.innerWidth - menu.offsetWidth - margin));
+    const top = Math.max(margin, Math.min(requestedTop, window.innerHeight - menu.offsetHeight - margin));
+    menu.style.left = `${Math.round(left)}px`;
+    menu.style.top = `${Math.round(top)}px`;
+    menu.style.position = "fixed";
+  }
+
+  function dismissCardActionMenuOnOutsideClick(event) {
+    if (elements.cardActionMenu.hidden || !(event.target instanceof Node)) {
+      return;
+    }
+    if (!elements.cardActionMenu.contains(event.target) && !state.actionMenuTrigger?.contains(event.target)) {
+      closeCardActionMenu();
+    }
+  }
+
+  function handleCardActionMenuKeydown(event) {
+    const actions = [elements.deleteCardActionButton, elements.editCardActionButton];
+    const current = actions.indexOf(document.activeElement);
+    if (event.key === "Home" || event.key === "End") {
+      event.preventDefault();
+      actions[event.key === "Home" ? 0 : actions.length - 1].focus();
+      return;
+    }
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      const direction = event.key === "ArrowDown" ? 1 : -1;
+      const next = current === -1 ? 0 : (current + direction + actions.length) % actions.length;
+      actions[next].focus();
+    }
+  }
+
+  function editCardFromActionMenu() {
+    const cardId = state.actionMenuCardId;
+    closeCardActionMenu();
+    if (cardId) {
+      openCardDialog(cardId);
+    }
+  }
+
+  function deleteCardFromActionMenu() {
+    const cardId = state.actionMenuCardId;
+    const trigger = state.actionMenuTrigger;
+    closeCardActionMenu();
+    requestCardDeletion(cardId, trigger);
   }
 
   function createEmptyColumn(column) {
@@ -743,6 +880,8 @@
     const found = cardId ? model.findCard(state.board, cardId) : null;
     const card = found?.card;
     state.editingCardId = cardId;
+    state.pendingDeletionCardId = null;
+    state.deleteConfirmationFocusTarget = null;
 
     elements.cardId.value = card?.id || "";
     elements.cardTitle.value = card?.title || "";
@@ -832,19 +971,67 @@
     column.cards.push(card);
   }
 
-  function deleteCurrentCard() {
-    const found = model.findCard(state.board, state.editingCardId);
+  function requestCardDeletion(cardId = state.editingCardId, focusTarget = elements.deleteCardButton) {
+    const found = cardId ? model.findCard(state.board, cardId) : null;
     if (!found) {
+      showError(new Error("Could not find the selected outcome. Reload the board and try again."));
       return;
     }
-    if (!window.confirm(`Delete ${found.card.id} — ${found.card.title}?`)) {
+    state.pendingDeletionCardId = found.card.id;
+    state.deleteConfirmationFocusTarget = focusTarget;
+    elements.deleteConfirmationMessage.textContent = `Delete ${found.card.id}: ${found.card.title}? This cannot be undone.`;
+    elements.deleteConfirmationDialog.showModal();
+  }
+
+  function cancelCardDeletion() {
+    const focusTarget = state.deleteConfirmationFocusTarget;
+    state.pendingDeletionCardId = null;
+    state.deleteConfirmationFocusTarget = null;
+    if (elements.deleteConfirmationDialog.open) {
+      elements.deleteConfirmationDialog.close();
+    }
+    if (focusTarget?.isConnected) {
+      focusTarget.focus();
+    }
+  }
+
+  function confirmCardDeletion() {
+    const cardId = state.pendingDeletionCardId;
+    if (!cardId) {
+      showError(new Error("Choose an outcome to delete."));
       return;
     }
+    const found = model.findCard(state.board, cardId);
+    if (!found) {
+      state.pendingDeletionCardId = null;
+      elements.deleteConfirmationDialog.close();
+      showError(new Error(`Could not find ${cardId}. Reload the board and try again.`));
+      return;
+    }
+    const { id: columnId } = found.column;
+    const cardIndex = found.cardIndex;
     found.column.cards.splice(found.cardIndex, 1);
+    state.pendingDeletionCardId = null;
+    state.deleteConfirmationFocusTarget = null;
+    elements.deleteConfirmationDialog.close();
     markDirty("board");
     renderBoard();
-    elements.cardDialog.close();
+    if (elements.cardDialog.open) {
+      elements.cardDialog.close();
+    }
+    state.editingCardId = null;
+    focusCardAfterDeletion(columnId, cardIndex);
     showToast(`${found.card.id} deleted.`, "success");
+  }
+
+  function focusCardAfterDeletion(columnId, cardIndex) {
+    const cards = [...document.querySelectorAll(`.card-list[data-column="${columnId}"] .kanban-card`)];
+    const nextCard = cards[Math.min(cardIndex, cards.length - 1)];
+    if (nextCard) {
+      nextCard.focus();
+      return;
+    }
+    document.querySelector(`.kanban-column[data-column="${columnId}"] .column-add-button`)?.focus();
   }
 
   function renderSettings() {

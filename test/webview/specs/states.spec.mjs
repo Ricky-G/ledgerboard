@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { boardSource, openBoard, saveNow, waitForSaved } from './helpers.mjs';
+import { boardSource, openBoard, openCardDialog, saveNow, waitForSaved } from './helpers.mjs';
 
 test.describe('load, save, and recovery states', () => {
   test('shows the error panel when the bundle cannot be loaded', async ({ page }) => {
@@ -27,7 +27,7 @@ test.describe('load, save, and recovery states', () => {
     await expect(page.locator('#unsavedIndicator')).toBeHidden();
     await expect(page.locator('#saveButton')).toBeDisabled();
 
-    await page.locator('[data-card-id="AO-001"]').click();
+    await openCardDialog(page, 'AO-001');
     await page.locator('#cardTitle').fill('Renamed outcome');
     await page.locator('#submitCardButton').click();
 
@@ -40,7 +40,7 @@ test.describe('load, save, and recovery states', () => {
 
   test('saves with the keyboard shortcut', async ({ page }) => {
     await openBoard(page);
-    await page.locator('[data-card-id="AO-001"]').click();
+    await openCardDialog(page, 'AO-001');
     await page.locator('#cardTitle').fill('Saved by shortcut');
     await page.locator('#submitCardButton').click();
     await expect(page.locator('#unsavedIndicator')).toBeVisible();
@@ -53,7 +53,7 @@ test.describe('load, save, and recovery states', () => {
 
   test('surfaces a save failure without losing the pending edit', async ({ page }) => {
     await openBoard(page);
-    await page.locator('[data-card-id="AO-001"]').click();
+    await openCardDialog(page, 'AO-001');
     await page.locator('#cardTitle').fill('Conflicting edit');
     await page.locator('#submitCardButton').click();
 
@@ -68,7 +68,7 @@ test.describe('load, save, and recovery states', () => {
 
   test('warns instead of reloading when an external change lands on dirty state', async ({ page }) => {
     await openBoard(page);
-    await page.locator('[data-card-id="AO-001"]').click();
+    await openCardDialog(page, 'AO-001');
     await page.locator('#cardTitle').fill('Local work in progress');
     await page.locator('#submitCardButton').click();
 
