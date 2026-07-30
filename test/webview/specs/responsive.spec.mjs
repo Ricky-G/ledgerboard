@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { openBoard } from './helpers.mjs';
+import { openBoard, openCardDialog } from './helpers.mjs';
 
 test.describe('narrow layout', () => {
   test('offers one tab per column with its card count', async ({ page }) => {
@@ -29,7 +29,7 @@ test.describe('narrow layout', () => {
 
   test('keeps card editing usable at a narrow width', async ({ page }) => {
     await openBoard(page);
-    await page.locator('[data-card-id="AO-004"]').click();
+    await openCardDialog(page, 'AO-004');
 
     await expect(page.locator('#cardDialog')).toBeVisible();
     const fitsViewport = await page.evaluate(() => {

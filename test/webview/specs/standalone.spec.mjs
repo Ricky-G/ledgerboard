@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import { expect, test } from '@playwright/test';
 
 import { createBundle } from '../harness/bundle.mjs';
+import { openCardDialog } from './helpers.mjs';
 
 const require = createRequire(import.meta.url);
 const model = require('../../../src/webview/board-model.js');
@@ -58,7 +59,7 @@ test('opens, styles, edits, and saves a local Markdown bundle without companion 
   await expect(page.locator('.kanban-column')).toHaveCount(5);
   await expect(page.locator('#connectButton')).toHaveText('offline-board');
 
-  await page.locator('[data-card-id="AO-001"]').click();
+  await openCardDialog(page, 'AO-001');
   await page.locator('#cardTitle').fill('Saved in the air-gapped board');
   await page.locator('#submitCardButton').click();
   await page.locator('#saveButton').click();

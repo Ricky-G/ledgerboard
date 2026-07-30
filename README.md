@@ -64,6 +64,8 @@ compatible option for browsers that do not provide it.
 - Search and entity, assignee, and priority filters
 - Responsive desktop and narrow-editor layouts
 - One-second autosave with visible pending, saving, saved, and blocked states
+- Left-click card editing and a right-click action menu for contextual edit and confirmed delete actions
+- Append-only deletion history that remains visible in analytics activity without affecting current board totals
 
 ### People, entities, and appearance
 

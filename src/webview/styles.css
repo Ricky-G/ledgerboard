@@ -1876,6 +1876,175 @@ dialog::backdrop {
   max-height: calc(100vh - 42px);
 }
 
+.confirmation-dialog {
+  width: min(460px, calc(100vw - 28px));
+}
+
+.confirmation-body {
+  display: grid;
+  gap: 12px;
+  padding: 24px;
+}
+
+.confirmation-body h2,
+.confirmation-body p {
+  margin: 0;
+}
+
+.confirmation-body p:last-child {
+  color: var(--ink-faint);
+  line-height: 1.5;
+}
+
+.card-action-menu {
+  min-width: 264px;
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--menu-entity-color, var(--line-strong)) 34%, var(--line));
+  border-radius: 11px;
+  box-shadow: 0 12px 30px rgb(23 32 42 / 18%), 0 2px 8px rgb(23 32 42 / 8%);
+  z-index: 120;
+}
+
+.card-action-menu-context {
+  display: grid;
+  gap: 7px;
+  padding: 9px 10px;
+  background: color-mix(in srgb, var(--menu-entity-color, var(--surface-raised)) 8%, var(--surface-raised));
+  border-left: 3px solid var(--menu-entity-color, var(--line-strong));
+  border-radius: 6px;
+}
+
+.card-action-menu-heading,
+.card-action-menu-entity,
+.card-action-menu-assignee {
+  display: flex;
+  align-items: center;
+}
+
+.card-action-menu-heading {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.card-action-menu-id {
+  color: var(--ink-faint);
+  font-family: Consolas, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.card-action-menu-entity {
+  min-width: 0;
+  gap: 5px;
+  color: var(--ink-faint);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.card-action-menu-entity-swatch {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  background: var(--menu-entity-color, var(--line-strong));
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--menu-entity-color, var(--line-strong)) 18%, transparent);
+}
+
+.card-action-menu-context p {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 680;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.card-action-menu-assignee {
+  gap: 6px;
+  color: var(--ink-faint);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.card-action-menu-avatar {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  color: #fff;
+  background: var(--menu-person-color, var(--ink-faint));
+  border-radius: 50%;
+  font-size: 8px;
+  font-weight: 750;
+}
+
+.card-action-menu-actions {
+  display: grid;
+  gap: 3px;
+}
+
+.card-action-menu-item {
+  width: 100%;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  text-align: left;
+}
+
+.card-action-menu-icon {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+}
+
+.card-action-menu-icon svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.card-action-menu-item:hover,
+.card-action-menu-item:focus-visible {
+  background: var(--surface-raised);
+  border-color: var(--line);
+  outline: none;
+}
+
+.card-action-menu-item.is-danger {
+  color: var(--danger);
+}
+
+.card-action-menu-item.is-danger:hover,
+.card-action-menu-item.is-danger:focus-visible {
+  color: #fff;
+  background: var(--danger);
+  border-color: var(--danger);
+}
+
 .dialog-header {
   min-height: 72px;
   display: flex;
