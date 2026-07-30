@@ -5103,7 +5103,7 @@
             if (name.length > MAX_COLUMN_NAME_LENGTH) {
               throw new Error(`Column names must be ${MAX_COLUMN_NAME_LENGTH} characters or fewer.`);
             }
-            if (/[\u0000-\u001F\u007F]/.test(name) || /<!--|-->/.test(name)) {
+            if (/[\u0000-\u001F\u007F]/.test(name) || /<!--|--!?>/.test(name)) {
               throw new Error("Column names cannot include control characters or Markdown markers.");
             }
 
