@@ -52,14 +52,28 @@ test.describe('accessibility and keyboard use', () => {
     await card.focus();
     await page.keyboard.press('Shift+F10');
     await expect(page.locator('#cardActionMenu')).toBeVisible();
-    await page.keyboard.press('ArrowDown');
     await expect(page.locator('#editCardActionButton')).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(page.locator('#duplicateCardActionButton')).toBeFocused();
     await page.keyboard.press('Home');
-    await expect(page.locator('#deleteCardActionButton')).toBeFocused();
+    await expect(page.locator('#editCardActionButton')).toBeFocused();
 
     await page.keyboard.press('Escape');
     await expect(page.locator('#cardActionMenu')).toBeHidden();
     await expect(card).toBeFocused();
+  });
+
+  test('duplicates the focused card through the keyboard context menu', async ({ page }) => {
+    await openBoard(page);
+    const card = page.locator('[data-card-id="AO-001"]');
+    await card.focus();
+    await page.keyboard.press('Shift+F10');
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Enter');
+
+    await expect(page.locator('[data-card-id="AO-007"]')).toBeVisible();
+    await expect(page.locator('#cardDialog')).toBeVisible();
+    await expect(page.locator('#cardTitle')).toHaveValue('Confirm research themes (Copy)');
   });
 
   test('keeps deletion confirmation keyboard accessible and restores edit focus on cancel', async ({ page }) => {

@@ -3391,17 +3391,23 @@
         </span>
       </div>
       <div class="card-action-menu-actions">
-        <button class="card-action-menu-item is-danger" id="deleteCardActionButton" type="button" role="menuitem">
-          <span class="card-action-menu-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" focusable="false"><path d="M4 7h16M10 11v6m4-6v6M9 7l1-2h4l1 2m-9 0 1 13h10l1-13"/></svg>
-          </span>
-          Delete outcome
-        </button>
         <button class="card-action-menu-item" id="editCardActionButton" type="button" role="menuitem">
           <span class="card-action-menu-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" focusable="false"><path d="m5 16-1 4 4-1L19 8a2.8 2.8 0 0 0-4-4L4 15m11-11 4 4"/></svg>
           </span>
-          Edit outcome
+          Edit
+        </button>
+        <button class="card-action-menu-item" id="duplicateCardActionButton" type="button" role="menuitem">
+          <span class="card-action-menu-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false"><path d="M8 8V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-3M5 8h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2Z"/></svg>
+          </span>
+          Duplicate
+        </button>
+        <button class="card-action-menu-item is-danger" id="deleteCardActionButton" type="button" role="menuitem">
+          <span class="card-action-menu-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false"><path d="M4 7h16M10 11v6m4-6v6M9 7l1-2h4l1 2m-9 0 1 13h10l1-13"/></svg>
+          </span>
+          Delete
         </button>
       </div>
     </div>
@@ -4099,6 +4105,27 @@
           };
         }
 
+        function duplicateCard(document, cardId, historyEvents = []) {
+          const source = findCard(document, cardId);
+          if (!source) {
+            throw new Error(`Could not find ${cardId} to duplicate.`);
+          }
+
+          const duplicate = createCard(document, {
+            historyEvents,
+            title: `${source.card.title} (Copy)`,
+            priority: source.card.priority,
+            area: source.card.area,
+            columnId: source.column.id,
+            detailValues: { ...source.card.detailValues },
+          });
+          duplicate.checked = source.column.id === "done";
+          duplicate.rawDetailLines = [...source.card.rawDetailLines];
+          source.column.cards.splice(source.cardIndex + 1, 0, duplicate);
+          validateBoard(document);
+          return duplicate;
+        }
+
         function findCard(document, cardId) {
           for (const column of document.columns) {
             const cardIndex = column.cards.findIndex((card) => card.id === cardId);
@@ -4196,6 +4223,14 @@
           if (!/^AO-\d{3,}$/.test(event.card || "")) {
             throw new Error(`History event${location} requires a card ID.`);
           }
+          if (event.duplicatedFrom !== undefined) {
+            if (event.event !== "created") {
+              throw new Error(`Duplicate source history event${location} must be a creation.`);
+            }
+            if (!/^AO-\d{3,}$/.test(event.duplicatedFrom) || event.duplicatedFrom === event.card) {
+              throw new Error(`History event${location} has an invalid duplicate source.`);
+            }
+          }
           if (!HISTORY_EVENTS.has(event.event)) {
             throw new Error(`History event${location} has an unsupported type.`);
           }
@@ -4230,17 +4265,22 @@
           )));
         }
 
-        function diffBoardEvents(before, after, at) {
+        function diffBoardEvents(before, after, at, duplicateSources = undefined) {
           validateBoard(before);
           validateBoard(after);
           const events = [];
           const beforeCards = boardCardMap(before);
           const afterCards = boardCardMap(after);
+          const sourcesByDuplicate = normalizeDuplicateSources(duplicateSources, beforeCards, afterCards);
 
           afterCards.forEach((current, cardId) => {
             const previous = beforeCards.get(cardId);
             if (!previous) {
-              events.push(historyEvent(at, current.card, "created", { to: current.columnId }));
+              const duplicatedFrom = sourcesByDuplicate.get(cardId);
+              events.push(historyEvent(at, current.card, "created", {
+                to: current.columnId,
+                ...(duplicatedFrom ? { duplicatedFrom } : {}),
+              }));
               return;
             }
 
@@ -4282,6 +4322,31 @@
             card.id,
             { card, columnId: column.id },
           ])));
+        }
+
+        function normalizeDuplicateSources(duplicateSources, beforeCards, afterCards) {
+          if (duplicateSources === undefined) {
+            return new Map();
+          }
+          if (!duplicateSources || typeof duplicateSources !== "object" || Array.isArray(duplicateSources)) {
+            throw new Error("Duplicate sources must map duplicated card IDs to source card IDs.");
+          }
+
+          return new Map(Object.entries(duplicateSources).map(([cardId, sourceCardId]) => {
+            if (!/^AO-\d{3,}$/.test(cardId) || !/^AO-\d{3,}$/.test(sourceCardId)) {
+              throw new Error("Duplicate sources must use valid card IDs.");
+            }
+            if (cardId === sourceCardId) {
+              throw new Error("A duplicated card cannot be its own source.");
+            }
+            if (beforeCards.has(cardId) || !afterCards.has(cardId)) {
+              throw new Error(`Duplicate source metadata must identify a newly created card: ${cardId}.`);
+            }
+            if (!beforeCards.has(sourceCardId) && !afterCards.has(sourceCardId)) {
+              throw new Error(`Duplicate source card was not found: ${sourceCardId}.`);
+            }
+            return [cardId, sourceCardId];
+          }));
         }
 
         function historyEvent(at, card, event, extra) {
@@ -5199,6 +5264,7 @@
           createBaselineEvents,
           createDefaultConfig,
           diffBoardEvents,
+          duplicateCard,
           findCard,
           moveCard,
           nextCardId,
@@ -5326,6 +5392,7 @@
               model.parseBoard(bundle.boardSource),
               model.parseBoard(nextBoardSource),
               new Date().toISOString(),
+              request.duplicateSources,
             )
             : [];
           if (events.length > 0 && bundle.historySource !== request.base.historySource) {
@@ -5425,6 +5492,7 @@
           saveInFlight: false,
           saveQueued: false,
           pendingSave: null,
+          duplicateSources: {},
           pendingDeletionCardId: null,
           deleteConfirmationFocusTarget: null,
           actionMenuCardId: null,
@@ -5475,7 +5543,7 @@
             "deleteConfirmationDialog", "deleteConfirmationMessage", "cancelDeleteCardButton", "confirmDeleteCardButton",
             "cardActionMenu", "cardActionMenuCardId", "cardActionMenuCardTitle", "cardActionMenuEntitySwatch",
             "cardActionMenuEntityName", "cardActionMenuAssignee", "cardActionMenuAvatar", "cardActionMenuAssigneeName",
-            "deleteCardActionButton", "editCardActionButton",
+            "duplicateCardActionButton", "deleteCardActionButton", "editCardActionButton",
             "toastRegion",
           ];
           return Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
@@ -5563,8 +5631,9 @@
             event.preventDefault();
             cancelCardDeletion();
           });
-          elements.deleteCardActionButton.addEventListener("click", deleteCardFromActionMenu);
           elements.editCardActionButton.addEventListener("click", editCardFromActionMenu);
+          elements.duplicateCardActionButton.addEventListener("click", duplicateCardFromActionMenu);
+          elements.deleteCardActionButton.addEventListener("click", deleteCardFromActionMenu);
           elements.cardActionMenu.addEventListener("keydown", handleCardActionMenuKeydown);
           document.addEventListener("pointerdown", dismissCardActionMenuOnOutsideClick);
           document.querySelectorAll("[data-close-dialog]").forEach((button) => {
@@ -5683,6 +5752,8 @@
           state.configRevision = 0;
           state.saveInFlight = false;
           state.saveQueued = false;
+          state.pendingSave = null;
+          state.duplicateSources = {};
           state.columnEditBaseline = null;
           state.pendingColumnRemoval = null;
           state.mobileColumn = board.columns.some((column) => column.id === state.mobileColumn)
@@ -5745,6 +5816,7 @@
           state.dirtyConfig = false;
           state.saveInFlight = false;
           state.pendingSave = null;
+          state.duplicateSources = {};
           elements.kanbanBoard.replaceChildren();
           elements.mobileColumnTabs.replaceChildren();
           elements.kanbanBoard.style.removeProperty("grid-template-columns");
@@ -5989,7 +6061,7 @@
           populateCardActionMenuContext(card);
           elements.cardActionMenu.hidden = false;
           positionCardActionMenu(trigger, pointer);
-          elements.deleteCardActionButton.focus();
+          elements.editCardActionButton.focus();
         }
 
         function closeCardActionMenu({ restoreFocus = false } = {}) {
@@ -6046,7 +6118,11 @@
         }
 
         function handleCardActionMenuKeydown(event) {
-          const actions = [elements.deleteCardActionButton, elements.editCardActionButton];
+          const actions = [
+            elements.editCardActionButton,
+            elements.duplicateCardActionButton,
+            elements.deleteCardActionButton,
+          ];
           const current = actions.indexOf(document.activeElement);
           if (event.key === "Home" || event.key === "End") {
             event.preventDefault();
@@ -6066,6 +6142,29 @@
           closeCardActionMenu();
           if (cardId) {
             openCardDialog(cardId);
+          }
+        }
+
+        function duplicateCardFromActionMenu() {
+          const sourceCardId = state.actionMenuCardId;
+          closeCardActionMenu();
+          if (!sourceCardId) {
+            showError(new Error("Choose an outcome to duplicate."));
+            return;
+          }
+
+          try {
+            const duplicate = model.duplicateCard(state.board, sourceCardId, state.historyEvents);
+            state.duplicateSources[duplicate.id] = sourceCardId;
+            markDirty("board");
+            renderBoard();
+            populateAreaFilter();
+            openCardDialog(duplicate.id);
+            elements.cardTitle.focus();
+            elements.cardTitle.select();
+            showToast(`${duplicate.id} duplicated.`, "success");
+          } catch (error) {
+            showError(error);
           }
         }
 
@@ -6437,6 +6536,7 @@
           }
           const { id: columnId } = found.column;
           const cardIndex = found.cardIndex;
+          rebaseDuplicateSources(found.card.id);
           found.column.cards.splice(found.cardIndex, 1);
           state.pendingDeletionCardId = null;
           state.deleteConfirmationFocusTarget = null;
@@ -6449,6 +6549,19 @@
           state.editingCardId = null;
           focusCardAfterDeletion(columnId, cardIndex);
           showToast(`${found.card.id} deleted.`, "success");
+        }
+
+        function rebaseDuplicateSources(cardId) {
+          const sourceCardId = state.duplicateSources[cardId];
+          delete state.duplicateSources[cardId];
+          if (!sourceCardId) {
+            return;
+          }
+          Object.entries(state.duplicateSources).forEach(([duplicateId, duplicateSourceId]) => {
+            if (duplicateSourceId === cardId) {
+              state.duplicateSources[duplicateId] = sourceCardId;
+            }
+          });
         }
 
         function focusCardAfterDeletion(columnId, cardIndex) {
@@ -7843,7 +7956,20 @@
             const nextConfigSource = saveConfig
               ? model.serializeConfig(state.configSource, state.config)
               : state.configSource;
-            state.pendingSave = { saveBoard, saveConfig, boardRevision, configRevision, manual };
+            const duplicateSources = saveBoard && Object.keys(state.duplicateSources).length > 0
+              ? { ...state.duplicateSources }
+              : undefined;
+            state.pendingSave = {
+              saveBoard,
+              saveConfig,
+              boardRevision,
+              configRevision,
+              manual,
+              duplicateSources,
+            };
+            if (duplicateSources) {
+              state.duplicateSources = {};
+            }
             vscode.postMessage({
               type: "save",
               request: {
@@ -7856,6 +7982,7 @@
                 nextConfigSource,
                 saveBoard,
                 saveConfig,
+                duplicateSources,
               },
             });
           } catch (error) {
@@ -7896,6 +8023,10 @@
         }
 
         function failSave(message) {
+          const pending = state.pendingSave;
+          if (pending?.duplicateSources) {
+            state.duplicateSources = { ...pending.duplicateSources, ...state.duplicateSources };
+          }
           state.pendingSave = null;
           state.saveInFlight = false;
           updateDirtyState();

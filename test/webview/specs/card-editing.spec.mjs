@@ -1,9 +1,9 @@
 import { expect, test } from '@playwright/test';
 
-import { boardSource, historySource, openBoard, openCardDialog, saveNow } from './helpers.mjs';
+import { boardSource, columnCardIds, historySource, openBoard, openCardDialog, saveNow } from './helpers.mjs';
 
 test.describe('card editing', () => {
-  test('opens a themed card action menu on right-click with Delete before Edit', async ({ page }) => {
+  test('opens a themed card action menu on right-click with Edit, Duplicate, and Delete actions', async ({ page }) => {
     await openBoard(page);
     const card = page.locator('[data-card-id="AO-005"]');
     await card.click({ button: 'right' });
@@ -17,9 +17,39 @@ test.describe('card editing', () => {
     await expect(page.locator('#cardActionMenuEntitySwatch')).toHaveCSS('background-color', 'rgb(114, 87, 181)');
     await expect(page.locator('#cardActionMenuAvatar')).toHaveText('JL');
     await expect(page.locator('#cardActionMenuAssigneeName')).toHaveText('Jordan Lee');
-    await expect(menu.getByRole('menuitem')).toHaveText(['Delete outcome', 'Edit outcome']);
-    await expect(menu.locator('svg')).toHaveCount(2);
-    await expect(page.locator('#deleteCardActionButton')).toBeFocused();
+    await expect(menu.getByRole('menuitem')).toHaveText(['Edit', 'Duplicate', 'Delete']);
+    await expect(menu.locator('svg')).toHaveCount(3);
+    await expect(page.locator('#editCardActionButton')).toBeFocused();
+  });
+
+  test('duplicates a card after its source, opens it for editing, and persists its provenance', async ({ page }) => {
+    await openBoard(page);
+    const source = page.locator('[data-card-id="AO-001"]');
+    await source.click({ button: 'right' });
+    await page.locator('#duplicateCardActionButton').click();
+
+    const duplicate = page.locator('[data-card-id="AO-007"]');
+    await expect(duplicate).toBeVisible();
+    await expect(duplicate).toContainText('Confirm research themes (Copy)');
+    await expect(duplicate).toContainText('Consolidate interview findings into three launch themes.');
+    await expect(duplicate).toContainText('Maya Chen');
+    expect(await columnCardIds(page, 'inbox')).toEqual(['AO-001', 'AO-007', 'AO-002']);
+    await expect(page.locator('#cardDialog')).toBeVisible();
+    await expect(page.locator('#cardDialogEyebrow')).toHaveText('AO-007');
+    await expect(page.locator('#cardTitle')).toHaveValue('Confirm research themes (Copy)');
+
+    await saveNow(page);
+    const markdown = await boardSource(page);
+    expect(markdown.indexOf('AO-001')).toBeLessThan(markdown.indexOf('AO-007'));
+    expect(markdown.indexOf('AO-007')).toBeLessThan(markdown.indexOf('AO-002'));
+    const history = await historySource(page);
+    expect(history).toContain('"card":"AO-007"');
+    expect(history).toContain('"event":"created"');
+    expect(history).toContain('"duplicatedFrom":"AO-001"');
+
+    await page.keyboard.press('Escape');
+    await page.locator('#reloadButton').click();
+    await expect(page.locator('[data-card-id="AO-007"]')).toContainText('Confirm research themes (Copy)');
   });
 
   test('creates a card and persists it to BOARD.md and history', async ({ page }) => {

@@ -8,6 +8,7 @@ const {
   boardWith,
   boardWithTwoCards,
   buildBoard,
+  card,
   legacyBoardWithManyDoingCards,
 } = require('../fixtures/board-fixtures.js');
 
@@ -182,6 +183,118 @@ test('rejects invalid column configuration and unresolved non-empty column remov
     }),
     /control characters or Markdown markers/,
   );
+});
+
+test('rejects malformed custom column markers and mismatched board configuration', () => {
+  assert.throws(() => model.parseBoard('# Board\n'), /Expected at least one board column/);
+  assert.equal(
+    model.parseBoard(`\`\`\`markdown\n## Ignored <!-- ledgerboard-column:ignored -->\n\`\`\`\n\n${buildBoard()}`).columns.length,
+    5,
+  );
+  assert.throws(
+    () => model.parseBoard(buildBoard().replace(
+      '## Inbox',
+      '## Inbox <!-- ledgerboard-column:inbox -->',
+    )),
+    /marker in every heading/,
+  );
+  assert.throws(
+    () => model.parseBoard([
+      '# Board',
+      '',
+      '## Intake <!-- ledgerboard-column:intake -->',
+      '',
+      '<!-- empty -->',
+      '',
+      '---',
+      '',
+      '## Duplicate intake <!-- ledgerboard-column:intake -->',
+      '',
+      '<!-- empty -->',
+      '',
+    ].join('\n')),
+    /Duplicate board column ID: intake/,
+  );
+
+  const columns = [
+    { id: 'intake', name: 'Intake' },
+    { id: 'delivery', name: 'Delivery' },
+    { id: 'accepted', name: 'Accepted' },
+  ];
+  const boardSource = model.serializeBoard(
+    model.reconfigureColumns(model.parseBoard(buildBoard()), columns),
+  );
+  const configSource = (updatedColumns) => {
+    const config = model.parseConfig(CONFIG);
+    config.columns = updatedColumns;
+    return model.serializeConfig(CONFIG, config);
+  };
+
+  assert.throws(
+    () => model.validateBundleSources(boardSource, configSource(columns.slice(1)), HISTORY),
+    /columns do not match the configured column count/,
+  );
+  assert.throws(
+    () => model.validateBundleSources(boardSource, configSource([
+      { ...columns[0], id: 'queued' },
+      ...columns.slice(1),
+    ]), HISTORY),
+    /does not match configured column/,
+  );
+  assert.throws(
+    () => model.validateBundleSources(boardSource, configSource([
+      { ...columns[0], name: 'Queued work' },
+      ...columns.slice(1),
+    ]), HISTORY),
+    /must be named Queued work/,
+  );
+});
+
+test('validates configurable column input and repairs card column identifiers', () => {
+  const config = model.parseConfig(CONFIG);
+
+  assert.throws(() => model.validateConfig(null), /must be an object/);
+  assert.throws(() => model.validateConfig({ ...config, columns: null }), /requires a columns array/);
+  assert.throws(() => model.validateConfig({ ...config, columns: [] }), /at least 1 column/);
+  assert.throws(
+    () => model.validateConfig({ ...config, columns: [{ id: 'not valid', name: 'Ready' }] }),
+    /Invalid column ID/,
+  );
+  assert.throws(
+    () => model.validateConfig({
+      ...config,
+      columns: [{ id: 'ready', name: 'Ready' }, { id: 'ready', name: 'Delivery' }],
+    }),
+    /Duplicate column ID/,
+  );
+  assert.throws(
+    () => model.validateConfig({ ...config, columns: [{ id: 'ready', name: '   ' }] }),
+    /Column names cannot be blank/,
+  );
+
+  const serialized = model.serializeConfig('', {
+    ...config,
+    columns: [{ id: 'ready', name: ' Ready ' }],
+  });
+  assert.match(serialized, /"name": "Ready"/);
+  assert.throws(
+    () => model.serializeConfig('', { ...config, columns: [null] }),
+    /Invalid column ID/,
+  );
+  assert.throws(() => model.validateBoard({ columns: [] }), /between 1 and 10 columns/);
+
+  const invalidId = model.parseBoard(buildBoard());
+  invalidId.columns[0].id = 'not valid';
+  assert.throws(() => model.validateBoard(invalidId), /Invalid board column ID/);
+
+  const duplicateId = model.parseBoard(buildBoard());
+  duplicateId.columns[1].id = duplicateId.columns[0].id;
+  assert.throws(() => model.validateBoard(duplicateId), /Duplicate board column ID/);
+
+  const board = model.parseBoard(boardWith('- [ ] AO-001 — Prepare review · P2 · area:internal'));
+  board.columns[0].cards[0].columnId = 'stale-column';
+  assert.doesNotThrow(() => model.validateBoard(board));
+  assert.equal(board.columns[0].cards[0].columnId, 'inbox');
 });
 
 test('semantic diff records movement and edits separately', () => {
@@ -564,4 +677,42 @@ test('analytics offers a throughput range only after sufficient recorded history
   assert.equal(analytics.forecast.available, true);
   assert.ok(analytics.forecast.finishRangeWeeks.earliest >= 1);
   assert.ok(analytics.forecast.whatCanFinish >= 0);
+});
+
+test('analytics adapts to custom columns and flags growing operational risk', () => {
+  const customBoard = model.reconfigureColumns(
+    model.parseBoard(boardWith('- [ ] AO-001 — Prepare review · P2 · area:internal')),
+    [{ id: 'inbox', name: 'Ready' }, { id: 'delivery', name: 'Delivery' }],
+  );
+  const customAnalytics = model.buildAnalytics(customBoard, [], {
+    now: '2026-01-14T12:00:00Z',
+    startDate: '2026-01-08',
+    endDate: '2026-01-14',
+    timeZone: 'Etc/UTC',
+  });
+  assert.equal(customAnalytics.done, 0);
+  assert.equal(customAnalytics.status.inbox, 1);
+  assert.match(customAnalytics.definitions.completion, /unavailable until the board contains a completion column/);
+
+  const overloadedBoard = model.parseBoard(buildBoard({
+    Doing: [
+      card({ id: 'AO-001', title: 'One' }),
+      card({ id: 'AO-002', title: 'Two' }),
+      card({ id: 'AO-003', title: 'Three' }),
+      card({ id: 'AO-004', title: 'Four' }),
+    ].join('\n\n'),
+  }));
+  const analytics = model.buildAnalytics(overloadedBoard, [
+    { at: '2026-01-01T09:00:00Z', card: 'AO-001', event: 'created', to: 'inbox', area: 'internal', priority: 'P2', title: 'One' },
+    { at: '2026-01-02T09:00:00Z', card: 'AO-001', event: 'moved', from: 'next', to: 'done', area: 'internal', priority: 'P2', title: 'One' },
+  ], {
+    now: '2026-01-14T12:00:00Z',
+    startDate: '2026-01-08',
+    endDate: '2026-01-14',
+    timeZone: 'Etc/UTC',
+  });
+
+  assert.ok(analytics.insights.some((insight) => insight.id === 'wip-limit'));
+  assert.ok(analytics.insights.some((insight) => insight.id === 'throughput-change'));
+  assert.equal(analytics.comparison.previous.completed, 1);
 });

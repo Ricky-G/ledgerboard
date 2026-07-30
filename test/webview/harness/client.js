@@ -58,6 +58,7 @@
         model.parseBoard(state.boardSource),
         model.parseBoard(nextBoardSource),
         new Date().toISOString(),
+        request.duplicateSources,
       )
       : [];
     model.parseConfig(nextConfigSource);
