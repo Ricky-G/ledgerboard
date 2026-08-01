@@ -13,14 +13,14 @@ function analytics(board, events, options = {}) {
 }
 
 const SAMPLE_BOARD = buildBoard({
-  Inbox: card({ id: 'AO-001', title: 'Waiting outcome', priority: 'P1' }),
+  Inbox: card({ id: 'AO-001', title: 'Waiting ticket', priority: 'P1' }),
   Doing: card({
     id: 'AO-002',
-    title: 'Active outcome',
+    title: 'Active ticket',
     priority: 'P2',
     details: [['Assignee', 'alex-smith']],
   }),
-  Done: card({ id: 'AO-003', title: 'Finished outcome', priority: 'P3', done: true }),
+  Done: card({ id: 'AO-003', title: 'Finished ticket', priority: 'P3', done: true }),
 });
 
 const SAMPLE_EVENTS = [
@@ -96,7 +96,7 @@ test('counts stay inside the requested window', () => {
   assert.equal(completed, 1);
 });
 
-test('status, priority, entity, and assignee totals reflect the board', () => {
+test('status, priority, label, and assignee totals reflect the board', () => {
   const result = analytics(SAMPLE_BOARD, SAMPLE_EVENTS);
 
   assert.equal(result.total, 3);
@@ -104,7 +104,8 @@ test('status, priority, entity, and assignee totals reflect the board', () => {
   assert.equal(result.status.doing, 1);
   assert.equal(result.status.done, 1);
   assert.equal(result.priority.P1, 1);
-  assert.equal(result.entities.internal, 3);
+  assert.equal(result.labels.internal, 3);
+  assert.deepEqual(result.entities, result.labels);
   assert.equal(result.assignees['alex-smith'], 1);
   assert.equal(result.assignees.unassigned, 2);
 });

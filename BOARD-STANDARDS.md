@@ -27,12 +27,12 @@ Do not rename the three board data files. The extension opens those fixed names.
 ## Non-negotiable rules
 
 1. `BOARD.md` is authoritative for current cards and status.
-2. `KANBAN-CONFIG.md` defines board labels, appearance, people, and the entity color palette.
+2. `KANBAN-CONFIG.md` defines board labels, appearance, people, and the label color palette.
 3. `KANBAN-HISTORY.md` is an append-only semantic event ledger used by Analytics.
 4. Define between 1 and 10 board columns in `KANBAN-CONFIG.md` and keep `BOARD.md` in that configured order.
 5. Use the exact one-line card grammar. Additional inline fields are invalid.
 6. Description and Assignee are the optional detail fields and must each stay on one physical Markdown line.
-7. Every card's `area` must match an entity ID in `KANBAN-CONFIG.md`.
+7. Every card's `area` must match a label ID in `KANBAN-CONFIG.md`.
 8. Every non-empty Assignee must match a person ID in `KANBAN-CONFIG.md`.
 9. Card IDs are unique, monotonic, and never reused.
 10. Never invent historical transition times. Use `baseline` when only current state is known.
@@ -49,7 +49,7 @@ New boards use the configured headings and stable column markers shown below:
 ---
 
 ## Inbox <!-- ledgerboard-column:inbox -->
-_Captured outcomes awaiting triage and commitment._
+_Captured tickets awaiting triage and commitment._
 
 <!-- empty -->
 
@@ -88,7 +88,7 @@ section separators.
 
 Older boards using the unmarked `Inbox`, `Next`, `Doing`, `Review / Blocked`, and `Done` headings
 remain supported. LedgerBoard adds markers when a column configuration change is saved, without
-changing outcomes or their order.
+changing tickets or their order.
 
 ### Exact card syntax
 
@@ -115,7 +115,7 @@ Optional details:
 The grammar is exactly:
 
 ```text
-- [ ] AO-NNN — Outcome title · P1|P2|P3|P4 · area:<entity-id>
+- [ ] AO-NNN — Ticket title · P1|P2|P3|P4 · area:<label-id>
 ```
 
 Formatting rules:
@@ -130,19 +130,19 @@ Formatting rules:
 Correct adjacent cards:
 
 ```markdown
-- [ ] AO-001 — First outcome · P1 · area:client-a
+- [ ] AO-001 — First ticket · P1 · area:client-a
   - **Description:** First description.
 
-- [ ] AO-002 — Second outcome · P2 · area:client-a
+- [ ] AO-002 — Second ticket · P2 · area:client-a
   - **Description:** Second description.
 ```
 
 Incorrect: no blank physical line between cards:
 
 ```markdown
-- [ ] AO-001 — First outcome · P1 · area:client-a
+- [ ] AO-001 — First ticket · P1 · area:client-a
   - **Description:** First description.
-- [ ] AO-002 — Second outcome · P2 · area:client-a
+- [ ] AO-002 — Second ticket · P2 · area:client-a
   - **Description:** Second description.
 ```
 
@@ -151,7 +151,7 @@ Formatting** to fix missing or extra separator lines safely.
 
 ### Card title quality
 
-Write an observable outcome rather than a topic or activity.
+Write an observable ticket rather than a topic or activity.
 
 Prefer:
 
@@ -190,7 +190,7 @@ Status is represented only by the section containing the card:
 | `Done` | Delivered or conclusively closed |
 
 The default workflow has five columns, but a board can configure from one to ten. The `done` column
-ID remains the completion column when its display name changes. Move its outcomes to another column
+ID remains the completion column when its display name changes. Move its tickets to another column
 before removing it so their state is explicitly resolved.
 
 ### ID allocation
@@ -253,8 +253,8 @@ Remove the marker as soon as the column contains a card.
 
 ## `KANBAN-CONFIG.md` contract
 
-The file must contain one fenced JSON block. Canonical configuration uses generic `entities`, so
-the board can represent customers, projects, teams, products, or any other grouping.
+The file must contain one fenced JSON block. The stable serialized `entities` array stores labels,
+which can represent customers, projects, teams, products, or any other grouping.
 
 ````markdown
 # Kanban Configuration
@@ -316,14 +316,14 @@ the board can represent customers, projects, teams, products, or any other group
 ```
 ````
 
-Entity rules:
+Label rules:
 
 - `id` uses only lowercase letters, numbers, and hyphens: `^[a-z0-9][a-z0-9-]*$`.
 - IDs are unique and stable.
 - `name` is the human-readable label shown on cards and charts.
 - `color` is a six-digit hexadecimal color such as `#1866a3`.
-- Every `area:<entity-id>` in `BOARD.md` must resolve to one entity.
-- Add a missing entity before assigning its ID to a card.
+- Every `area:<label-id>` in `BOARD.md` must resolve to one label.
+- Add a missing label before assigning its ID to a card.
 - Preserve existing IDs when updating a board because cards and history reference them.
 - `density` is `comfortable` or `compact`.
 - Use the IANA timezone appropriate for the board, for example `Etc/UTC`.
@@ -337,20 +337,23 @@ Column rules:
   without regard to case, at most 40 characters, and contain no control characters or HTML comment
   markers.
 - The `columns` order is the board order. Reordering does not change card order within a column.
-- Rename columns through **People & entities** so LedgerBoard updates the matching board heading.
-- Before removing a non-empty column, move all of its outcomes to another configured column.
+- Rename columns through **People & labels** so LedgerBoard updates the matching board heading.
+- Before removing a non-empty column, move all of its tickets to another configured column.
 
 People rules:
 
-- `id` follows the same lowercase letters, numbers, and hyphens rule as entity IDs.
+- `id` follows the same lowercase letters, numbers, and hyphens rule as label IDs.
 - IDs are unique and stable within the people directory.
 - `name` is the person's display name in the editor, filters, and card avatar.
 - `color` is a six-digit hexadecimal color used for the person's avatar.
 - Every non-empty `Assignee` value in `BOARD.md` must resolve to one person.
 - Existing configuration without `people` is valid and loads with an empty people directory.
 
-Older configuration using `customers` can be read and migrated by the current parser, but new board
-bundles must use `entities`.
+Older configuration using `customers` can be read and migrated by the current parser. New board
+bundles must use the stable serialized field `entities`; LedgerBoard presents those entries as labels.
+
+The analytics JSON export uses `labels` as its canonical distribution key and retains an `entities`
+alias for integrations that consume the existing export shape.
 
 ## `KANBAN-HISTORY.md` contract
 
@@ -403,13 +406,13 @@ Moved:
 Updated:
 
 ```text
-    {"at":"<actual ISO timestamp>","card":"AO-035","event":"updated","to":"next","changes":["title","description","priority","area"],"area":"client-a","priority":"P1","title":"Updated outcome title"}
+    {"at":"<actual ISO timestamp>","card":"AO-035","event":"updated","to":"next","changes":["title","description","priority","area"],"area":"client-a","priority":"P1","title":"Updated ticket title"}
 ```
 
 Assignment changed:
 
 ```text
-    {"at":"<actual ISO timestamp>","card":"AO-035","event":"updated","to":"next","changes":["assignee"],"previousAssignee":"alex-smith","assignee":"sam-lee","area":"client-a","priority":"P1","title":"Updated outcome title"}
+    {"at":"<actual ISO timestamp>","card":"AO-035","event":"updated","to":"next","changes":["assignee"],"previousAssignee":"alex-smith","assignee":"sam-lee","area":"client-a","priority":"P1","title":"Updated ticket title"}
 ```
 
 For unassignment, set `assignee` to `null`. If an actor identity is available, include it as an
@@ -418,13 +421,13 @@ For unassignment, set `assignee` to `null`. If an actor identity is available, i
 Deleted:
 
 ```text
-    {"at":"<actual ISO timestamp>","card":"AO-035","event":"deleted","from":"next","area":"client-a","priority":"P1","title":"Updated outcome title"}
+    {"at":"<actual ISO timestamp>","card":"AO-035","event":"deleted","from":"next","area":"client-a","priority":"P1","title":"Updated ticket title"}
 ```
 
 History rules:
 
 - Allowed event types: `baseline`, `created`, `moved`, `updated`, and `deleted`.
-- A duplicated outcome is a `created` event with `duplicatedFrom` set to its source card ID.
+- A duplicated ticket is a `created` event with `duplicatedFrom` set to its source card ID.
 - Use the actual current ISO 8601 timestamp with UTC offset.
 - Status values are stable IDs from the current or previous column configuration. Do not rename IDs
   in historical events.
@@ -439,7 +442,7 @@ History rules:
 LedgerBoard calculates analytics locally from the current board and the append-only event ledger.
 It does not send cards, assignments, history, or aggregates to a remote service.
 
-- The current board health, status, priority, entity, and workload views use the current `BOARD.md`
+- The current board health, status, priority, label, and workload views use the current `BOARD.md`
   state after the active filters are applied.
 - Date ranges use the IANA timezone configured in `workspace.timezone`. A range includes both its
   start and end local dates. The comparison period is the immediately preceding range of equal length.
@@ -454,14 +457,14 @@ It does not send cards, assignments, history, or aggregates to a remote service.
   exit. Aging uses the most recent recorded entry into a current active status. When that entry is a
   baseline, the displayed age is a lower bound.
 - Cumulative flow contains only states known from recorded events. No state is inferred before the
-  first observation for an outcome.
+  first observation for a ticket.
 - Forecasts require at least 14 days and five recorded completions. They use observed weekly
   throughput percentiles and describe a range, never a promised date.
 - Missing optional descriptions, unassigned active work, no recent recorded activity, repeated
   normalized titles, and internally inconsistent transitions are shown as review checks. Parse and
   validation errors remain blocking diagnostics instead of misleading analytics values.
-- Drill-downs derive from the same filtered current outcomes as the associated metric. Deleted or
-  historical-only outcomes can contribute to an aggregate but cannot be reopened from a drill-down.
+- Drill-downs derive from the same filtered current tickets as the associated metric. Deleted or
+  historical-only tickets can contribute to an aggregate but cannot be reopened from a drill-down.
 
 ## Agent workflow
 
@@ -470,17 +473,17 @@ When an agent creates or updates a bundle, it must follow this sequence:
 1. Read all three existing files when they exist.
 2. Parse all current cards and history events.
 3. Determine the highest card ID across the board and history.
-4. Dedupe proposed outcomes against the complete board.
-5. Normalize vague task text into observable outcome titles.
+4. Dedupe proposed tickets against the complete board.
+5. Normalize vague task text into observable ticket titles.
 6. Choose a valid priority and status using explicit evidence; when uncertain, use `Inbox` and `P3`.
-7. Add missing entities and people to `KANBAN-CONFIG.md` before using them.
+7. Add missing labels and people to `KANBAN-CONFIG.md` before using them.
 8. Preserve existing cards, descriptions, assignees, IDs, colors, and all prior history events.
 9. Separate adjacent cards with exactly one blank physical line.
 10. Write the three files atomically where possible.
 11. Run the validation command below.
 12. Do not report completion unless validation succeeds.
 
-Do not invent work, completion, priorities, entity assignments, or transition timestamps.
+Do not invent work, completion, priorities, label assignments, or transition timestamps.
 
 ## Copy/paste prompt for another agent
 
@@ -503,22 +506,22 @@ The target folder must contain these exact files:
 
 PROCESS
 1. Read all three files if they already exist. Preserve existing data and treat history as append-only.
-2. Extract only real, evidence-backed outcomes from the supplied source material.
+2. Extract only real, evidence-backed tickets from the supplied source material.
 3. Dedupe against every existing board card before adding anything.
-4. Rewrite vague tasks as concise observable outcome titles.
+4. Rewrite vague tasks as concise observable ticket titles.
 5. Use exactly P1, P2, P3, or P4.
 6. Use the configured column names and order from `KANBAN-CONFIG.md`. New board headings include
    `<!-- ledgerboard-column:<id> -->` markers.
 7. Use exactly this card grammar:
-   - [ ] AO-NNN — Outcome title · P1|P2|P3|P4 · area:<entity-id>
+   - [ ] AO-NNN — Ticket title · P1|P2|P3|P4 · area:<label-id>
 8. Description and Assignee are optional details and must each be one physical Markdown line:
        - **Description:** Concise context.
        - **Assignee:** <person-id>
 9. Separate every pair of adjacent cards with exactly one blank physical line.
 10. Use checked boxes only in Done.
 11. Allocate monotonic IDs by scanning both current cards and history. Never reuse an ID.
-12. Ensure every card area resolves to a stable entity in KANBAN-CONFIG.md. New configuration uses
-    `entities`, not `customers`.
+12. Ensure every card area resolves to a stable label in KANBAN-CONFIG.md. New configuration uses
+    the stable serialized field `entities`, not `customers`.
 13. Ensure every Assignee value resolves to a stable person in the `people` configuration array.
 14. For a new/imported board with unknown transition history, append baseline events using the actual
     current timestamp. For updates, append created, moved, updated, or deleted events. Never rewrite
@@ -530,7 +533,7 @@ PROCESS
 SOURCE MATERIAL
 <paste or identify the task source here>
 
-Return a concise summary of cards added or changed, people or entities added, history events appended,
+Return a concise summary of tickets added or changed, people or labels added, history events appended,
 and the validation result. Do not claim success unless validation passes.
 ```
 
@@ -548,7 +551,7 @@ npm run validate:board -- "$BoardFolder"
 Expected result:
 
 ```text
-Kanban bundle valid: <card-count> cards, <entity-count> entities, <person-count> people, <event-count> history events
+Kanban bundle valid: <ticket-count> tickets, <label-count> labels, <person-count> people, <event-count> history events
 ```
 
 ## Common failure modes
@@ -556,14 +559,14 @@ Kanban bundle valid: <card-count> cards, <entity-count> entities, <person-count>
 - Using a different filename such as `tasks.md` instead of `BOARD.md`.
 - Omitting a configured column, using a heading with a different name, or changing its stable marker ID.
 - Configuring no columns, more than ten columns, duplicate column names, or names longer than 40 characters.
-- Adding fields after `area:<entity-id>` on the card line.
+- Adding fields after `area:<label-id>` on the card line.
 - Using multiline detail values. Keep each Description and Assignee value on one physical line.
 - Omitting the one blank physical line required between adjacent cards.
 - Adding two or more blank physical lines between adjacent cards.
 - Mixing LF and CRLF line endings in one `BOARD.md`.
 - Using priorities other than P1–P4.
 - Leaving `<!-- empty -->` in a column that contains cards.
-- Assigning an area that has no matching entity in the config.
+- Assigning an area that has no matching label in the config.
 - Assigning a person ID that has no matching entry in the people directory.
 - Creating config with `customers` instead of canonical `entities`.
 - Reusing or renumbering card IDs.

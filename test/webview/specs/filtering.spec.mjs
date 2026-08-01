@@ -22,7 +22,7 @@ test.describe('filtering and search', () => {
     await expect(visibleCards(page)).toHaveAttribute('data-card-id', 'AO-006');
   });
 
-  test('filters by entity', async ({ page }) => {
+  test('filters by label', async ({ page }) => {
     await openBoard(page);
     await page.locator('#areaFilter').selectOption('northstar');
 

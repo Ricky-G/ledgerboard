@@ -11,9 +11,9 @@ body:
     validations:
       required: true
   - type: textarea
-    id: outcome
+    id: result
     attributes:
-      label: Desired outcome
+      label: Desired result
       description: Describe the behavior, not only a proposed implementation.
     validations:
       required: true

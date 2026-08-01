@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
 
 import { openBoard } from './helpers.mjs';
 
@@ -55,5 +56,8 @@ test.describe('analytics view', () => {
     await page.locator('#analyticsExport').click();
     const file = await download;
     expect(file.suggestedFilename()).toMatch(/\.(csv|json|md)$/);
+    const exported = JSON.parse(await readFile(await file.path(), 'utf8'));
+    expect(exported.distribution.labels).toHaveProperty('northstar');
+    expect(exported.distribution.entities).toEqual(exported.distribution.labels);
   });
 });

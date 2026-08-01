@@ -213,12 +213,12 @@ test('diffBoardEvents rejects invalid duplicate source maps', () => {
 test('diffBoardEvents records an assignment with both sides of the change', () => {
   const before = model.parseBoard(boardWith(card({
     id: 'AO-001',
-    title: 'Owned outcome',
+    title: 'Owned ticket',
     details: [['Assignee', 'alex-smith']],
   })));
   const after = model.parseBoard(boardWith(card({
     id: 'AO-001',
-    title: 'Owned outcome',
+    title: 'Owned ticket',
     details: [['Assignee', 'jordan-lee']],
   })));
 
@@ -232,10 +232,10 @@ test('diffBoardEvents records an assignment with both sides of the change', () =
 test('diffBoardEvents records unassignment with an explicit null', () => {
   const before = model.parseBoard(boardWith(card({
     id: 'AO-001',
-    title: 'Owned outcome',
+    title: 'Owned ticket',
     details: [['Assignee', 'alex-smith']],
   })));
-  const after = model.parseBoard(boardWith(card({ id: 'AO-001', title: 'Owned outcome' })));
+  const after = model.parseBoard(boardWith(card({ id: 'AO-001', title: 'Owned ticket' })));
 
   const [event] = model.diffBoardEvents(before, after, AT);
   assert.equal(event.previousAssignee, 'alex-smith');
@@ -252,7 +252,7 @@ test('parseConfig requires a fenced JSON block', () => {
   assert.throws(() => model.parseConfig(undefined), TypeError);
 });
 
-test('parseConfig migrates a legacy customers array to entities', () => {
+test('parseConfig migrates a legacy customers array to the stable entities field', () => {
   const legacy = '```json\n' + JSON.stringify({
     workspace: { name: 'Legacy' },
     customers: [{ id: 'meta', name: 'Meta', color: '#3b82f6' }],
@@ -269,15 +269,15 @@ test('validateConfig enforces identifier, name, and colour shapes', () => {
 
   assert.throws(() => model.validateConfig(null), /must be an object/);
   assert.throws(() => model.validateConfig({ entities: [], people: [] }), /requires workspace.name/);
-  assert.throws(() => model.validateConfig({ ...base, entities: undefined }), /requires an entities array/);
+  assert.throws(() => model.validateConfig({ ...base, entities: undefined }), /stable entities array used to store labels/);
   assert.throws(() => model.validateConfig({ ...base, people: undefined }), /requires a people array/);
   assert.throws(
     () => model.validateConfig({ ...base, entities: [{ id: 'Bad Id', color: '#ffffff' }] }),
-    /Invalid entity ID/,
+    /Invalid label ID/,
   );
   assert.throws(
     () => model.validateConfig({ ...base, entities: [{ id: 'meta', color: '#ffffff' }, { id: 'meta', color: '#ffffff' }] }),
-    /Duplicate entity ID/,
+    /Duplicate label ID/,
   );
   assert.throws(
     () => model.validateConfig({ ...base, entities: [{ id: 'meta', color: 'blue' }] }),
@@ -307,10 +307,10 @@ test('createDefaultConfig produces a configuration that round trips', () => {
   assert.deepEqual(model.parseConfig(model.serializeConfig('', config)), config);
 });
 
-test('validateBundleSources rejects cards referencing unknown entities', () => {
+test('validateBundleSources rejects cards referencing unknown labels', () => {
   const board = boardWith(card({ id: 'AO-001', title: 'Orphan', area: 'nonexistent' }));
   assert.throws(
     () => model.validateBundleSources(board, CONFIG, HISTORY),
-    /Missing entity configuration: nonexistent/,
+    /Missing label configuration: nonexistent/,
   );
 });

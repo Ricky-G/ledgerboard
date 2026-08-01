@@ -59,7 +59,7 @@ card identifiers, a fixed accent color, and `Etc/UTC`. Never introduce `Date.now
 
 - **Name the behavior, not the function.** `rejects a stale write when the file changed on disk`
   beats `test save 2`.
-- **Assert the observable outcome.** Assert the Markdown that gets written, the event appended to
+- **Assert the observable behavior.** Assert the Markdown that gets written, the event appended to
   the ledger, or the element the user sees. Do not assert on internal call counts.
 - **One reason to fail.** When a test fails, its name should already tell the reader what broke.
 - **Give the failure a message.** `assert.ok(x, 'The watcher never reported KANBAN-CONFIG.md')` is

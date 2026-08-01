@@ -5,7 +5,7 @@ const SAMPLE_BOARD_SOURCE = `# LedgerBoard Preview
 ---
 
 ## Inbox
-_Captured outcomes awaiting triage and commitment._
+_Captured tickets awaiting triage and commitment._
 
 - [ ] AO-001 — Confirm customer research themes · P2 · area:northstar
     - **Description:** Consolidate interview findings into the three themes that should shape launch scope.
@@ -59,7 +59,7 @@ _Delivered or conclusively closed._
     - **Assignee:** priya-shah
 
 - [x] AO-009 — Establish the local preview fixture · P3 · area:internal
-    - **Description:** Provide representative data across every status, priority, entity, and assignee.
+    - **Description:** Provide representative data across every status, priority, label, and assignee.
     - **Assignee:** alex-smith
 `;
 

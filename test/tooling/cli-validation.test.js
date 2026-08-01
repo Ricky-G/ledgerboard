@@ -47,7 +47,7 @@ test('CLI succeeds and reports totals for a canonical bundle', () => {
   try {
     const result = runValidateCli(bundle.root);
     assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stdout, /Kanban bundle valid: 2 cards/);
+    assert.match(result.stdout, /Kanban bundle valid: 2 tickets, 1 label/);
   } finally {
     bundle.cleanup();
   }

@@ -120,7 +120,7 @@
     const entityIds = new Set(config.entities.map((entity) => entity.id));
     const missing = [...new Set(cards.map((card) => card.area).filter((area) => !entityIds.has(area)))];
     if (missing.length > 0) {
-      throw new Error(`Missing entity configuration: ${missing.join(", ")}.`);
+      throw new Error(`Missing label configuration: ${missing.join(", ")}.`);
     }
     const personIds = new Set(config.people.map((person) => person.id));
     const missingPeople = [...new Set(cards
@@ -528,7 +528,7 @@
     document.columns.forEach((column) => {
       if (!configuredIds.has(column.id) && column.cards.length > 0) {
         throw new Error(
-          `${column.label} still contains ${column.cards.length} outcome(s). Move them before removing this column.`,
+          `${column.label} still contains ${column.cards.length} ticket(s). Move them before removing this column.`,
         );
       }
     });
@@ -678,7 +678,7 @@
     return {
       checked: false,
       id: nextCardId(document, values.historyEvents),
-      title: values.title || "Untitled outcome",
+      title: values.title || "Untitled ticket",
       priority: values.priority || "P2",
       area: values.area || "meta",
       columnId: values.columnId || document.columns[0]?.id,
@@ -970,13 +970,13 @@
     const activeCards = cards.filter((card) => !card.checked);
     const status = Object.fromEntries(columns.map((column) => [column.id, 0]));
     const priority = { P1: 0, P2: 0, P3: 0, P4: 0 };
-    const entities = {};
+    const labels = {};
     const assignees = {};
 
     cards.forEach((card) => {
       if (Object.hasOwn(status, card.columnId)) status[card.columnId] += 1;
       priority[card.priority] += 1;
-      entities[card.area] = (entities[card.area] || 0) + 1;
+      labels[card.area] = (labels[card.area] || 0) + 1;
       const key = card.assignee || "unassigned";
       assignees[key] = (assignees[key] || 0) + 1;
     });
@@ -1071,6 +1071,7 @@
       completionRate: cards.length === 0 ? 0 : Math.round(
         (cards.filter((card) => card.checked).length / cards.length) * 100,
       ),
+      activeLabels: new Set(activeCards.map((card) => card.area)).size,
       activeEntities: new Set(activeCards.map((card) => card.area)).size,
       transitions: rangeEvents.filter((item) => item.record.event === "moved").length,
       completedInRange,
@@ -1080,7 +1081,8 @@
       medianCycleDays: cycleTimes.cycle.medianDays,
       status,
       priority,
-      entities,
+      labels,
+      entities: labels,
       assignees,
       daily,
       throughput: aggregateAnalyticsBuckets(daily, options.aggregation),
@@ -1707,7 +1709,7 @@
       throw new Error("Configuration requires workspace.name.");
     }
     if (!Array.isArray(config.entities)) {
-      throw new Error("Configuration requires an entities array.");
+      throw new Error("Configuration requires the stable entities array used to store labels.");
     }
     if (!Array.isArray(config.people)) {
       throw new Error("Configuration requires a people array.");
@@ -1716,7 +1718,7 @@
       throw new Error("Configuration requires a columns array.");
     }
 
-    validateDirectory(config.entities, "entity", false);
+    validateDirectory(config.entities, "label", false);
     validateDirectory(config.people, "person", true);
     validateColumns(config.columns);
     return true;

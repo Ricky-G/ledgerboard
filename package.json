@@ -64,7 +64,7 @@
       },
       {
         "command": "ledgerBoard.addOutcome",
-        "title": "Add Outcome",
+        "title": "Add Ticket",
         "category": "LedgerBoard",
         "icon": "$(add)"
       },

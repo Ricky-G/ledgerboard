@@ -2755,7 +2755,7 @@
             Board
           </button>
           <button class="view-tab" type="button" data-view="settings" aria-pressed="false">
-            People &amp; entities
+            People &amp; labels
           </button>
           <button class="view-tab" type="button" data-view="analytics" aria-pressed="false">
             Analytics
@@ -2792,13 +2792,13 @@
             <div class="search-control">
               <span aria-hidden="true">⌕</span>
               <label class="visually-hidden" for="searchInput">Search cards</label>
-              <input id="searchInput" type="search" placeholder="Search outcomes, details, or IDs" autocomplete="off">
+              <input id="searchInput" type="search" placeholder="Search tickets, details, or IDs" autocomplete="off">
             </div>
 
             <label class="select-control">
-              <span>Entity</span>
+              <span>Label</span>
               <select id="areaFilter">
-                <option value="">All entities</option>
+                <option value="">All labels</option>
               </select>
             </label>
 
@@ -2829,7 +2829,7 @@
 
             <button class="primary-button add-outcome-button" id="addCardButton" type="button" disabled>
               <span aria-hidden="true">+</span>
-              New outcome
+              New ticket
             </button>
           </div>
 
@@ -2866,8 +2866,8 @@
           <div class="settings-heading">
             <div>
               <p class="eyebrow">Board configuration</p>
-              <h2 id="settingsTitle">People, entities, columns &amp; appearance</h2>
-              <p>People, entity identity, column workflow, and board presentation are persisted in KANBAN-CONFIG.md.</p>
+              <h2 id="settingsTitle">People, labels, columns &amp; appearance</h2>
+              <p>People, label identity, column workflow, and board presentation are persisted in KANBAN-CONFIG.md.</p>
             </div>
             <button class="primary-button" id="settingsSaveButton" type="button" disabled>
               Save now
@@ -2927,7 +2927,7 @@
                 <div class="people-heading-row">
                   <div>
                     <h3 id="peopleSettingsTitle">People</h3>
-                    <p>Add the names that can own work. Assignments stay optional for every outcome.</p>
+                    <p>Add the names that can own work. Assignments stay optional for every ticket.</p>
                   </div>
                   <button class="secondary-button" id="addPersonButton" type="button">
                     <span aria-hidden="true">+</span>
@@ -2946,16 +2946,16 @@
               <div class="settings-section-content">
                 <div class="entity-heading-row">
                   <div>
-                    <h3 id="entitySettingsTitle">Entities</h3>
-                    <p>Every card uses its `area` value to pick up an entity name and color.</p>
+                    <h3 id="entitySettingsTitle">Labels</h3>
+                    <p>Every card uses its `area` value to pick up a label name and color.</p>
                   </div>
                   <button class="secondary-button" id="addEntityButton" type="button">
                     <span aria-hidden="true">+</span>
-                    Add entity
+                    Add label
                   </button>
                 </div>
                 <div class="entity-list-header" aria-hidden="true">
-                  <span>Color</span><span>Entity name</span><span>Area ID</span><span></span>
+                  <span>Color</span><span>Label name</span><span>Label ID</span><span></span>
                 </div>
                 <div class="entity-list" id="entityList"></div>
               </div>
@@ -2967,7 +2967,7 @@
                 <div class="column-heading-row">
                   <div>
                     <h3 id="columnSettingsTitle">Columns</h3>
-                    <p>Configure between 1 and 10 workflow columns. Renaming and reordering preserve each column's outcomes.</p>
+                    <p>Configure between 1 and 10 workflow columns. Renaming and reordering preserve each column's tickets.</p>
                   </div>
                   <div class="column-heading-actions">
                     <button class="secondary-button" id="discardColumnChangesButton" type="button" disabled>
@@ -3022,7 +3022,7 @@
             </div>
             <label class="analytics-filter-search">
               <span>Search</span>
-              <input id="analyticsSearch" type="search" placeholder="Find an outcome">
+              <input id="analyticsSearch" type="search" placeholder="Find a ticket">
             </label>
             <label>
               <span>Status</span>
@@ -3046,9 +3046,9 @@
               </select>
             </label>
             <label>
-              <span>Entity / category</span>
+              <span>Label / category</span>
               <select id="analyticsArea">
-                <option value="">All entities</option>
+                <option value="">All labels</option>
               </select>
             </label>
             <label>
@@ -3139,7 +3139,7 @@
                   <p class="eyebrow">Current state</p>
                   <h3 id="statusChartTitle">Work by status</h3>
                 </div>
-                <strong id="statusTotal">0 outcomes</strong>
+                <strong id="statusTotal">0 tickets</strong>
               </div>
               <div id="statusChart" class="status-chart"></div>
             </section>
@@ -3169,7 +3169,7 @@
               <div class="analytics-panel-heading">
                 <div>
                   <p class="eyebrow">Active portfolio</p>
-                  <h3 id="entityChartTitle">Work by entity / category</h3>
+                  <h3 id="entityChartTitle">Work by label / category</h3>
                 </div>
               </div>
               <div id="entityChart" class="entity-chart"></div>
@@ -3271,10 +3271,10 @@
                   <p class="eyebrow">Supporting work</p>
                   <h3 id="analyticsDrilldownTitle">Drill-down</h3>
                 </div>
-                <span>Open an outcome to inspect or edit it</span>
+                <span>Open a ticket to inspect or edit it</span>
               </div>
               <div id="analyticsDrilldown" class="analytics-list">
-                <div class="analytics-empty">Select a chart segment, insight, or check to inspect the supporting outcomes.</div>
+                <div class="analytics-empty">Select a chart segment, insight, or check to inspect the supporting tickets.</div>
               </div>
             </section>
           </div>
@@ -3294,8 +3294,8 @@
       <form method="dialog" id="cardForm">
         <div class="dialog-header">
           <div>
-            <p class="eyebrow" id="cardDialogEyebrow">New outcome</p>
-            <h2 id="cardDialogTitle">Add an outcome</h2>
+            <p class="eyebrow" id="cardDialogEyebrow">New ticket</p>
+            <h2 id="cardDialogTitle">Add a ticket</h2>
           </div>
           <button class="icon-button close-dialog-button" type="button" data-close-dialog title="Close" aria-label="Close">×</button>
         </div>
@@ -3303,7 +3303,7 @@
         <div class="dialog-body">
           <input id="cardId" type="hidden">
           <label class="field full-field">
-            <span>Outcome title</span>
+            <span>Ticket title</span>
             <input id="cardTitle" type="text" maxlength="140" required autofocus>
           </label>
           <label class="field full-field">
@@ -3313,7 +3313,7 @@
 
           <div class="dialog-field-grid">
             <label class="field">
-              <span>Entity</span>
+              <span>Label</span>
               <select id="cardArea" required></select>
             </label>
             <label class="field">
@@ -3340,7 +3340,7 @@
           <button class="danger-button" id="deleteCardButton" type="button" hidden>Delete</button>
           <span class="dialog-spacer"></span>
           <button class="secondary-button" type="button" data-close-dialog>Cancel</button>
-          <button class="primary-button" id="submitCardButton" type="submit">Add outcome</button>
+          <button class="primary-button" id="submitCardButton" type="submit">Add ticket</button>
         </div>
       </form>
     </dialog>
@@ -3348,13 +3348,13 @@
     <dialog class="confirmation-dialog" id="deleteConfirmationDialog" aria-labelledby="deleteConfirmationTitle" aria-describedby="deleteConfirmationMessage">
       <div class="confirmation-body">
         <p class="eyebrow">Deletion</p>
-        <h2 id="deleteConfirmationTitle">Delete outcome?</h2>
+        <h2 id="deleteConfirmationTitle">Delete ticket?</h2>
         <p id="deleteConfirmationMessage"></p>
       </div>
       <div class="dialog-footer">
         <span class="dialog-spacer"></span>
         <button class="secondary-button" id="cancelDeleteCardButton" type="button" autofocus>Cancel</button>
-        <button class="danger-button" id="confirmDeleteCardButton" type="button">Delete outcome</button>
+        <button class="danger-button" id="confirmDeleteCardButton" type="button">Delete ticket</button>
       </div>
     </dialog>
 
@@ -3364,7 +3364,7 @@
         <h2 id="columnRemovalTitle">Remove column?</h2>
         <p id="columnRemovalMessage"></p>
         <label class="field column-resolution-field" id="columnRemovalTargetField" hidden>
-          <span>Move outcomes to</span>
+          <span>Move tickets to</span>
           <select id="columnRemovalTarget"></select>
         </label>
       </div>
@@ -3375,7 +3375,7 @@
       </div>
     </dialog>
 
-    <div class="card-action-menu" id="cardActionMenu" role="menu" aria-label="Outcome actions" hidden>
+    <div class="card-action-menu" id="cardActionMenu" role="menu" aria-label="Ticket actions" hidden>
       <div class="card-action-menu-context" aria-hidden="true">
         <div class="card-action-menu-heading">
           <span class="card-action-menu-id" id="cardActionMenuCardId"></span>
@@ -3538,7 +3538,7 @@
           const entityIds = new Set(config.entities.map((entity) => entity.id));
           const missing = [...new Set(cards.map((card) => card.area).filter((area) => !entityIds.has(area)))];
           if (missing.length > 0) {
-            throw new Error(`Missing entity configuration: ${missing.join(", ")}.`);
+            throw new Error(`Missing label configuration: ${missing.join(", ")}.`);
           }
           const personIds = new Set(config.people.map((person) => person.id));
           const missingPeople = [...new Set(cards
@@ -3946,7 +3946,7 @@
           document.columns.forEach((column) => {
             if (!configuredIds.has(column.id) && column.cards.length > 0) {
               throw new Error(
-                `${column.label} still contains ${column.cards.length} outcome(s). Move them before removing this column.`,
+                `${column.label} still contains ${column.cards.length} ticket(s). Move them before removing this column.`,
               );
             }
           });
@@ -4096,7 +4096,7 @@
           return {
             checked: false,
             id: nextCardId(document, values.historyEvents),
-            title: values.title || "Untitled outcome",
+            title: values.title || "Untitled ticket",
             priority: values.priority || "P2",
             area: values.area || "meta",
             columnId: values.columnId || document.columns[0]?.id,
@@ -4388,13 +4388,13 @@
           const activeCards = cards.filter((card) => !card.checked);
           const status = Object.fromEntries(columns.map((column) => [column.id, 0]));
           const priority = { P1: 0, P2: 0, P3: 0, P4: 0 };
-          const entities = {};
+          const labels = {};
           const assignees = {};
 
           cards.forEach((card) => {
             if (Object.hasOwn(status, card.columnId)) status[card.columnId] += 1;
             priority[card.priority] += 1;
-            entities[card.area] = (entities[card.area] || 0) + 1;
+            labels[card.area] = (labels[card.area] || 0) + 1;
             const key = card.assignee || "unassigned";
             assignees[key] = (assignees[key] || 0) + 1;
           });
@@ -4489,6 +4489,7 @@
             completionRate: cards.length === 0 ? 0 : Math.round(
               (cards.filter((card) => card.checked).length / cards.length) * 100,
             ),
+            activeLabels: new Set(activeCards.map((card) => card.area)).size,
             activeEntities: new Set(activeCards.map((card) => card.area)).size,
             transitions: rangeEvents.filter((item) => item.record.event === "moved").length,
             completedInRange,
@@ -4498,7 +4499,8 @@
             medianCycleDays: cycleTimes.cycle.medianDays,
             status,
             priority,
-            entities,
+            labels,
+            entities: labels,
             assignees,
             daily,
             throughput: aggregateAnalyticsBuckets(daily, options.aggregation),
@@ -5125,7 +5127,7 @@
             throw new Error("Configuration requires workspace.name.");
           }
           if (!Array.isArray(config.entities)) {
-            throw new Error("Configuration requires an entities array.");
+            throw new Error("Configuration requires the stable entities array used to store labels.");
           }
           if (!Array.isArray(config.people)) {
             throw new Error("Configuration requires a people array.");
@@ -5134,7 +5136,7 @@
             throw new Error("Configuration requires a columns array.");
           }
 
-          validateDirectory(config.entities, "entity", false);
+          validateDirectory(config.entities, "label", false);
           validateDirectory(config.people, "person", true);
           validateColumns(config.columns);
           return true;
@@ -5902,8 +5904,8 @@
             addButton.type = "button";
             addButton.className = "column-add-button";
             addButton.textContent = "+";
-            addButton.title = `Add outcome to ${column.label}`;
-            addButton.setAttribute("aria-label", `Add outcome to ${column.label}`);
+            addButton.title = `Add ticket to ${column.label}`;
+            addButton.setAttribute("aria-label", `Add ticket to ${column.label}`);
             addButton.addEventListener("click", () => openCardDialog(null, column.id));
             header.append(index, titleBlock, count, addButton);
 
@@ -5931,7 +5933,7 @@
               empty.className = "empty-column";
               const copy = document.createElement("div");
               const strong = document.createElement("strong");
-              strong.textContent = "No matching outcomes";
+              strong.textContent = "No matching tickets";
               copy.append(strong, document.createTextNode("Adjust the search or filters."));
               empty.append(copy);
               cardList.append(empty);
@@ -6149,7 +6151,7 @@
           const sourceCardId = state.actionMenuCardId;
           closeCardActionMenu();
           if (!sourceCardId) {
-            showError(new Error("Choose an outcome to duplicate."));
+            showError(new Error("Choose a ticket to duplicate."));
             return;
           }
 
@@ -6181,7 +6183,7 @@
           const copy = document.createElement("div");
           const strong = document.createElement("strong");
           strong.textContent = `${column.label} is clear`;
-          copy.append(strong, document.createTextNode("Add an outcome or move one here."));
+          copy.append(strong, document.createTextNode("Add a ticket or move one here."));
           empty.append(copy);
           return empty;
         }
@@ -6288,7 +6290,7 @@
           elements.areaFilter.replaceChildren();
           const all = document.createElement("option");
           all.value = "";
-          all.textContent = "All entities";
+          all.textContent = "All labels";
           elements.areaFilter.append(all);
           [...areas].sort().forEach((area) => {
             const option = document.createElement("option");
@@ -6416,9 +6418,9 @@
           elements.cardAssignee.value = card?.detailValues.assignee || "";
           elements.cardColumn.value = card?.columnId || defaultColumn || firstColumnId();
           elements.cardPriority.value = card?.priority || "P2";
-          elements.cardDialogEyebrow.textContent = card ? card.id : "New outcome";
-          elements.cardDialogTitle.textContent = card ? "Edit outcome" : "Add an outcome";
-          elements.submitCardButton.textContent = card ? "Apply changes" : "Add outcome";
+          elements.cardDialogEyebrow.textContent = card ? card.id : "New ticket";
+          elements.cardDialogTitle.textContent = card ? "Edit ticket" : "Add a ticket";
+          elements.submitCardButton.textContent = card ? "Apply changes" : "Add ticket";
           elements.deleteCardButton.hidden = !card;
           elements.cardDialog.showModal();
         }
@@ -6438,7 +6440,7 @@
             renderBoard();
             populateAreaFilter();
             elements.cardDialog.close();
-            showToast(state.editingCardId ? "Outcome updated." : "Outcome added.", "success");
+            showToast(state.editingCardId ? "Ticket updated." : "Ticket added.", "success");
           } catch (error) {
             showError(error);
           }
@@ -6459,10 +6461,10 @@
 
         function validateCardForm(values) {
           if (!values.title) {
-            throw new Error("Outcome title is required.");
+            throw new Error("Ticket title is required.");
           }
           if (!state.config.entities.some((entity) => entity.id === values.area)) {
-            throw new Error("Choose an entity from the saved entity list.");
+            throw new Error("Choose a label from the saved label list.");
           }
           if (values.detailValues.assignee
             && !state.config.people.some((person) => person.id === values.detailValues.assignee)) {
@@ -6500,7 +6502,7 @@
         function requestCardDeletion(cardId = state.editingCardId, focusTarget = elements.deleteCardButton) {
           const found = cardId ? model.findCard(state.board, cardId) : null;
           if (!found) {
-            showError(new Error("Could not find the selected outcome. Reload the board and try again."));
+            showError(new Error("Could not find the selected ticket. Reload the board and try again."));
             return;
           }
           state.pendingDeletionCardId = found.card.id;
@@ -6524,7 +6526,7 @@
         function confirmCardDeletion() {
           const cardId = state.pendingDeletionCardId;
           if (!cardId) {
-            showError(new Error("Choose an outcome to delete."));
+            showError(new Error("Choose a ticket to delete."));
             return;
           }
           const found = model.findCard(state.board, cardId);
@@ -6748,7 +6750,7 @@
           state.pendingColumnRemoval = { id: column.id, index };
           state.columnRemovalFocusTarget = focusTarget;
           elements.columnRemovalMessage.textContent = cardCount > 0
-            ? `${column.name} contains ${cardCount} outcome(s). Choose a destination before removing it.`
+            ? `${column.name} contains ${cardCount} ticket(s). Choose a destination before removing it.`
             : `Remove the empty ${column.name} column?`;
           elements.columnRemovalTargetField.hidden = cardCount === 0;
           elements.columnRemovalTarget.replaceChildren();
@@ -6784,7 +6786,7 @@
           const current = state.board?.columns.find((column) => column.id === pending.id);
           const targetId = elements.columnRemovalTarget.value;
           if (current?.cards.length > 0 && !targetId) {
-            showColumnValidation("Choose a destination for the outcomes in this column.");
+            showColumnValidation("Choose a destination for the tickets in this column.");
             return;
           }
 
@@ -6882,7 +6884,7 @@
           name.type = "text";
           name.value = item.name;
           name.maxLength = 80;
-          name.setAttribute("aria-label", isPerson ? "Person name" : "Entity name");
+          name.setAttribute("aria-label", isPerson ? "Person name" : "Label name");
           name.addEventListener("input", (event) => {
             item.name = event.target.value;
             markDirty("config");
@@ -6902,7 +6904,7 @@
           id.maxLength = 50;
           id.pattern = "[a-z0-9][a-z0-9\\-]*";
           id.className = `${type}-id-input`;
-          id.setAttribute("aria-label", isPerson ? "Person ID" : "Entity area ID");
+          id.setAttribute("aria-label", isPerson ? "Person ID" : "Label ID");
           id.addEventListener("change", (event) => {
             if (isPerson) {
               changePersonId(item, event.target);
@@ -6984,7 +6986,7 @@
               .filter((card) => card.detailValues.assignee === person.id)
             : [];
           if (usage.length > 0) {
-            showError(new Error(`${person.name} is assigned to ${usage.length} outcome(s). Reassign them before removing this person.`));
+            showError(new Error(`${person.name} is assigned to ${usage.length} ticket(s). Reassign them before removing this person.`));
             return;
           }
           if (!window.confirm(`Remove ${person.name} from the people list?`)) {
@@ -7031,12 +7033,12 @@
 
         function addEntity() {
           let suffix = state.config.entities.length + 1;
-          while (state.config.entities.some((entity) => entity.id === `entity-${suffix}`)) {
+          while (state.config.entities.some((entity) => entity.id === `label-${suffix}`)) {
             suffix += 1;
           }
           state.config.entities.push({
-            id: `entity-${suffix}`,
-            name: "New entity",
+            id: `label-${suffix}`,
+            name: "New label",
             color: "#2e6ea6",
           });
           markDirty("config");
@@ -7053,10 +7055,10 @@
             ? state.board.columns.flatMap((column) => column.cards).filter((card) => card.area === entity.id)
             : [];
           if (usage.length > 0) {
-            showError(new Error(`${entity.name} is assigned to ${usage.length} outcome(s). Reassign them before removing it.`));
+            showError(new Error(`${entity.name} is assigned to ${usage.length} ticket(s). Reassign them before removing it.`));
             return;
           }
-          if (!window.confirm(`Remove ${entity.name} from the entity palette?`)) {
+          if (!window.confirm(`Remove ${entity.name} from the label palette?`)) {
             return;
           }
           state.config.entities.splice(index, 1);
@@ -7128,7 +7130,7 @@
           elements.metricForecastDetail.textContent = analytics.forecast.available
             ? "Historical throughput range"
             : "Needs more recorded history";
-          elements.statusTotal.textContent = `${analytics.total} outcomes`;
+          elements.statusTotal.textContent = `${analytics.total} tickets`;
           elements.historyEventCount.textContent = `${analytics.historyEvents} events`;
           elements.analyticsTimeZone.textContent = analytics.metadata.timeZone;
           elements.analyticsRangeSummary.textContent = `${formatShortDateKey(analytics.metadata.range.start)} to ${formatShortDateKey(analytics.metadata.range.end)}`;
@@ -7182,7 +7184,7 @@
             .sort((left, right) => left.label.localeCompare(right.label));
           const assigned = new Set(cards.map((card) => card.detailValues.assignee).filter(Boolean));
           populateAnalyticsSelect(elements.analyticsStatus, "All statuses", statuses);
-          populateAnalyticsSelect(elements.analyticsArea, "All entities", entities);
+          populateAnalyticsSelect(elements.analyticsArea, "All labels", entities);
           populateAnalyticsSelect(elements.analyticsAssignee, "All assignees", [
             { value: "unassigned", label: "Unassigned" },
             ...people.filter((person) => assigned.has(person.value)),
@@ -7301,7 +7303,12 @@
               netWorkChange: analytics.comparison.netWorkChange,
               reopenedInRange: analytics.reworkCount,
             },
-            distribution: { status: analytics.status, priority: analytics.priority, entities: analytics.entities },
+            distribution: {
+              status: analytics.status,
+              priority: analytics.priority,
+              labels: analytics.labels,
+              entities: analytics.labels,
+            },
             throughput: exportThroughput(analytics.throughput),
             cumulativeFlow: analytics.cumulativeFlow,
             leadTime: analytics.leadTime,
@@ -7376,7 +7383,7 @@
         function renderStatusChart(analytics) {
           elements.statusChart.replaceChildren();
           if (analytics.total === 0) {
-            elements.statusChart.append(createAnalyticsEmpty("No current outcomes match this filter."));
+            elements.statusChart.append(createAnalyticsEmpty("No current tickets match this filter."));
             return;
           }
           const track = document.createElement("div");
@@ -7385,7 +7392,7 @@
             const count = analytics.status[column.id];
             if (count === 0) return;
             const segment = createAnalyticsAction(
-              `${column.label}: ${count} outcomes`,
+              `${column.label}: ${count} tickets`,
               "status-segment",
               analytics.cards.filter((card) => card.columnId === column.id).map((card) => card.id),
             );
@@ -7400,7 +7407,7 @@
           legend.className = "status-legend";
           currentColumns().forEach((column, index) => {
             const item = createAnalyticsAction(
-              `${column.label}: ${analytics.status[column.id]} outcomes`,
+              `${column.label}: ${analytics.status[column.id]} tickets`,
               "status-legend-item",
               analytics.cards.filter((card) => card.columnId === column.id).map((card) => card.id),
             );
@@ -7420,7 +7427,7 @@
         function renderPriorityChart(analytics) {
           elements.priorityChart.replaceChildren();
           if (analytics.total === 0) {
-            elements.priorityChart.append(createAnalyticsEmpty("No current outcomes match this filter."));
+            elements.priorityChart.append(createAnalyticsEmpty("No current tickets match this filter."));
             return;
           }
           const colors = { P1: "#b52f42", P2: "#c65d18", P3: "#2e6ea6", P4: "#617078" };
@@ -7438,10 +7445,10 @@
 
         function renderEntityChart(analytics) {
           elements.entityChart.replaceChildren();
-          const entries = Object.entries(analytics.entities)
+          const entries = Object.entries(analytics.labels)
             .sort((left, right) => right[1] - left[1] || getEntity(left[0]).name.localeCompare(getEntity(right[0]).name));
           if (entries.length === 0) {
-            elements.entityChart.append(createAnalyticsEmpty("No active entity work."));
+            elements.entityChart.append(createAnalyticsEmpty("No active label work."));
             return;
           }
           const maximum = Math.max(1, ...entries.map(([, count]) => count));
@@ -7458,7 +7465,7 @@
         }
 
         function createAnalyticsBar(labelText, value, maximum, color, cardIds) {
-          const row = createAnalyticsAction(`${labelText}: ${value} outcomes`, "analytics-bar-row", cardIds);
+          const row = createAnalyticsAction(`${labelText}: ${value} tickets`, "analytics-bar-row", cardIds);
           row.className = "analytics-bar-row";
           const label = document.createElement("span");
           label.textContent = labelText;
@@ -7552,7 +7559,7 @@
           if (analytics.aging.items.length === 0) {
             elements.agingWork.append(createAnalyticsEmpty(
               analytics.aging.unknown.length > 0
-                ? "Active outcomes have no recorded entry into their current status yet."
+                ? "Active tickets have no recorded entry into their current status yet."
                 : "No active work matches this filter.",
             ));
             return;
@@ -7574,7 +7581,7 @@
           if (analytics.aging.unknown.length > 0) {
             const unknown = document.createElement("p");
             unknown.className = "analytics-note";
-            unknown.textContent = `${analytics.aging.unknown.length} active outcome(s) have an unknown age because history has no recorded entry into the current status.`;
+            unknown.textContent = `${analytics.aging.unknown.length} active ticket(s) have an unknown age because history has no recorded entry into the current status.`;
             elements.agingWork.append(unknown);
           }
         }
@@ -7635,7 +7642,7 @@
           elements.qualityChecks.replaceChildren();
           const checks = [
             {
-              label: "Active outcomes without a description",
+              label: "Active tickets without a description",
               items: analytics.quality.missingDescriptions,
             },
             {
@@ -7711,7 +7718,7 @@
           elements.forecast.append(summary);
           if (analytics.forecast.targetDate) {
             const target = document.createElement("p");
-            target.textContent = `${analytics.forecast.whatCanFinish} outcomes could finish by ${formatShortDateKey(analytics.forecast.targetDate)} at typical recorded throughput.`;
+            target.textContent = `${analytics.forecast.whatCanFinish} tickets could finish by ${formatShortDateKey(analytics.forecast.targetDate)} at typical recorded throughput.`;
             elements.forecast.append(target);
           }
         }
@@ -7759,7 +7766,7 @@
           const cards = state.analytics.cards.filter((card) => ids.has(card.id));
           if (cards.length === 0) {
             elements.analyticsDrilldown.append(createAnalyticsEmpty(
-              "The supporting data has no current outcome to open. It may be historical or deleted work.",
+              "The supporting data has no current ticket to open. It may be historical or deleted work.",
             ));
             return;
           }

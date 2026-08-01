@@ -35,7 +35,7 @@ export interface BoardDocument {
   columns: BoardColumn[];
 }
 
-export interface Entity {
+export interface Label {
   id: string;
   name: string;
   color: string;
@@ -58,7 +58,7 @@ export interface KanbanConfig {
     accent: string;
     density: 'comfortable' | 'compact';
   };
-  entities: Entity[];
+  entities: Label[];
   people: Person[];
   columns: ColumnDefinition[];
 }

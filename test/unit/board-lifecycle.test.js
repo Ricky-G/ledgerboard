@@ -24,7 +24,7 @@ test('parseBoard requires all five columns', () => {
 });
 
 test('parseBoard preserves CRLF newlines through a round trip', () => {
-  const source = boardWith(card({ id: 'AO-001', title: 'Windows outcome' })).replace(/\n/g, '\r\n');
+  const source = boardWith(card({ id: 'AO-001', title: 'Windows ticket' })).replace(/\n/g, '\r\n');
   const board = model.parseBoard(source);
   assert.equal(board.newline, '\r\n');
   assert.equal(model.serializeBoard(board), source);
@@ -34,7 +34,7 @@ test('createCard reserves the next free ID and applies defaults', () => {
   const board = model.parseBoard(boardWith(card({ id: 'AO-007', title: 'Existing' })));
   const created = model.createCard(board);
   assert.equal(created.id, 'AO-008');
-  assert.equal(created.title, 'Untitled outcome');
+  assert.equal(created.title, 'Untitled ticket');
   assert.equal(created.priority, 'P2');
   assert.equal(created.area, 'meta');
   assert.equal(created.columnId, 'inbox');
@@ -166,7 +166,7 @@ test('validateBoard rejects duplicate identifiers across columns', () => {
 test('serializeBoard preserves description and assignee details in order', () => {
   const source = boardWith(card({
     id: 'AO-001',
-    title: 'Detailed outcome',
+    title: 'Detailed ticket',
     details: [['Description', 'Written detail.'], ['Assignee', 'alex-smith']],
   }));
   const board = model.parseBoard(source);

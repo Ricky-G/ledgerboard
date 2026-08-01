@@ -6,7 +6,7 @@ const model = require('../../src/webview/board-model.js');
 function createBoard(cardCount) {
   const cards = Array.from({ length: cardCount }, (_, index) => {
     const id = `AO-${String(index + 1).padStart(4, '0')}`;
-    return `- [ ] ${id} — Outcome ${index + 1} · P3 · area:internal\n    - **Description:** Deterministic performance fixture ${index + 1}.`;
+    return `- [ ] ${id} — Ticket ${index + 1} · P3 · area:internal\n    - **Description:** Deterministic performance fixture ${index + 1}.`;
   }).join('\n\n');
   return `# Performance Board
 
@@ -65,7 +65,7 @@ test('builds analytics for 10,000 history events within the performance budget',
     changes: index % 3 === 0 ? undefined : ['priority'],
     area: 'internal',
     priority: 'P3',
-    title: `Outcome ${(index % 100) + 1}`,
+    title: `Ticket ${(index % 100) + 1}`,
   }));
   const started = performance.now();
   const analytics = model.buildAnalytics(board, events, {

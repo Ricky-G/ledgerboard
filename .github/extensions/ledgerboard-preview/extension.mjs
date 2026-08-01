@@ -200,7 +200,7 @@ await joinSession({
                 },
                 {
                     name: "preview_status",
-                    description: "Report the number of cards, people, entities, and history events in the sandbox.",
+                    description: "Report the number of tickets, people, labels, and history events in the sandbox.",
                     handler: async (ctx) => {
                         const entry = servers.get(ctx.instanceId);
                         if (!entry) {
@@ -213,6 +213,7 @@ await joinSession({
                         );
                         return {
                             cards: validation.cardCount,
+                            labels: validation.config.entities.length,
                             entities: validation.config.entities.length,
                             people: validation.config.people.length,
                             historyEvents: validation.historyEvents.length,

@@ -84,7 +84,7 @@ test.describe('accessibility and keyboard use', () => {
 
     const confirmation = page.locator('#deleteConfirmationDialog');
     await expect(confirmation).toBeVisible();
-    await expect(confirmation).toHaveAccessibleName('Delete outcome?');
+    await expect(confirmation).toHaveAccessibleName('Delete ticket?');
     await expect(page.locator('#cancelDeleteCardButton')).toBeFocused();
 
     await page.keyboard.press('Escape');

@@ -70,7 +70,7 @@ test('historical card IDs remain reserved', () => {
   assert.equal(card.id, 'AO-030');
 });
 
-test('legacy customer configuration migrates to canonical entities', () => {
+test('legacy customer configuration migrates to the stable entities field', () => {
   const legacy = `# Config\n\n\`\`\`json\n${JSON.stringify({
     version: 1,
     workspace: { name: 'Legacy' },
@@ -147,7 +147,7 @@ test('rejects invalid column configuration and unresolved non-empty column remov
 
   assert.throws(
     () => model.reconfigureColumns(board, config.columns),
-    /Doing still contains 1 outcome/,
+    /Doing still contains 1 ticket/,
   );
   assert.throws(
     () => model.validateConfig({
@@ -455,7 +455,7 @@ test('mixed line endings produce a specific normalizable error', () => {
 
 test('multiline descriptions produce a specific non-normalizable error', () => {
   const source = boardWith(
-    '- [ ] AO-001 — First outcome · P1 · area:internal\n'
+    '- [ ] AO-001 — First ticket · P1 · area:internal\n'
       + '    - **Description:** First line.\n'
       + '      Second physical line.',
   );
@@ -469,7 +469,7 @@ test('multiline descriptions produce a specific non-normalizable error', () => {
 
 test('unsupported detail fields are preserved and warned', () => {
   const source = boardWith(
-    '- [ ] AO-001 — First outcome · P1 · area:internal\n'
+    '- [ ] AO-001 — First ticket · P1 · area:internal\n'
       + '    - **Description:** First description.\n'
       + '    - **Custom:** Preserved value.',
   );
@@ -490,20 +490,20 @@ test('invalid checkbox markers report the source line', () => {
   assert.throws(() => model.parseBoard(source), /Invalid card format on line 7/);
 });
 
-test('bundle validation reports missing entities', () => {
-  const source = boardWith('- [ ] AO-001 — External outcome · P2 · area:missing');
+test('bundle validation reports missing labels', () => {
+  const source = boardWith('- [ ] AO-001 — External ticket · P2 · area:missing');
   assert.throws(
     () => model.validateBundleSources(source, CONFIG, HISTORY),
-    /Missing entity configuration: missing/,
+    /Missing label configuration: missing/,
   );
 });
 
-test('duplicate entity IDs are rejected', () => {
+test('duplicate label IDs are rejected', () => {
   const duplicate = CONFIG.replace(
     '"entities":[{"id":"internal","name":"Internal","color":"#167d74"}]',
     '"entities":[{"id":"internal","name":"Internal","color":"#167d74"},{"id":"internal","name":"Duplicate","color":"#7257b5"}]',
   );
-  assert.throws(() => model.parseConfig(duplicate), /Duplicate entity ID: internal/);
+  assert.throws(() => model.parseConfig(duplicate), /Duplicate label ID: internal/);
 });
 
 test('duplicate person IDs are rejected', () => {
@@ -516,7 +516,7 @@ test('duplicate person IDs are rejected', () => {
   assert.throws(() => model.parseConfig(duplicate), /Duplicate person ID: alex-smith/);
 });
 
-test('invalid entity colors are rejected', () => {
+test('invalid label colors are rejected', () => {
   assert.throws(() => model.parseConfig(CONFIG.replace('#167d74', 'blue')), /Invalid color for internal/);
 });
 
@@ -526,7 +526,7 @@ test('malformed history events report their line', () => {
 });
 
 test('history rejects malformed recorded statuses', () => {
-  const history = `${HISTORY}    {"at":"2026-01-01T10:00:00Z","card":"AO-001","event":"created","to":"not valid","area":"internal","priority":"P2","title":"Outcome"}\n`;
+  const history = `${HISTORY}    {"at":"2026-01-01T10:00:00Z","card":"AO-001","event":"created","to":"not valid","area":"internal","priority":"P2","title":"Ticket"}\n`;
   assert.throws(() => model.parseHistory(history), /History event on line 4 has an invalid to status/);
 });
 
@@ -539,7 +539,7 @@ test('normalization is idempotent for canonical boards', () => {
 
 test('noncanonical formatting reports the first differing line', () => {
   const source = boardWith(
-    '- [ ] AO-001 — First outcome · P1 · area:internal\n'
+    '- [ ] AO-001 — First ticket · P1 · area:internal\n'
       + '    - **Description:** First description.   ',
   );
   const report = model.analyzeBoardSource(source);
@@ -558,7 +558,7 @@ test('analytics handles an empty board', () => {
 });
 
 test('analytics handles an all-done board', () => {
-  const source = boardWith('- [x] AO-001 — Finished outcome · P2 · area:internal', 'Done');
+  const source = boardWith('- [x] AO-001 — Finished ticket · P2 · area:internal', 'Done');
   const analytics = model.buildAnalytics(model.parseBoard(source), [], { now: '2026-01-15T12:00:00Z' });
   assert.equal(analytics.total, 1);
   assert.equal(analytics.done, 1);
@@ -573,7 +573,7 @@ test('analytics derives explainable health, flow, aging, quality, and workload m
       + '    - **Description:** Prepare the decision record.\n'
       + '    - **Assignee:** alex-smith',
     'Review / Blocked': '- [ ] AO-003 — Await dependency · P1 · area:internal',
-    Done: '- [x] AO-004 — Publish outcome · P3 · area:internal\n'
+    Done: '- [x] AO-004 — Publish ticket · P3 · area:internal\n'
       + '    - **Assignee:** alex-smith',
   });
   const event = (at, card, eventType, extra = {}) => ({

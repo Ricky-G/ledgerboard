@@ -70,7 +70,7 @@ test('opens, styles, edits, and saves a local Markdown bundle without companion 
   expect(saved['KANBAN-HISTORY.md']).toContain('"event":"updated"');
 });
 
-test('duplicates an outcome and records its source in a local Markdown bundle', async ({ page }) => {
+test('duplicates a ticket and records its source in a local Markdown bundle', async ({ page }) => {
   const bundle = createBundle(model);
   await installStandaloneFolder(page, bundle);
   await page.goto('/?standalone=1');
