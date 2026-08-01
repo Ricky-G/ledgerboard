@@ -163,11 +163,23 @@ test.describe('settings view', () => {
     await openBoard(page);
     await page.locator('.view-tab[data-view="settings"]').click();
 
+    const columns = page.locator('#columnList .column-row');
     for (let index = 0; index < 5; index += 1) {
       await page.locator('#addColumnButton').click();
+      await expect(columns).toHaveCount(6 + index);
     }
 
-    await expect(page.locator('#columnList .column-row')).toHaveCount(10);
+    await expect(columns).toHaveCount(10);
+    const names = await columns.locator('.column-name-input').evaluateAll(
+      (inputs) => inputs.map((input) => input.value),
+    );
+    expect(names.slice(5)).toEqual([
+      'New column',
+      'New column 2',
+      'New column 3',
+      'New column 4',
+      'New column 5',
+    ]);
     await expect(page.locator('#addColumnButton')).toBeDisabled();
     await expect(page.locator('#columnsLimitMessage')).toHaveText(
       'A board can have a maximum of 10 columns.',
