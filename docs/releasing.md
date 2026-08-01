@@ -123,11 +123,21 @@ itself, which is the one thing CI on a source tree cannot fully verify.
 
 ## When something fails
 
-A failure in any release stage opens or updates a `[Automation] Release automation failed` issue with
-a per-stage result table and a link to the run. A tagged version that never published leaves the
-Marketplace behind this repository, and that is not visible unless something reports it.
+A failure before release preparation and a failure after tagging need different recovery paths.
 
-To recover, fix the cause and then publish the **existing** tag rather than cutting a new version:
+If a commit reaches `main` without all required checks succeeding, the release workflow stops before
+creating a tag and opens or updates `[Automation] Main validation failed`. The issue identifies the
+associated pull request, merger, failed CI layers, and direct job links. Fix those failures through a
+corrective pull request. If the administrator emergency bypass was used, record why it was necessary
+and link the corrective pull request on that issue.
+
+If release preparation, tag resolution, or Marketplace publication fails, the workflow opens or
+updates `[Automation] Release automation failed` with a per-stage result table and a link to the run.
+A tagged version that never published leaves the Marketplace behind this repository, and that is not
+visible unless something reports it.
+
+For a tagged-release failure, fix the cause and then publish the **existing** tag rather than cutting
+a new version:
 
 ```powershell
 gh workflow run publish.yml --ref main -f tag=v0.5.0

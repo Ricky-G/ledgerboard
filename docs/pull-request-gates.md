@@ -87,9 +87,23 @@ Repository administrators must keep this ruleset active with:
 - resolved review conversations;
 - direct pushes, force pushes, and branch deletion blocked for normal contributors;
 - GitHub code-scanning merge protection enabled for CodeQL, blocking errors and high or critical security alerts;
-- an administrator emergency bypass only for urgent, documented recovery work.
+- an administrator emergency bypass in pull-request-only mode.
 
-The current policy deliberately does not require code-owner approval. An emergency bypass is not a routine merge path: the administrator must record the reason and open follow-up work to restore any skipped validation.
+The current policy deliberately does not require code-owner approval. An emergency bypass is not a
+routine merge path. It is reserved for urgent recovery, such as reverting a broken deployment when the
+normal checks cannot complete.
+
+If a pull request reaches `main` without a successful `quality` check, the release gate stops before it
+creates a tag and opens or updates `[Automation] Main validation failed`. That issue links the merged
+pull request and each failed check. The administrator who used the bypass must complete its recovery
+record:
+
+1. Document why the normal merge path could not be used.
+2. Link the corrective pull request.
+3. Confirm every required check passes on the corrective merge.
+
+Do not use the bypass to avoid waiting for checks or to merge a known product or test failure. Direct
+push bypass remains disabled so every emergency change still has a reviewable pull request.
 
 ## Credential isolation
 
