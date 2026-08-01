@@ -6711,6 +6711,17 @@
           elements.columnList.children[targetIndex]?.querySelector(".column-order-button")?.focus();
         }
 
+        function nextAvailableColumnName() {
+          const names = new Set(state.config.columns.map((column) => column.name.toLocaleLowerCase()));
+          let suffix = 1;
+          let candidate = "New column";
+          while (names.has(candidate.toLocaleLowerCase())) {
+            suffix += 1;
+            candidate = `New column ${suffix}`;
+          }
+          return candidate;
+        }
+
         function addColumn() {
           if (state.config.columns.length >= model.MAX_COLUMNS) {
             showColumnValidation(`A board can have a maximum of ${model.MAX_COLUMNS} columns.`);
@@ -6721,7 +6732,7 @@
           while (state.config.columns.some((column) => column.id === `column-${suffix}`)) {
             suffix += 1;
           }
-          state.config.columns.push({ id: `column-${suffix}`, name: "New column" });
+          state.config.columns.push({ id: `column-${suffix}`, name: nextAvailableColumnName() });
           applyColumnChanges();
           elements.columnList.lastElementChild?.querySelector(".column-name-input")?.select();
         }
