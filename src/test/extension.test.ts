@@ -60,9 +60,9 @@ suite('Extension Test Suite', function () {
 			const base = await repository.read();
 			const adjacentCards = base.boardSource.replace(
 				'<!-- empty -->',
-				'- [ ] AO-001 — First outcome · P1 · area:meta\n'
+				'- [ ] AO-001 — First ticket · P1 · area:meta\n'
 					+ '    - **Description:** First description.\n'
-					+ '- [ ] AO-002 — Second outcome · P2 · area:meta\n'
+					+ '- [ ] AO-002 — Second ticket · P2 · area:meta\n'
 					+ '    - **Description:** Second description.',
 			);
 			const boardDocument = await vscode.workspace.openTextDocument(repository.uri(BOARD_FILE));
@@ -105,7 +105,7 @@ suite('Extension Test Suite', function () {
 			const base = await repository.read();
 			const multiline = base.boardSource.replace(
 				'<!-- empty -->',
-				'- [ ] AO-001 — First outcome · P1 · area:meta\n'
+				'- [ ] AO-001 — First ticket · P1 · area:meta\n'
 					+ '    - **Description:** First line.\n'
 					+ '      Second physical line.',
 			);
@@ -263,7 +263,7 @@ suite('Extension Test Suite', function () {
 			const nestedBundle = await nestedRepository.read();
 			const invalidBoard = nestedBundle.boardSource.replace(
 				'<!-- empty -->',
-				'- [ ] AO-001 — Invalid nested outcome · P2 · area:missing-entity',
+				'- [ ] AO-001 — Invalid nested ticket · P2 · area:missing-label',
 			);
 			await vscode.workspace.fs.writeFile(
 				nestedRepository.uri(BOARD_FILE),
@@ -294,8 +294,8 @@ suite('Extension Test Suite', function () {
 			const bundle = await repository.readFromDisk();
 			const adjacent = bundle.boardSource.replace(
 				'<!-- empty -->',
-				'- [ ] AO-001 — First outcome · P1 · area:meta\n'
-					+ '- [ ] AO-002 — Second outcome · P2 · area:meta',
+				'- [ ] AO-001 — First ticket · P1 · area:meta\n'
+					+ '- [ ] AO-002 — Second ticket · P2 · area:meta',
 			);
 			await vscode.workspace.fs.writeFile(repository.uri(BOARD_FILE), new TextEncoder().encode(adjacent));
 
@@ -371,7 +371,7 @@ suite('Extension Test Suite', function () {
 			await repository.initialize();
 			const withCard = (await repository.readFromDisk()).boardSource.replace(
 				'<!-- empty -->',
-				'- [ ] AO-001 — Existing outcome · P2 · area:meta',
+				'- [ ] AO-001 — Existing ticket · P2 · area:meta',
 			);
 			await vscode.workspace.fs.writeFile(
 				repository.uri(BOARD_FILE),
@@ -381,7 +381,7 @@ suite('Extension Test Suite', function () {
 			const second = await repository.initialize();
 			assert.deepEqual(second.created, []);
 			assert.deepEqual([...second.preserved].sort(), [...BUNDLE_FILES].sort());
-			assert.match((await repository.readFromDisk()).boardSource, /AO-001 — Existing outcome/);
+			assert.match((await repository.readFromDisk()).boardSource, /AO-001 — Existing ticket/);
 		});
 	});
 
@@ -409,16 +409,16 @@ suite('Extension Test Suite', function () {
 				new vscode.Range(document.positionAt(0), document.positionAt(document.getText().length)),
 				document.getText().replace(
 					'<!-- empty -->',
-					'- [ ] AO-001 — Unsaved outcome · P3 · area:meta',
+					'- [ ] AO-001 — Unsaved ticket · P3 · area:meta',
 				),
 			);
 			assert.equal(await vscode.workspace.applyEdit(edit), true);
 
-			assert.match((await repository.read()).boardSource, /AO-001 — Unsaved outcome/);
-			assert.doesNotMatch((await repository.readFromDisk()).boardSource, /AO-001 — Unsaved outcome/);
+			assert.match((await repository.read()).boardSource, /AO-001 — Unsaved ticket/);
+			assert.doesNotMatch((await repository.readFromDisk()).boardSource, /AO-001 — Unsaved ticket/);
 
 			assert.equal(await document.save(), true);
-			assert.match((await repository.readFromDisk()).boardSource, /AO-001 — Unsaved outcome/);
+			assert.match((await repository.readFromDisk()).boardSource, /AO-001 — Unsaved ticket/);
 		});
 	});
 
@@ -429,7 +429,7 @@ suite('Extension Test Suite', function () {
 			const base = await repository.read();
 			const nextBoardSource = base.boardSource.replace(
 				'<!-- empty -->',
-				'- [ ] AO-001 — Recorded outcome · P1 · area:meta',
+				'- [ ] AO-001 — Recorded ticket · P1 · area:meta',
 			);
 
 			const historyDocument = await vscode.workspace.openTextDocument(repository.uri(HISTORY_FILE));
@@ -459,10 +459,10 @@ suite('Extension Test Suite', function () {
 
 			await assert.rejects(repository.save({
 				base,
-				// area:not-a-real-entity is not present in KANBAN-CONFIG.md.
+				// area:not-a-real-label is not present in KANBAN-CONFIG.md.
 				nextBoardSource: base.boardSource.replace(
 					'<!-- empty -->',
-					'- [ ] AO-001 — Rejected outcome · P1 · area:not-a-real-entity',
+					'- [ ] AO-001 — Rejected ticket · P1 · area:not-a-real-label',
 				),
 				nextConfigSource: base.configSource,
 				saveBoard: true,
@@ -553,7 +553,7 @@ suite('Extension Test Suite', function () {
 			const base = await repository.read();
 			const populated = base.boardSource.replace(
 				'<!-- empty -->',
-				'- [ ] AO-001 — Round trip outcome · P2 · area:meta\n'
+				'- [ ] AO-001 — Round trip ticket · P2 · area:meta\n'
 					+ '    - **Description:** Stable text.',
 			);
 

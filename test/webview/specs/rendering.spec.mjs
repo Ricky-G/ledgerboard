@@ -18,7 +18,7 @@ test.describe('board rendering', () => {
     await expect(page.locator('.kanban-card')).toHaveCount(6);
   });
 
-  test('shows card identity, entity, priority, and assignee', async ({ page }) => {
+  test('shows card identity, label, priority, and assignee', async ({ page }) => {
     await openBoard(page);
 
     const card = page.locator('[data-card-id="AO-004"]');
@@ -42,7 +42,7 @@ test.describe('board rendering', () => {
   test('reports board statistics from the loaded bundle', async ({ page }) => {
     await openBoard(page);
 
-    await expect(page.locator('#statusTotal')).toHaveText('6 outcomes');
+    await expect(page.locator('#statusTotal')).toHaveText('6 tickets');
     await expect(page.locator('#historyEventCount')).toHaveText('3 events');
     await expect(page.locator('#activeCount')).toHaveText('5');
     await expect(page.locator('#doingCount')).toHaveText('1');

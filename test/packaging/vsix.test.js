@@ -130,6 +130,12 @@ test('declares every contributed command in activation-safe form', () => {
   }
 });
 
+test('uses ticket terminology without changing the automation command identifier', () => {
+  const command = manifest.contributes.commands.find((entry) => entry.command === 'ledgerBoard.addOutcome');
+  assert.ok(command, 'The ticket command is missing from the manifest.');
+  assert.equal(command.title, 'Add Ticket');
+});
+
 test('declares the engine range the CI matrix validates', () => {
   assert.ok(manifest.engines.vscode, 'The manifest must declare a VS Code engine range.');
   assert.match(manifest.engines.vscode, /^\^1\.\d+\.\d+$/);

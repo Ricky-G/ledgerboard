@@ -8,12 +8,12 @@ export const BUNDLE_FILES = [BOARD_FILE, CONFIG_FILE, HISTORY_FILE] as const;
 export const BOARD_TEMPLATE = `# Kanban Board
 
 > Markdown is the source of truth. Status is the column. Description and Assignee are optional detail fields.
-> **Card format:** \`AO-NNN — Outcome title · P1|P2|P3|P4 · area:<entity-id>\`
+> **Card format:** \`AO-NNN — Ticket title · P1|P2|P3|P4 · area:<label-id>\`
 
 ---
 
 ## Inbox <!-- ledgerboard-column:inbox -->
-_Captured outcomes awaiting triage and commitment._
+_Captured tickets awaiting triage and commitment._
 
 <!-- empty -->
 
@@ -65,7 +65,7 @@ export function createConfigTemplate(workspaceName: string, timezone: string): s
   config.workspace.timezone = timezone;
   return boardModel.serializeConfig('', config).replace(
     'Managed by the local Kanban page.',
-    'Authoritative people directory, entity palette, and appearance settings for LedgerBoard.',
+    'Authoritative people directory, label palette, and appearance settings for LedgerBoard.',
   );
 }
 

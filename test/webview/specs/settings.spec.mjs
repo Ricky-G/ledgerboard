@@ -6,7 +6,7 @@ const configSource = (page) => page.evaluate(() => window.ledgerboardHarness.con
 const boardSource = (page) => page.evaluate(() => window.ledgerboardHarness.boardSource());
 
 test.describe('settings view', () => {
-  test('shows the saved workspace, entities, and people', async ({ page }) => {
+  test('shows the saved workspace, labels, and people', async ({ page }) => {
     await openBoard(page);
     await page.locator('.view-tab[data-view="settings"]').click();
 
@@ -32,7 +32,7 @@ test.describe('settings view', () => {
     await expect(page.locator('#workspaceName')).toHaveText('Renamed workspace');
   });
 
-  test('adds an entity and offers it to new cards', async ({ page }) => {
+  test('adds a label and offers it to new cards', async ({ page }) => {
     await openBoard(page);
     await page.locator('.view-tab[data-view="settings"]').click();
     await page.locator('#addEntityButton').click();
@@ -40,10 +40,11 @@ test.describe('settings view', () => {
     await expect(page.locator('#entityList > *')).toHaveCount(4);
     await saveNow(page);
     const config = await configSource(page);
-    expect(config.match(/"id":/g).length).toBeGreaterThanOrEqual(8);
+    expect(config).toContain('"id": "label-4"');
+    expect(config).toContain('"name": "New label"');
   });
 
-  test('removes an unreferenced entity from card options and saved configuration', async ({ page }) => {
+  test('removes an unreferenced label from card options and saved configuration', async ({ page }) => {
     await openBoard(page);
     await page.locator('#addCardButton').click();
     await page.locator('#cardArea').selectOption('internal');
@@ -65,7 +66,7 @@ test.describe('settings view', () => {
     await expect(page.locator('#cardArea option[value="internal"]')).toHaveCount(0);
   });
 
-  test('leaves an entity unchanged when its removal confirmation is cancelled', async ({ page }) => {
+  test('leaves a label unchanged when its removal confirmation is cancelled', async ({ page }) => {
     await openBoard(page);
     await page.locator('.view-tab[data-view="settings"]').click();
 
@@ -78,14 +79,14 @@ test.describe('settings view', () => {
     expect(await configSource(page)).toContain('"id": "internal"');
   });
 
-  test('blocks removal of an entity referenced by current outcomes', async ({ page }) => {
+  test('blocks removal of a label referenced by current tickets', async ({ page }) => {
     await openBoard(page);
     await page.locator('.view-tab[data-view="settings"]').click();
 
     await page.getByRole('button', { name: 'Remove Northstar launch' }).click();
 
     await expect(page.locator('.toast[data-tone="error"]')).toHaveText(
-      'Northstar launch is assigned to 3 outcome(s). Reassign them before removing it.',
+      'Northstar launch is assigned to 3 ticket(s). Reassign them before removing it.',
     );
     await expect(page.locator('#entityList > *')).toHaveCount(3);
     await expect(page.locator('.kanban-card')).toHaveCount(6);
@@ -118,7 +119,7 @@ test.describe('settings view', () => {
     expect(accent).toBe('#123456');
   });
 
-  test('configures, persists, and reorders board columns without losing outcomes', async ({ page }) => {
+  test('configures, persists, and reorders board columns without losing tickets', async ({ page }) => {
     await openBoard(page);
     await page.locator('.view-tab[data-view="settings"]').click();
 

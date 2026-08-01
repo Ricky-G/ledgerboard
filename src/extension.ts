@@ -18,7 +18,7 @@ export function activate(context: vscode.ExtensionContext): void {
     status,
     vscode.commands.registerCommand('ledgerBoard.initializeBoard', (uri?: vscode.Uri) => initializeBoard(context, uri)),
     vscode.commands.registerCommand('ledgerBoard.openBoard', () => openBoard(context)),
-    vscode.commands.registerCommand('ledgerBoard.addOutcome', () => addOutcome(context)),
+    vscode.commands.registerCommand('ledgerBoard.addOutcome', () => addTicket(context)),
     vscode.commands.registerCommand('ledgerBoard.validateBoard', () => validateBoard(context)),
     vscode.commands.registerCommand('ledgerBoard.normalizeBoard', () => normalizeBoard(context)),
     vscode.commands.registerCommand('ledgerBoard.openStandard', () => openStandard(context)),
@@ -57,13 +57,13 @@ async function openBoard(context: vscode.ExtensionContext): Promise<void> {
   }
 }
 
-async function addOutcome(context: vscode.ExtensionContext): Promise<void> {
+async function addTicket(context: vscode.ExtensionContext): Promise<void> {
   try {
     const repository = await recentOrChooseExistingBoard();
     if (!repository) {return;}
     BoardPanel.show(context, repository).openNewCard();
   } catch (error) {
-    void vscode.window.showErrorMessage(`LedgerBoard could not add an outcome: ${errorMessage(error)}`);
+    void vscode.window.showErrorMessage(`LedgerBoard could not add a ticket: ${errorMessage(error)}`);
   }
 }
 
@@ -75,7 +75,7 @@ async function validateBoard(context: vscode.ExtensionContext): Promise<void> {
     const validation = repository.validate(await repository.read());
     const warningDetail = validation.warnings.length > 0 ? ` ${validation.warnings.length} warning(s) were preserved.` : '';
     await vscode.window.showInformationMessage(
-      `LedgerBoard is valid: ${validation.cardCount} cards, ${validation.config.entities.length} entities, ${validation.config.people.length} people, ${validation.historyEvents.length} history events.${warningDetail}`,
+      `LedgerBoard is valid: ${validation.cardCount} ticket${validation.cardCount === 1 ? '' : 's'}, ${validation.config.entities.length} label${validation.config.entities.length === 1 ? '' : 's'}, ${validation.config.people.length} people, ${validation.historyEvents.length} history events.${warningDetail}`,
     );
   } catch (error) {
     const actions = errorCanNormalize(error) ? ['Normalize formatting', 'Open BOARD.md'] : ['Open BOARD.md'];

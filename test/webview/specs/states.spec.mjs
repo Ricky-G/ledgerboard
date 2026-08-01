@@ -28,14 +28,14 @@ test.describe('load, save, and recovery states', () => {
     await expect(page.locator('#saveButton')).toBeDisabled();
 
     await openCardDialog(page, 'AO-001');
-    await page.locator('#cardTitle').fill('Renamed outcome');
+    await page.locator('#cardTitle').fill('Renamed ticket');
     await page.locator('#submitCardButton').click();
 
     await expect(page.locator('#unsavedIndicator')).toBeVisible();
     await expect(page.locator('#saveButton')).toBeEnabled();
 
     await saveNow(page);
-    expect(await boardSource(page)).toContain('Renamed outcome');
+    expect(await boardSource(page)).toContain('Renamed ticket');
   });
 
   test('saves with the keyboard shortcut', async ({ page }) => {

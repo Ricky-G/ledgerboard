@@ -60,8 +60,8 @@ function boardWith(cardLine, column = 'Inbox') {
 /** Two Inbox cards joined by the supplied separator, for blank-line diagnostics. */
 function boardWithTwoCards(separator = '\n') {
   return boardWith([
-    '- [ ] AO-001 — First outcome · P1 · area:internal\n    - **Description:** First description.',
-    '- [ ] AO-002 — Second outcome · P2 · area:internal\n    - **Description:** Second description.',
+    '- [ ] AO-001 — First ticket · P1 · area:internal\n    - **Description:** First description.',
+    '- [ ] AO-002 — Second ticket · P2 · area:internal\n    - **Description:** Second description.',
   ].join(separator));
 }
 
@@ -71,10 +71,10 @@ function boardWithTwoCards(separator = '\n') {
  */
 function legacyBoardWithManyDoingCards(cardCount) {
   const doingCards = Array.from({ length: cardCount }, (_, index) => (
-    `- [ ] AO-${String(index + 1).padStart(3, '0')} — Doing outcome ${index + 1} · P2 · area:internal`
+    `- [ ] AO-${String(index + 1).padStart(3, '0')} — Doing ticket ${index + 1} · P2 · area:internal`
   )).join('\n\n');
   return buildBoard({
-    Inbox: '- [ ] AO-101 — Inbox outcome · P2 · area:internal',
+    Inbox: '- [ ] AO-101 — Inbox ticket · P2 · area:internal',
     Doing: `${doingCards}`,
   }).replace('## Doing\n', '## Doing `(WIP <= 3)`\n');
 }

@@ -3,7 +3,7 @@
 Your Kanban board should survive the tool that displays it.
 
 LedgerBoard is a local-first VS Code board whose source of truth is three readable Markdown files.
-It adds a polished drag-and-drop workflow, named task assignees, generic entity palettes,
+It adds a polished drag-and-drop workflow, named task assignees, flexible label palettes,
 conflict-safe autosave, and append-only analytics without an account, database, server,
 or proprietary export.
 
@@ -12,7 +12,7 @@ or proprietary export.
 ## Highlights
 
 - Exact, line-numbered diagnostics for card separators, multiline descriptions, mixed line endings,
-  missing entities, malformed checkboxes, and first source/serialized differences.
+  missing labels, malformed checkboxes, and first source/serialized differences.
 - Safe **Normalize BOARD.md Formatting** workflow in the Command Palette and load-error screen.
 - Faster initialization and multi-root discovery with parallel direct file reads, bounded probes,
   active-board reuse, and visible progress.
@@ -21,7 +21,7 @@ or proprietary export.
 
 - **Markdown stays authoritative.** Review every change in Git and edit the files with any text editor.
 - **Local-first by design.** No telemetry, cloud sync, login, or hosted service.
-- **Useful beyond software teams.** Entities can represent projects, clients, products, teams, or workstreams.
+- **Useful beyond software teams.** Labels can represent projects, clients, products, teams, or workstreams.
 - **History without a database.** Semantic create, move, update, and delete events append to a readable ledger.
 - **Safe around human edits.** Saves stop when a Markdown buffer changed outside the board.
 - **Fast at runtime.** The extension has no runtime package dependencies.
@@ -30,7 +30,7 @@ or proprietary export.
 
 1. Open a folder in VS Code.
 2. Run **LedgerBoard: Initialize Board in Folder** from the Command Palette.
-3. Add people and entities, assign outcomes, and drag cards between columns.
+3. Add people and labels, assign tickets, and drag cards between columns.
 4. Commit the resulting Markdown diff when you are ready.
 
 Initialization creates only missing files and never overwrites an existing one:
@@ -61,28 +61,28 @@ compatible option for browsers that do not provide it.
 - Inbox, Next, Doing, Review / Blocked, and Done workflow
 - Unlimited tickets in every column
 - P1-P4 priorities
-- Search and entity, assignee, and priority filters
+- Search and label, assignee, and priority filters
 - Responsive desktop and narrow-editor layouts
 - One-second autosave with visible pending, saving, saved, and blocked states
 - Left-click card editing and a right-click action menu for contextual edit and confirmed delete actions
 - Append-only deletion history that remains visible in analytics activity without affecting current board totals
 
-### People, entities, and appearance
+### People, labels, and appearance
 
-Add people by name in the **People & entities** view, then optionally assign an outcome in its editor.
+Add people by name in the **People & labels** view, then optionally assign a ticket in its editor.
 Assigned people appear on cards with compact avatars and can be used to filter the board. Assigning,
 reassigning, and clearing an assignee writes the previous and new person IDs to the history ledger.
 
-Every card has an `area` linked to a generic entity. An entity can be a project, account, product,
+Every card has an `area` linked to a label. A label can represent a project, account, product,
 team, department, or any grouping that makes the board useful. Names and colors live in
 `KANBAN-CONFIG.md`, alongside the people directory, board title, timezone, accent, and density.
-Reassign current cards before removing their entity so every card keeps a valid area.
+Reassign current cards before removing their label so every card keeps a valid area.
 
 ### Analytics
 
-- A dedicated, local-only analytics workspace with date, search, status, priority, entity, and assignee filters.
+- A dedicated, local-only analytics workspace with date, search, status, priority, label, and assignee filters.
 - Board health metrics for open, blocked, aging, completed, reopened, and net-changing work, with comparison to the preceding equivalent period.
-- Status, priority, entity, workload, and cumulative-flow views with keyboard-accessible drill-downs to the supporting current outcomes.
+- Status, priority, label, workload, and cumulative-flow views with keyboard-accessible drill-downs to the supporting current tickets.
 - Daily, weekly, or monthly recorded throughput; lead and cycle-time ranges; and time-in-status summaries that state their data coverage.
 - Aging, unassigned-work, duplicate-looking-title, missing-description, stale-activity, and inconsistent-history checks.
 - Cautious throughput forecasting after sufficient history, expressed as a range rather than a promised delivery date.
@@ -98,12 +98,15 @@ lead-time, cycle-time, and time-in-status calculations.
 |---|---|
 | **LedgerBoard: Initialize Board in Folder** | Create the missing Markdown bundle files |
 | **LedgerBoard: Open Board** | Discover and open a board in the workspace |
-| **LedgerBoard: Add Outcome** | Open the board directly in the new-outcome dialog |
-| **LedgerBoard: Validate Board Bundle** | Validate syntax, entities, history, and round-trip safety |
+| **LedgerBoard: Add Ticket** | Open the board directly in the new-ticket dialog |
+| **LedgerBoard: Validate Board Bundle** | Validate syntax, labels, history, and round-trip safety |
 | **LedgerBoard: Normalize BOARD.md Formatting** | Safely fix card separators and mixed line endings |
 | **LedgerBoard: Open Board Standard** | Open the complete format and agent-generation contract |
 
 You can also right-click a folder in Explorer and choose **Initialize Board in Folder**.
+
+The command is displayed as **LedgerBoard: Add Ticket** while its existing
+`ledgerBoard.addOutcome` identifier remains stable for automation.
 
 ## Markdown Contract
 
@@ -122,10 +125,10 @@ for coding agents that generate compatible boards.
 Adjacent cards require exactly one blank physical line:
 
 ```markdown
-- [ ] AO-001 — First outcome · P1 · area:project-alpha
+- [ ] AO-001 — First ticket · P1 · area:project-alpha
     - **Description:** First description.
 
-- [ ] AO-002 — Second outcome · P2 · area:project-alpha
+- [ ] AO-002 — Second ticket · P2 · area:project-alpha
     - **Description:** Second description.
 ```
 
@@ -137,7 +140,7 @@ separator, multiline-description, mixed-line-ending, and first-difference errors
 ### Board does not open
 
 Run **LedgerBoard: Validate Board Bundle**. The error identifies the first actionable issue. If the
-issue is formatting-only, choose **Normalize formatting**. Semantic problems such as missing entities,
+issue is formatting-only, choose **Normalize formatting**. Semantic problems such as missing labels,
 duplicate IDs, or multiline descriptions must be corrected in Markdown.
 
 ### Formatting normalization

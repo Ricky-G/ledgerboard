@@ -40,6 +40,14 @@ test('project canvas injects its host into the self-contained webview', () => {
   assert.doesNotMatch(source, /\{\{(?:cspSource|nonce|stylesUri|modelUri|appUri)\}\}/);
 });
 
+test('project canvas reports labels with an entities compatibility alias', () => {
+  const source = require('node:fs').readFileSync(path.join(EXTENSION_ROOT, 'extension.mjs'), 'utf8');
+
+  assert.match(source, /description: "Report the number of tickets, people, labels, and history events in the sandbox\."/);
+  assert.match(source, /labels: validation\.config\.entities\.length/);
+  assert.match(source, /entities: validation\.config\.entities\.length/);
+});
+
 test('project canvas sample data validates against the shared model', async () => {
   const moduleUrl = pathToFileURL(path.join(EXTENSION_ROOT, 'sample-data.mjs')).href;
   const { createSampleBundle } = await import(moduleUrl);

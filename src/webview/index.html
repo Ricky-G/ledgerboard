@@ -26,7 +26,7 @@
             Board
           </button>
           <button class="view-tab" type="button" data-view="settings" aria-pressed="false">
-            People &amp; entities
+            People &amp; labels
           </button>
           <button class="view-tab" type="button" data-view="analytics" aria-pressed="false">
             Analytics
@@ -63,13 +63,13 @@
             <div class="search-control">
               <span aria-hidden="true">⌕</span>
               <label class="visually-hidden" for="searchInput">Search cards</label>
-              <input id="searchInput" type="search" placeholder="Search outcomes, details, or IDs" autocomplete="off">
+              <input id="searchInput" type="search" placeholder="Search tickets, details, or IDs" autocomplete="off">
             </div>
 
             <label class="select-control">
-              <span>Entity</span>
+              <span>Label</span>
               <select id="areaFilter">
-                <option value="">All entities</option>
+                <option value="">All labels</option>
               </select>
             </label>
 
@@ -100,7 +100,7 @@
 
             <button class="primary-button add-outcome-button" id="addCardButton" type="button" disabled>
               <span aria-hidden="true">+</span>
-              New outcome
+              New ticket
             </button>
           </div>
 
@@ -137,8 +137,8 @@
           <div class="settings-heading">
             <div>
               <p class="eyebrow">Board configuration</p>
-              <h2 id="settingsTitle">People, entities, columns &amp; appearance</h2>
-              <p>People, entity identity, column workflow, and board presentation are persisted in KANBAN-CONFIG.md.</p>
+              <h2 id="settingsTitle">People, labels, columns &amp; appearance</h2>
+              <p>People, label identity, column workflow, and board presentation are persisted in KANBAN-CONFIG.md.</p>
             </div>
             <button class="primary-button" id="settingsSaveButton" type="button" disabled>
               Save now
@@ -198,7 +198,7 @@
                 <div class="people-heading-row">
                   <div>
                     <h3 id="peopleSettingsTitle">People</h3>
-                    <p>Add the names that can own work. Assignments stay optional for every outcome.</p>
+                    <p>Add the names that can own work. Assignments stay optional for every ticket.</p>
                   </div>
                   <button class="secondary-button" id="addPersonButton" type="button">
                     <span aria-hidden="true">+</span>
@@ -217,16 +217,16 @@
               <div class="settings-section-content">
                 <div class="entity-heading-row">
                   <div>
-                    <h3 id="entitySettingsTitle">Entities</h3>
-                    <p>Every card uses its `area` value to pick up an entity name and color.</p>
+                    <h3 id="entitySettingsTitle">Labels</h3>
+                    <p>Every card uses its `area` value to pick up a label name and color.</p>
                   </div>
                   <button class="secondary-button" id="addEntityButton" type="button">
                     <span aria-hidden="true">+</span>
-                    Add entity
+                    Add label
                   </button>
                 </div>
                 <div class="entity-list-header" aria-hidden="true">
-                  <span>Color</span><span>Entity name</span><span>Area ID</span><span></span>
+                  <span>Color</span><span>Label name</span><span>Label ID</span><span></span>
                 </div>
                 <div class="entity-list" id="entityList"></div>
               </div>
@@ -238,7 +238,7 @@
                 <div class="column-heading-row">
                   <div>
                     <h3 id="columnSettingsTitle">Columns</h3>
-                    <p>Configure between 1 and 10 workflow columns. Renaming and reordering preserve each column's outcomes.</p>
+                    <p>Configure between 1 and 10 workflow columns. Renaming and reordering preserve each column's tickets.</p>
                   </div>
                   <div class="column-heading-actions">
                     <button class="secondary-button" id="discardColumnChangesButton" type="button" disabled>
@@ -293,7 +293,7 @@
             </div>
             <label class="analytics-filter-search">
               <span>Search</span>
-              <input id="analyticsSearch" type="search" placeholder="Find an outcome">
+              <input id="analyticsSearch" type="search" placeholder="Find a ticket">
             </label>
             <label>
               <span>Status</span>
@@ -317,9 +317,9 @@
               </select>
             </label>
             <label>
-              <span>Entity / category</span>
+              <span>Label / category</span>
               <select id="analyticsArea">
-                <option value="">All entities</option>
+                <option value="">All labels</option>
               </select>
             </label>
             <label>
@@ -410,7 +410,7 @@
                   <p class="eyebrow">Current state</p>
                   <h3 id="statusChartTitle">Work by status</h3>
                 </div>
-                <strong id="statusTotal">0 outcomes</strong>
+                <strong id="statusTotal">0 tickets</strong>
               </div>
               <div id="statusChart" class="status-chart"></div>
             </section>
@@ -440,7 +440,7 @@
               <div class="analytics-panel-heading">
                 <div>
                   <p class="eyebrow">Active portfolio</p>
-                  <h3 id="entityChartTitle">Work by entity / category</h3>
+                  <h3 id="entityChartTitle">Work by label / category</h3>
                 </div>
               </div>
               <div id="entityChart" class="entity-chart"></div>
@@ -542,10 +542,10 @@
                   <p class="eyebrow">Supporting work</p>
                   <h3 id="analyticsDrilldownTitle">Drill-down</h3>
                 </div>
-                <span>Open an outcome to inspect or edit it</span>
+                <span>Open a ticket to inspect or edit it</span>
               </div>
               <div id="analyticsDrilldown" class="analytics-list">
-                <div class="analytics-empty">Select a chart segment, insight, or check to inspect the supporting outcomes.</div>
+                <div class="analytics-empty">Select a chart segment, insight, or check to inspect the supporting tickets.</div>
               </div>
             </section>
           </div>
@@ -565,8 +565,8 @@
       <form method="dialog" id="cardForm">
         <div class="dialog-header">
           <div>
-            <p class="eyebrow" id="cardDialogEyebrow">New outcome</p>
-            <h2 id="cardDialogTitle">Add an outcome</h2>
+            <p class="eyebrow" id="cardDialogEyebrow">New ticket</p>
+            <h2 id="cardDialogTitle">Add a ticket</h2>
           </div>
           <button class="icon-button close-dialog-button" type="button" data-close-dialog title="Close" aria-label="Close">×</button>
         </div>
@@ -574,7 +574,7 @@
         <div class="dialog-body">
           <input id="cardId" type="hidden">
           <label class="field full-field">
-            <span>Outcome title</span>
+            <span>Ticket title</span>
             <input id="cardTitle" type="text" maxlength="140" required autofocus>
           </label>
           <label class="field full-field">
@@ -584,7 +584,7 @@
 
           <div class="dialog-field-grid">
             <label class="field">
-              <span>Entity</span>
+              <span>Label</span>
               <select id="cardArea" required></select>
             </label>
             <label class="field">
@@ -611,7 +611,7 @@
           <button class="danger-button" id="deleteCardButton" type="button" hidden>Delete</button>
           <span class="dialog-spacer"></span>
           <button class="secondary-button" type="button" data-close-dialog>Cancel</button>
-          <button class="primary-button" id="submitCardButton" type="submit">Add outcome</button>
+          <button class="primary-button" id="submitCardButton" type="submit">Add ticket</button>
         </div>
       </form>
     </dialog>
@@ -619,13 +619,13 @@
     <dialog class="confirmation-dialog" id="deleteConfirmationDialog" aria-labelledby="deleteConfirmationTitle" aria-describedby="deleteConfirmationMessage">
       <div class="confirmation-body">
         <p class="eyebrow">Deletion</p>
-        <h2 id="deleteConfirmationTitle">Delete outcome?</h2>
+        <h2 id="deleteConfirmationTitle">Delete ticket?</h2>
         <p id="deleteConfirmationMessage"></p>
       </div>
       <div class="dialog-footer">
         <span class="dialog-spacer"></span>
         <button class="secondary-button" id="cancelDeleteCardButton" type="button" autofocus>Cancel</button>
-        <button class="danger-button" id="confirmDeleteCardButton" type="button">Delete outcome</button>
+        <button class="danger-button" id="confirmDeleteCardButton" type="button">Delete ticket</button>
       </div>
     </dialog>
 
@@ -635,7 +635,7 @@
         <h2 id="columnRemovalTitle">Remove column?</h2>
         <p id="columnRemovalMessage"></p>
         <label class="field column-resolution-field" id="columnRemovalTargetField" hidden>
-          <span>Move outcomes to</span>
+          <span>Move tickets to</span>
           <select id="columnRemovalTarget"></select>
         </label>
       </div>
@@ -646,7 +646,7 @@
       </div>
     </dialog>
 
-    <div class="card-action-menu" id="cardActionMenu" role="menu" aria-label="Outcome actions" hidden>
+    <div class="card-action-menu" id="cardActionMenu" role="menu" aria-label="Ticket actions" hidden>
       <div class="card-action-menu-context" aria-hidden="true">
         <div class="card-action-menu-heading">
           <span class="card-action-menu-id" id="cardActionMenuCardId"></span>

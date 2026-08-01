@@ -434,8 +434,8 @@
       addButton.type = "button";
       addButton.className = "column-add-button";
       addButton.textContent = "+";
-      addButton.title = `Add outcome to ${column.label}`;
-      addButton.setAttribute("aria-label", `Add outcome to ${column.label}`);
+      addButton.title = `Add ticket to ${column.label}`;
+      addButton.setAttribute("aria-label", `Add ticket to ${column.label}`);
       addButton.addEventListener("click", () => openCardDialog(null, column.id));
       header.append(index, titleBlock, count, addButton);
 
@@ -463,7 +463,7 @@
         empty.className = "empty-column";
         const copy = document.createElement("div");
         const strong = document.createElement("strong");
-        strong.textContent = "No matching outcomes";
+        strong.textContent = "No matching tickets";
         copy.append(strong, document.createTextNode("Adjust the search or filters."));
         empty.append(copy);
         cardList.append(empty);
@@ -681,7 +681,7 @@
     const sourceCardId = state.actionMenuCardId;
     closeCardActionMenu();
     if (!sourceCardId) {
-      showError(new Error("Choose an outcome to duplicate."));
+      showError(new Error("Choose a ticket to duplicate."));
       return;
     }
 
@@ -713,7 +713,7 @@
     const copy = document.createElement("div");
     const strong = document.createElement("strong");
     strong.textContent = `${column.label} is clear`;
-    copy.append(strong, document.createTextNode("Add an outcome or move one here."));
+    copy.append(strong, document.createTextNode("Add a ticket or move one here."));
     empty.append(copy);
     return empty;
   }
@@ -820,7 +820,7 @@
     elements.areaFilter.replaceChildren();
     const all = document.createElement("option");
     all.value = "";
-    all.textContent = "All entities";
+    all.textContent = "All labels";
     elements.areaFilter.append(all);
     [...areas].sort().forEach((area) => {
       const option = document.createElement("option");
@@ -948,9 +948,9 @@
     elements.cardAssignee.value = card?.detailValues.assignee || "";
     elements.cardColumn.value = card?.columnId || defaultColumn || firstColumnId();
     elements.cardPriority.value = card?.priority || "P2";
-    elements.cardDialogEyebrow.textContent = card ? card.id : "New outcome";
-    elements.cardDialogTitle.textContent = card ? "Edit outcome" : "Add an outcome";
-    elements.submitCardButton.textContent = card ? "Apply changes" : "Add outcome";
+    elements.cardDialogEyebrow.textContent = card ? card.id : "New ticket";
+    elements.cardDialogTitle.textContent = card ? "Edit ticket" : "Add a ticket";
+    elements.submitCardButton.textContent = card ? "Apply changes" : "Add ticket";
     elements.deleteCardButton.hidden = !card;
     elements.cardDialog.showModal();
   }
@@ -970,7 +970,7 @@
       renderBoard();
       populateAreaFilter();
       elements.cardDialog.close();
-      showToast(state.editingCardId ? "Outcome updated." : "Outcome added.", "success");
+      showToast(state.editingCardId ? "Ticket updated." : "Ticket added.", "success");
     } catch (error) {
       showError(error);
     }
@@ -991,10 +991,10 @@
 
   function validateCardForm(values) {
     if (!values.title) {
-      throw new Error("Outcome title is required.");
+      throw new Error("Ticket title is required.");
     }
     if (!state.config.entities.some((entity) => entity.id === values.area)) {
-      throw new Error("Choose an entity from the saved entity list.");
+      throw new Error("Choose a label from the saved label list.");
     }
     if (values.detailValues.assignee
       && !state.config.people.some((person) => person.id === values.detailValues.assignee)) {
@@ -1032,7 +1032,7 @@
   function requestCardDeletion(cardId = state.editingCardId, focusTarget = elements.deleteCardButton) {
     const found = cardId ? model.findCard(state.board, cardId) : null;
     if (!found) {
-      showError(new Error("Could not find the selected outcome. Reload the board and try again."));
+      showError(new Error("Could not find the selected ticket. Reload the board and try again."));
       return;
     }
     state.pendingDeletionCardId = found.card.id;
@@ -1056,7 +1056,7 @@
   function confirmCardDeletion() {
     const cardId = state.pendingDeletionCardId;
     if (!cardId) {
-      showError(new Error("Choose an outcome to delete."));
+      showError(new Error("Choose a ticket to delete."));
       return;
     }
     const found = model.findCard(state.board, cardId);
@@ -1280,7 +1280,7 @@
     state.pendingColumnRemoval = { id: column.id, index };
     state.columnRemovalFocusTarget = focusTarget;
     elements.columnRemovalMessage.textContent = cardCount > 0
-      ? `${column.name} contains ${cardCount} outcome(s). Choose a destination before removing it.`
+      ? `${column.name} contains ${cardCount} ticket(s). Choose a destination before removing it.`
       : `Remove the empty ${column.name} column?`;
     elements.columnRemovalTargetField.hidden = cardCount === 0;
     elements.columnRemovalTarget.replaceChildren();
@@ -1316,7 +1316,7 @@
     const current = state.board?.columns.find((column) => column.id === pending.id);
     const targetId = elements.columnRemovalTarget.value;
     if (current?.cards.length > 0 && !targetId) {
-      showColumnValidation("Choose a destination for the outcomes in this column.");
+      showColumnValidation("Choose a destination for the tickets in this column.");
       return;
     }
 
@@ -1414,7 +1414,7 @@
     name.type = "text";
     name.value = item.name;
     name.maxLength = 80;
-    name.setAttribute("aria-label", isPerson ? "Person name" : "Entity name");
+    name.setAttribute("aria-label", isPerson ? "Person name" : "Label name");
     name.addEventListener("input", (event) => {
       item.name = event.target.value;
       markDirty("config");
@@ -1434,7 +1434,7 @@
     id.maxLength = 50;
     id.pattern = "[a-z0-9][a-z0-9\\-]*";
     id.className = `${type}-id-input`;
-    id.setAttribute("aria-label", isPerson ? "Person ID" : "Entity area ID");
+    id.setAttribute("aria-label", isPerson ? "Person ID" : "Label ID");
     id.addEventListener("change", (event) => {
       if (isPerson) {
         changePersonId(item, event.target);
@@ -1516,7 +1516,7 @@
         .filter((card) => card.detailValues.assignee === person.id)
       : [];
     if (usage.length > 0) {
-      showError(new Error(`${person.name} is assigned to ${usage.length} outcome(s). Reassign them before removing this person.`));
+      showError(new Error(`${person.name} is assigned to ${usage.length} ticket(s). Reassign them before removing this person.`));
       return;
     }
     if (!window.confirm(`Remove ${person.name} from the people list?`)) {
@@ -1563,12 +1563,12 @@
 
   function addEntity() {
     let suffix = state.config.entities.length + 1;
-    while (state.config.entities.some((entity) => entity.id === `entity-${suffix}`)) {
+    while (state.config.entities.some((entity) => entity.id === `label-${suffix}`)) {
       suffix += 1;
     }
     state.config.entities.push({
-      id: `entity-${suffix}`,
-      name: "New entity",
+      id: `label-${suffix}`,
+      name: "New label",
       color: "#2e6ea6",
     });
     markDirty("config");
@@ -1585,10 +1585,10 @@
       ? state.board.columns.flatMap((column) => column.cards).filter((card) => card.area === entity.id)
       : [];
     if (usage.length > 0) {
-      showError(new Error(`${entity.name} is assigned to ${usage.length} outcome(s). Reassign them before removing it.`));
+      showError(new Error(`${entity.name} is assigned to ${usage.length} ticket(s). Reassign them before removing it.`));
       return;
     }
-    if (!window.confirm(`Remove ${entity.name} from the entity palette?`)) {
+    if (!window.confirm(`Remove ${entity.name} from the label palette?`)) {
       return;
     }
     state.config.entities.splice(index, 1);
@@ -1660,7 +1660,7 @@
     elements.metricForecastDetail.textContent = analytics.forecast.available
       ? "Historical throughput range"
       : "Needs more recorded history";
-    elements.statusTotal.textContent = `${analytics.total} outcomes`;
+    elements.statusTotal.textContent = `${analytics.total} tickets`;
     elements.historyEventCount.textContent = `${analytics.historyEvents} events`;
     elements.analyticsTimeZone.textContent = analytics.metadata.timeZone;
     elements.analyticsRangeSummary.textContent = `${formatShortDateKey(analytics.metadata.range.start)} to ${formatShortDateKey(analytics.metadata.range.end)}`;
@@ -1714,7 +1714,7 @@
       .sort((left, right) => left.label.localeCompare(right.label));
     const assigned = new Set(cards.map((card) => card.detailValues.assignee).filter(Boolean));
     populateAnalyticsSelect(elements.analyticsStatus, "All statuses", statuses);
-    populateAnalyticsSelect(elements.analyticsArea, "All entities", entities);
+    populateAnalyticsSelect(elements.analyticsArea, "All labels", entities);
     populateAnalyticsSelect(elements.analyticsAssignee, "All assignees", [
       { value: "unassigned", label: "Unassigned" },
       ...people.filter((person) => assigned.has(person.value)),
@@ -1833,7 +1833,12 @@
         netWorkChange: analytics.comparison.netWorkChange,
         reopenedInRange: analytics.reworkCount,
       },
-      distribution: { status: analytics.status, priority: analytics.priority, entities: analytics.entities },
+      distribution: {
+        status: analytics.status,
+        priority: analytics.priority,
+        labels: analytics.labels,
+        entities: analytics.labels,
+      },
       throughput: exportThroughput(analytics.throughput),
       cumulativeFlow: analytics.cumulativeFlow,
       leadTime: analytics.leadTime,
@@ -1908,7 +1913,7 @@
   function renderStatusChart(analytics) {
     elements.statusChart.replaceChildren();
     if (analytics.total === 0) {
-      elements.statusChart.append(createAnalyticsEmpty("No current outcomes match this filter."));
+      elements.statusChart.append(createAnalyticsEmpty("No current tickets match this filter."));
       return;
     }
     const track = document.createElement("div");
@@ -1917,7 +1922,7 @@
       const count = analytics.status[column.id];
       if (count === 0) return;
       const segment = createAnalyticsAction(
-        `${column.label}: ${count} outcomes`,
+        `${column.label}: ${count} tickets`,
         "status-segment",
         analytics.cards.filter((card) => card.columnId === column.id).map((card) => card.id),
       );
@@ -1932,7 +1937,7 @@
     legend.className = "status-legend";
     currentColumns().forEach((column, index) => {
       const item = createAnalyticsAction(
-        `${column.label}: ${analytics.status[column.id]} outcomes`,
+        `${column.label}: ${analytics.status[column.id]} tickets`,
         "status-legend-item",
         analytics.cards.filter((card) => card.columnId === column.id).map((card) => card.id),
       );
@@ -1952,7 +1957,7 @@
   function renderPriorityChart(analytics) {
     elements.priorityChart.replaceChildren();
     if (analytics.total === 0) {
-      elements.priorityChart.append(createAnalyticsEmpty("No current outcomes match this filter."));
+      elements.priorityChart.append(createAnalyticsEmpty("No current tickets match this filter."));
       return;
     }
     const colors = { P1: "#b52f42", P2: "#c65d18", P3: "#2e6ea6", P4: "#617078" };
@@ -1970,10 +1975,10 @@
 
   function renderEntityChart(analytics) {
     elements.entityChart.replaceChildren();
-    const entries = Object.entries(analytics.entities)
+    const entries = Object.entries(analytics.labels)
       .sort((left, right) => right[1] - left[1] || getEntity(left[0]).name.localeCompare(getEntity(right[0]).name));
     if (entries.length === 0) {
-      elements.entityChart.append(createAnalyticsEmpty("No active entity work."));
+      elements.entityChart.append(createAnalyticsEmpty("No active label work."));
       return;
     }
     const maximum = Math.max(1, ...entries.map(([, count]) => count));
@@ -1990,7 +1995,7 @@
   }
 
   function createAnalyticsBar(labelText, value, maximum, color, cardIds) {
-    const row = createAnalyticsAction(`${labelText}: ${value} outcomes`, "analytics-bar-row", cardIds);
+    const row = createAnalyticsAction(`${labelText}: ${value} tickets`, "analytics-bar-row", cardIds);
     row.className = "analytics-bar-row";
     const label = document.createElement("span");
     label.textContent = labelText;
@@ -2084,7 +2089,7 @@
     if (analytics.aging.items.length === 0) {
       elements.agingWork.append(createAnalyticsEmpty(
         analytics.aging.unknown.length > 0
-          ? "Active outcomes have no recorded entry into their current status yet."
+          ? "Active tickets have no recorded entry into their current status yet."
           : "No active work matches this filter.",
       ));
       return;
@@ -2106,7 +2111,7 @@
     if (analytics.aging.unknown.length > 0) {
       const unknown = document.createElement("p");
       unknown.className = "analytics-note";
-      unknown.textContent = `${analytics.aging.unknown.length} active outcome(s) have an unknown age because history has no recorded entry into the current status.`;
+      unknown.textContent = `${analytics.aging.unknown.length} active ticket(s) have an unknown age because history has no recorded entry into the current status.`;
       elements.agingWork.append(unknown);
     }
   }
@@ -2167,7 +2172,7 @@
     elements.qualityChecks.replaceChildren();
     const checks = [
       {
-        label: "Active outcomes without a description",
+        label: "Active tickets without a description",
         items: analytics.quality.missingDescriptions,
       },
       {
@@ -2243,7 +2248,7 @@
     elements.forecast.append(summary);
     if (analytics.forecast.targetDate) {
       const target = document.createElement("p");
-      target.textContent = `${analytics.forecast.whatCanFinish} outcomes could finish by ${formatShortDateKey(analytics.forecast.targetDate)} at typical recorded throughput.`;
+      target.textContent = `${analytics.forecast.whatCanFinish} tickets could finish by ${formatShortDateKey(analytics.forecast.targetDate)} at typical recorded throughput.`;
       elements.forecast.append(target);
     }
   }
@@ -2291,7 +2296,7 @@
     const cards = state.analytics.cards.filter((card) => ids.has(card.id));
     if (cards.length === 0) {
       elements.analyticsDrilldown.append(createAnalyticsEmpty(
-        "The supporting data has no current outcome to open. It may be historical or deleted work.",
+        "The supporting data has no current ticket to open. It may be historical or deleted work.",
       ));
       return;
     }

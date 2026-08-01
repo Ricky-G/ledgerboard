@@ -56,7 +56,7 @@ test.describe('card editing', () => {
     await openBoard(page);
     await openCardDialog(page, null);
 
-    await expect(page.locator('#cardDialogTitle')).toHaveText('Add an outcome');
+    await expect(page.locator('#cardDialogTitle')).toHaveText('Add a ticket');
     await expect(page.locator('#deleteCardButton')).toBeHidden();
 
     await page.locator('#cardTitle').fill('Harden the release gate');
@@ -88,7 +88,7 @@ test.describe('card editing', () => {
     await openBoard(page);
     await openCardDialog(page, 'AO-002');
 
-    await expect(page.locator('#cardDialogTitle')).toHaveText('Edit outcome');
+    await expect(page.locator('#cardDialogTitle')).toHaveText('Edit ticket');
     await expect(page.locator('#cardDialogEyebrow')).toHaveText('AO-002');
     await expect(page.locator('#cardTitle')).toHaveValue('Define reporting signal');
     await expect(page.locator('#deleteCardButton')).toBeVisible();
@@ -182,7 +182,7 @@ test.describe('card editing', () => {
     await page.locator('#cardTitle').fill('   ');
     await page.locator('#submitCardButton').click();
 
-    await expect(page.locator('#toastRegion')).toContainText('Outcome title is required.');
+    await expect(page.locator('#toastRegion')).toContainText('Ticket title is required.');
     await expect(page.locator('#cardDialog')).toBeVisible();
     await expect(page.locator('.kanban-card')).toHaveCount(6);
   });
