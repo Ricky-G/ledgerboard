@@ -215,14 +215,17 @@ jobs:
 
   report-failure:
     name: Report release failure
-    # Release automation runs unattended after a merge, so a failure that is
-    # only visible in the Actions tab goes unnoticed. Versions v0.3.1 through
-    # v0.5.0 were each tagged and then silently never published.
+    # Main validation and release publication fail for different reasons and
+    # require different recovery paths. Report both without making a maintainer
+    # reconstruct the failing layer from several workflow runs.
     needs: [wait-for-required-checks, release, resolve-publication, publish]
     if: always() && contains(needs.*.result, 'failure')
     runs-on: ubuntu-latest
     permissions:
+      checks: read
+      contents: read
       issues: write
+      pull-requests: read
     steps:
       - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
@@ -232,24 +235,108 @@ jobs:
           PUBLISH_RESULT: ${{ needs.publish.result }}
         with:
           script: |
-            const title = '[Automation] Release automation failed';
+            const validationFailed = process.env.WAIT_RESULT === 'failure';
+            const title = validationFailed
+              ? '[Automation] Main validation failed'
+              : '[Automation] Release automation failed';
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            const body = [
-              `Release automation failed on \`${context.sha}\`.`,
-              '',
-              '| Stage | Result |',
-              '| --- | --- |',
-              `| Wait for required merge gates | ${process.env.WAIT_RESULT} |`,
-              `| Create release preparation | ${process.env.RELEASE_RESULT} |`,
-              `| Resolve publication | ${process.env.RESOLVE_RESULT} |`,
-              `| Publish release | ${process.env.PUBLISH_RESULT} |`,
-              '',
-              'A tagged release that does not publish leaves the Marketplace behind this repository.',
-              'After fixing the cause, publish the existing tag with the `Publish to Visual Studio',
-              'Marketplace` workflow rather than cutting a new version.',
-              '',
-              `Run: ${runUrl}`,
-            ].join('\n');
+            let body;
+            if (validationFailed) {
+              const releaseCheckNames = new Set([
+                'Wait for required merge gates',
+                'Create release preparation',
+                'Resolve publication',
+                'Publish release',
+                'Report release failure',
+              ]);
+              const { data: commitChecks } = await github.rest.checks.listForRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: context.sha,
+                filter: 'latest',
+                per_page: 100,
+              });
+              const failedChecks = commitChecks.check_runs
+                .filter(check => check.status === 'completed'
+                  && check.conclusion !== 'success'
+                  && !releaseCheckNames.has(check.name))
+                .sort((left, right) => left.name.localeCompare(right.name));
+              const failedRows = failedChecks.length > 0
+                ? failedChecks.map(check =>
+                  `| [${check.name}](${check.details_url}) | ${check.conclusion || 'unknown'} |`)
+                : ['| No failed check run was returned | unknown |'];
+
+              const { data: associatedPulls } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                commit_sha: context.sha,
+              });
+              const associatedPull = associatedPulls.find(pull => pull.merged_at) || associatedPulls[0];
+              let pullSummary = 'No associated pull request was returned for this commit.';
+              let pullQualitySummary = '';
+              if (associatedPull) {
+                const { data: pull } = await github.rest.pulls.get({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: associatedPull.number,
+                });
+                const merger = pull.merged_by?.login ? `@${pull.merged_by.login}` : 'an unknown actor';
+                pullSummary = `Pull request [#${pull.number}](${pull.html_url}) was merged by ${merger}.`;
+
+                const { data: pullChecks } = await github.rest.checks.listForRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: pull.head.sha,
+                  filter: 'latest',
+                  per_page: 100,
+                });
+                const quality = pullChecks.check_runs
+                  .filter(check => check.name === 'quality')
+                  .sort((left, right) => left.started_at.localeCompare(right.started_at))
+                  .at(-1);
+                if (quality) {
+                  pullQualitySummary = `Its \`CI / quality\` check concluded \`${quality.conclusion || quality.status}\`.`;
+                }
+              }
+
+              body = [
+                `Main validation failed on \`${context.sha}\`.`,
+                '',
+                pullSummary,
+                ...(pullQualitySummary ? [pullQualitySummary] : []),
+                '',
+                '| Failed check | Conclusion |',
+                '| --- | --- |',
+                ...failedRows,
+                '',
+                'Release preparation did not start, so there is no release tag to publish.',
+                '',
+                '### Recovery record',
+                '',
+                '- [ ] Document why the emergency bypass or post-merge failure occurred.',
+                '- [ ] Link the corrective pull request.',
+                '- [ ] Confirm every required check passes on the corrective merge.',
+                '',
+                `Run: ${runUrl}`,
+              ].join('\n');
+            } else {
+              body = [
+                `Release automation failed on \`${context.sha}\`.`,
+                '',
+                '| Stage | Result |',
+                '| --- | --- |',
+                `| Wait for required merge gates | ${process.env.WAIT_RESULT} |`,
+                `| Create release preparation | ${process.env.RELEASE_RESULT} |`,
+                `| Resolve publication | ${process.env.RESOLVE_RESULT} |`,
+                `| Publish release | ${process.env.PUBLISH_RESULT} |`,
+                '',
+                'A tagged release that does not publish leaves the Marketplace behind this repository.',
+                'After fixing the cause, publish the existing tag with the `Publish to Visual Studio',
+                'Marketplace` workflow rather than cutting a new version.',
+                '',
+                `Run: ${runUrl}`,
+              ].join('\n');
+            }
             const { data: issues } = await github.rest.issues.listForRepo({
               owner: context.repo.owner,
               repo: context.repo.repo,

@@ -14,6 +14,101 @@ const publishWorkflow = fs.readFileSync(
   'utf8',
 ).replace(/\r\n/g, '\n');
 
+const AsyncFunction = Object.getPrototypeOf(async function workflowScript() {}).constructor;
+
+function compileGithubScript(jobSource) {
+  const scriptBlock = jobSource.match(/\n {10}script: \|\n([\s\S]*)$/)[1];
+  const script = scriptBlock
+    .split('\n')
+    .map((line) => line.startsWith('            ') ? line.slice(12) : line)
+    .join('\n');
+  return new AsyncFunction('github', 'context', 'process', script);
+}
+
+function createReportHarness(waitResult) {
+  const created = [];
+  const context = {
+    serverUrl: 'https://github.com',
+    repo: { owner: 'Ricky-G', repo: 'ledgerboard' },
+    runId: 123,
+    sha: 'main-sha',
+  };
+  const github = {
+    rest: {
+      checks: {
+        listForRef: async ({ ref }) => ({
+          data: {
+            check_runs: ref === context.sha
+              ? [
+                {
+                  name: 'quality',
+                  status: 'completed',
+                  conclusion: 'failure',
+                  details_url: 'https://github.com/Ricky-G/ledgerboard/actions/runs/1',
+                  started_at: '2026-07-30T22:00:00Z',
+                },
+                {
+                  name: 'webview-tests',
+                  status: 'completed',
+                  conclusion: 'failure',
+                  details_url: 'https://github.com/Ricky-G/ledgerboard/actions/runs/2',
+                  started_at: '2026-07-30T21:59:00Z',
+                },
+                {
+                  name: 'Wait for required merge gates',
+                  status: 'completed',
+                  conclusion: 'failure',
+                  details_url: 'https://github.com/Ricky-G/ledgerboard/actions/runs/3',
+                  started_at: '2026-07-30T22:01:00Z',
+                },
+              ]
+              : [{
+                name: 'quality',
+                status: 'completed',
+                conclusion: 'failure',
+                details_url: 'https://github.com/Ricky-G/ledgerboard/actions/runs/4',
+                started_at: '2026-07-30T21:58:00Z',
+              }],
+          },
+        }),
+      },
+      repos: {
+        listPullRequestsAssociatedWithCommit: async () => ({
+          data: [{ number: 56, merged_at: '2026-07-30T22:10:00Z' }],
+        }),
+      },
+      pulls: {
+        get: async () => ({
+          data: {
+            number: 56,
+            html_url: 'https://github.com/Ricky-G/ledgerboard/pull/56',
+            merged_by: { login: 'maintainer' },
+            head: { sha: 'pull-head-sha' },
+          },
+        }),
+      },
+      issues: {
+        listForRepo: async () => ({ data: [] }),
+        create: async (payload) => {
+          created.push(payload);
+        },
+        createComment: async () => {
+          throw new Error('A new issue should be created when no matching issue exists.');
+        },
+      },
+    },
+  };
+  const processMock = {
+    env: {
+      WAIT_RESULT: waitResult,
+      RELEASE_RESULT: waitResult === 'failure' ? 'skipped' : 'failure',
+      RESOLVE_RESULT: 'skipped',
+      PUBLISH_RESULT: 'skipped',
+    },
+  };
+  return { context, created, github, processMock };
+}
+
 test('release waits for required push check runs on the merge commit', () => {
   const requiredChecks = releaseWorkflow
     .match(/REQUIRED_CHECKS=\(\s*([\s\S]*?)\)/)[1]
@@ -109,7 +204,10 @@ test('a failed release reports itself instead of waiting to be noticed', () => {
   const report = releaseWorkflow.match(/^ {2}report-failure:\n[\s\S]*$/m)[0];
 
   assert.match(report, /^ {4}if: always\(\) && contains\(needs\.\*\.result, 'failure'\)$/m);
-  assert.match(report, /^ {4}permissions:\n {6}issues: write$/m);
+  assert.match(report, /^ {6}checks: read$/m);
+  assert.match(report, /^ {6}contents: read$/m);
+  assert.match(report, /^ {6}issues: write$/m);
+  assert.match(report, /^ {6}pull-requests: read$/m);
   for (const dependency of [
     'wait-for-required-checks',
     'release',
@@ -122,6 +220,49 @@ test('a failed release reports itself instead of waiting to be noticed', () => {
     );
   }
   assert.match(report, /issues\.create/);
+});
+
+test('main validation failures report the broken layers and the bypass recovery record', () => {
+  const report = releaseWorkflow.match(/^ {2}report-failure:\n[\s\S]*$/m)[0];
+
+  assert.match(report, /const validationFailed = process\.env\.WAIT_RESULT === 'failure';/);
+  assert.match(
+    report,
+    /validationFailed\s+\? '\[Automation\] Main validation failed'\s+: '\[Automation\] Release automation failed'/,
+  );
+  assert.match(report, /checks\.listForRef/);
+  assert.match(report, /listPullRequestsAssociatedWithCommit/);
+  assert.match(report, /CI \/ quality.*concluded/);
+  assert.match(report, /Failed check.*Conclusion/);
+  assert.match(report, /Document why the emergency bypass or post-merge failure occurred/);
+  assert.match(report, /Release preparation did not start, so there is no release tag to publish/);
+});
+
+test('main validation reporting creates an actionable recovery issue', async () => {
+  const report = releaseWorkflow.match(/^ {2}report-failure:\n[\s\S]*$/m)[0];
+  const harness = createReportHarness('failure');
+
+  await compileGithubScript(report)(harness.github, harness.context, harness.processMock);
+
+  assert.equal(harness.created.length, 1);
+  assert.equal(harness.created[0].title, '[Automation] Main validation failed');
+  assert.match(harness.created[0].body, /\[#56\].*merged by @maintainer/);
+  assert.match(harness.created[0].body, /\[webview-tests\].*\| failure \|/);
+  assert.doesNotMatch(harness.created[0].body, /\[Wait for required merge gates\]/);
+  assert.match(harness.created[0].body, /CI \/ quality.*concluded `failure`/);
+  assert.doesNotMatch(harness.created[0].body, /publish the existing tag/);
+});
+
+test('existing-tag recovery is reserved for failures after main validation', async () => {
+  const report = releaseWorkflow.match(/^ {2}report-failure:\n[\s\S]*$/m)[0];
+  const harness = createReportHarness('success');
+
+  await compileGithubScript(report)(harness.github, harness.context, harness.processMock);
+
+  assert.equal(harness.created.length, 1);
+  assert.equal(harness.created[0].title, '[Automation] Release automation failed');
+  assert.match(harness.created[0].body, /publish the existing tag/);
+  assert.doesNotMatch(harness.created[0].body, /Main validation failed/);
 });
 
 test('publishing verifies the artifact instead of repeating CI', () => {
