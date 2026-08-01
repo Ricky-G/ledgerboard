@@ -2,6 +2,19 @@
 
 All notable changes to LedgerBoard are documented here.
 
+## [0.7.0](https://github.com/Ricky-G/ledgerboard/compare/v0.6.1...v0.7.0) (2026-08-01)
+
+
+### Added
+
+* configure board columns ([#55](https://github.com/Ricky-G/ledgerboard/issues/55)) ([345c336](https://github.com/Ricky-G/ledgerboard/commit/345c3361c3cc54f97405f7557144a9c38c43266a))
+* duplicate board tickets ([#56](https://github.com/Ricky-G/ledgerboard/issues/56)) ([b0ce0b9](https://github.com/Ricky-G/ledgerboard/commit/b0ce0b94dc2e5eb1c4e6f9a4c107c72d66a957a7))
+
+
+### Fixed
+
+* add multiple board columns reliably ([#61](https://github.com/Ricky-G/ledgerboard/issues/61)) ([d77963d](https://github.com/Ricky-G/ledgerboard/commit/d77963dc707208b7c564c32fd827e8c3778618e1))
+
 ## [0.6.1](https://github.com/Ricky-G/ledgerboard/compare/v0.6.0...v0.6.1) (2026-07-30)
 
 
