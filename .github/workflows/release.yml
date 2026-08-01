@@ -113,7 +113,7 @@ jobs:
             exit 1
           }
       - id: release-please
-        uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         with:
           token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
           config-file: .release-please-config.json
@@ -130,7 +130,7 @@ jobs:
       publish: ${{ steps.resolve.outputs.publish }}
       tag_name: ${{ steps.resolve.outputs.tag_name }}
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
@@ -227,7 +227,7 @@ jobs:
       issues: write
       pull-requests: read
     steps:
-      - uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           WAIT_RESULT: ${{ needs.wait-for-required-checks.result }}
           RELEASE_RESULT: ${{ needs.release.result }}
