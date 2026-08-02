@@ -2,6 +2,13 @@
 
 All notable changes to LedgerBoard are documented here.
 
+## [0.8.0](https://github.com/Ricky-G/ledgerboard/compare/v0.7.0...v0.8.0) (2026-08-01)
+
+
+### Added
+
+* rename entities to labels and outcomes to tickets ([#64](https://github.com/Ricky-G/ledgerboard/issues/64)) ([b27a2bc](https://github.com/Ricky-G/ledgerboard/commit/b27a2bc349e2d393c91f89436073ccb93bf66297)), closes [#50](https://github.com/Ricky-G/ledgerboard/issues/50)
+
 ## [0.7.0](https://github.com/Ricky-G/ledgerboard/compare/v0.6.1...v0.7.0) (2026-08-01)
 
 
