@@ -144,15 +144,15 @@
     "publish:marketplace": "vsce publish --no-dependencies"
   },
   "devDependencies": {
-    "@playwright/test": "1.62.0",
+    "@playwright/test": "1.62.1",
     "@types/vscode": "^1.103.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "26.x",
     "typescript-eslint": "8.65.0",
-    "eslint": "^10.5.0",
+    "eslint": "^10.8.0",
     "esbuild": "^0.28.1",
-    "npm-run-all2": "^9.0.2",
-    "typescript": "^6.0.3",
+    "npm-run-all2": "^9.0.3",
+    "typescript": "^7.0.2",
     "@vscode/test-electron": "^3.1.0",
     "@vscode/vsce": "3.9.2"
   },
