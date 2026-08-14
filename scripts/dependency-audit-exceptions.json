@@ -8,6 +8,13 @@
       "reason": "Current VSCE, ESLint, and TypeScript ESLint releases require vulnerable brace-expansion through minimatch. No compatible fixed upstream release is available."
     },
     {
+      "advisory": "https://github.com/advisories/GHSA-rgw5-rvv9-x895",
+      "owner": "Ricky-G",
+      "expires": "2026-10-31",
+      "remediation": "docs/dependency-security-exceptions.md#brace-expansion",
+      "reason": "Current VSCE, ESLint, and TypeScript ESLint releases require vulnerable brace-expansion through minimatch. No compatible fixed upstream release is available."
+    },
+    {
       "advisory": "https://github.com/advisories/GHSA-v2hh-gcrm-f6hx",
       "owner": "Ricky-G",
       "expires": "2026-10-31",
