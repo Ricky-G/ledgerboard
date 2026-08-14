@@ -13,6 +13,7 @@ Dependency Review uses the same exact advisory IDs, while the full audit enforce
 ## Brace expansion
 
 - **Advisory:** [GHSA-mh99-v99m-4gvg](https://github.com/advisories/GHSA-mh99-v99m-4gvg)
+- **Advisory:** [GHSA-rgw5-rvv9-x895](https://github.com/advisories/GHSA-rgw5-rvv9-x895)
 - **Owner:** Ricky-G
 - **Expires:** 2026-10-31
 - **Affected development tools:** `@vscode/vsce`, `eslint`, and `typescript-eslint`
