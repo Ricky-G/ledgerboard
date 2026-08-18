@@ -152,6 +152,18 @@ test('CI validates the exact commit that landed on the protected branch', () => 
   );
 });
 
+test('the webview job installs only the browser binary on the hosted runner', () => {
+  const webview = ciWorkflow.match(/^ {2}webview-tests:\n([\s\S]*?)(?=\n {2}integration-tests:)/m)[1];
+
+  assert.match(webview, /run: npx playwright install chromium/);
+  assert.doesNotMatch(
+    webview,
+    /playwright install(?: --with-deps|-deps)/,
+    'The hosted runner provides Chromium system libraries, so apt-based dependency '
+      + 'installation can hang on an unavailable mirror.',
+  );
+});
+
 test('every CI checkout refuses to persist the workflow credential', () => {
   const checkouts = ciWorkflow.match(/uses: actions\/checkout@[0-9a-f]{40}/g) ?? [];
   const persistFlags = ciWorkflow.match(/persist-credentials: false/g) ?? [];

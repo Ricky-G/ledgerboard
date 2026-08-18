@@ -103,11 +103,9 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
       - name: Install the Chromium build Playwright expects
-        run: npx playwright install --with-deps chromium
-        if: steps.browser-cache.outputs.cache-hit != 'true'
-      - name: Install only the system dependencies when the browser is cached
-        run: npx playwright install-deps chromium
-        if: steps.browser-cache.outputs.cache-hit == 'true'
+        # The hosted Ubuntu image already provides Chromium's system libraries.
+        # Avoid apt-based dependency installation, which can hang on a mirror.
+        run: npx playwright install chromium
       - name: Run the webview suite
         run: npx playwright test
       - name: Upload the Playwright report
