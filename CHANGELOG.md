@@ -2,6 +2,13 @@
 
 All notable changes to LedgerBoard are documented here.
 
+## [0.9.0](https://github.com/Ricky-G/ledgerboard/compare/v0.8.0...v0.9.0) (2026-08-18)
+
+
+### Added
+
+* separate WIP and completed-work analytics ([#88](https://github.com/Ricky-G/ledgerboard/issues/88)) ([d50ad0d](https://github.com/Ricky-G/ledgerboard/commit/d50ad0d210da8f9adf3f4aeb2fbbc3790b4fee9f))
+
 ## [0.8.0](https://github.com/Ricky-G/ledgerboard/compare/v0.7.0...v0.8.0) (2026-08-01)
 
 
