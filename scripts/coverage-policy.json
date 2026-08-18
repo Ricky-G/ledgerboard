@@ -17,8 +17,8 @@
     "out/**"
   ],
   "thresholds": {
-    "lines": 96.7,
-    "branches": 92.8,
-    "functions": 98.4
+    "lines": 96.8,
+    "branches": 93.4,
+    "functions": 98.5
   }
 }

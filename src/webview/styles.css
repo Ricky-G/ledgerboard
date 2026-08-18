@@ -1208,7 +1208,7 @@ main {
   font-family: Bahnschrift, "Arial Narrow", sans-serif;
   font-size: 11px;
   font-weight: 750;
-  background: transparent;
+  background: var(--status-color, #7d8890);
   border: 0;
   transition: flex-basis 220ms ease;
 }
@@ -1221,7 +1221,7 @@ main {
 
 .status-legend {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
   gap: 8px;
 }
 
@@ -1351,6 +1351,7 @@ main {
 
 .activity-bar { background: #7197b9; }
 .completed-bar { background: var(--success); }
+.completed-work-period .completed-bar { width: 76%; }
 
 .activity-day-label {
   position: absolute;
