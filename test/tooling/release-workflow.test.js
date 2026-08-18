@@ -9,6 +9,16 @@ const releaseWorkflow = fs.readFileSync(
   'utf8',
 ).replace(/\r\n/g, '\n');
 
+const prepareReleasePath = path.join(
+  REPOSITORY_ROOT,
+  '.github',
+  'workflows',
+  'prepare-release.yml',
+);
+const prepareReleaseWorkflow = fs.existsSync(prepareReleasePath)
+  ? fs.readFileSync(prepareReleasePath, 'utf8').replace(/\r\n/g, '\n')
+  : '';
+
 const publishWorkflow = fs.readFileSync(
   path.join(REPOSITORY_ROOT, '.github', 'workflows', 'publish.yml'),
   'utf8',
@@ -109,6 +119,39 @@ function createReportHarness(waitResult) {
   return { context, created, github, processMock };
 }
 
+test('release preparation leaves the sole-maintainer merge decision manual', () => {
+  assert.match(prepareReleaseWorkflow, /^name: Prepare release$/m);
+  assert.match(prepareReleaseWorkflow, /^on:\n  workflow_dispatch:$/m);
+  assert.doesNotMatch(prepareReleaseWorkflow, /^ {2}push:/m);
+  assert.match(
+    prepareReleaseWorkflow,
+    /^ {4}concurrency:\n {6}group: release-please\n {6}cancel-in-progress: false$/m,
+  );
+  assert.match(prepareReleaseWorkflow, /^ {10}skip-github-release: true$/m);
+  assert.match(prepareReleaseWorkflow, /steps\.release-please\.outputs\.prs_created/);
+  assert.match(prepareReleaseWorkflow, /steps\.release-please\.outputs\.pr/);
+  assert.doesNotMatch(prepareReleaseWorkflow, /gh pr merge/);
+  assert.match(prepareReleaseWorkflow, /Bypass rules and merge/);
+  assert.match(prepareReleaseWorkflow, /required checks pass/);
+  assert.match(prepareReleaseWorkflow, /squash method/);
+});
+
+test('ordinary main merges cannot create or update a release pull request', () => {
+  const release = releaseWorkflow.match(
+    /  release:[\s\S]*?(?=\n  resolve-publication:)/,
+  )[0];
+
+  assert.match(releaseWorkflow, /^ {2}identify-release-merge:$/m);
+  assert.match(releaseWorkflow, /commits\/\$GITHUB_SHA\/pulls/);
+  assert.match(releaseWorkflow, /autorelease: pending/);
+  assert.match(releaseWorkflow, /release-please--branches--main--components--ledgerboard/);
+  assert.match(
+    release,
+    /if: github\.event_name == 'push' && needs\.identify-release-merge\.outputs\.release_merge == 'true'/,
+  );
+  assert.match(release, /^ {10}skip-github-pull-request: true$/m);
+});
+
 test('release waits for required push check runs on the merge commit', () => {
   const requiredChecks = releaseWorkflow
     .match(/REQUIRED_CHECKS=\(\s*([\s\S]*?)\)/)[1]
@@ -133,7 +176,7 @@ test('release gates on recorded check results rather than repeating CI', () => {
     /^ {2}validate:$/m,
     'The release path must not duplicate the CI suites.',
   );
-  assert.match(releaseWorkflow, /needs: \[wait-for-required-checks\]/);
+  assert.match(releaseWorkflow, /needs: \[identify-release-merge, wait-for-required-checks\]/);
 });
 
 test('release recovery can repair and publish an existing release tag', () => {
@@ -145,7 +188,7 @@ test('release recovery can repair and publish an existing release tag', () => {
   assert.match(releaseWorkflow, /workflow_dispatch:\s+inputs:\s+tag:/);
   assert.match(
     releaseWorkflow,
-    /  release:\s+name: Create release preparation\s+if: github\.event_name == 'push'/,
+    /  release:\s+name: Create tagged release\s+needs: \[identify-release-merge, wait-for-required-checks\]/,
   );
   assert.match(resolvePublication, /if: always\(\) && \(github\.event_name == 'workflow_dispatch'/);
   assert.match(resolvePublication, /permissions:\s+contents: write/);
@@ -174,7 +217,7 @@ test('the called publish workflow receives the marketplace credential', () => {
   );
 });
 
-test('publication is never held behind the release preparation lock', () => {
+test('publication is never held behind the Release Please mutation lock', () => {
   // GitHub cancels an already-pending run when a newer one joins the same
   // concurrency group. A workflow-level lock therefore puts publication at risk
   // of being cancelled while a tag already exists, which leaves the Marketplace
@@ -235,7 +278,7 @@ test('main validation failures report the broken layers and the bypass recovery 
   assert.match(report, /CI \/ quality.*concluded/);
   assert.match(report, /Failed check.*Conclusion/);
   assert.match(report, /Document why the emergency bypass or post-merge failure occurred/);
-  assert.match(report, /Release preparation did not start, so there is no release tag to publish/);
+  assert.match(report, /Tagged release creation did not start, so there is no release tag to publish/);
 });
 
 test('main validation reporting creates an actionable recovery issue', async () => {

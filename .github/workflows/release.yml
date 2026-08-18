@@ -16,12 +16,55 @@ permissions:
   pull-requests: write
 
 jobs:
+  identify-release-merge:
+    name: Identify release pull request merge
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      release_merge: ${{ steps.identify.outputs.release_merge }}
+    steps:
+      - name: Verify release pull request identity
+        id: identify
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ASSOCIATED_PULLS="$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls")"
+          RELEASE_PULLS="$(jq -c --arg repository "$GITHUB_REPOSITORY" '
+            [.[] | select(
+              .merged_at != null
+              and .base.ref == "main"
+              and .head.repo.full_name == $repository
+              and .head.ref == "release-please--branches--main--components--ledgerboard"
+              and (([.labels[]?.name] | index("autorelease: pending")) != null)
+              and (.title | test("^chore\\(main\\): release [0-9]+\\.[0-9]+\\.[0-9]+$"))
+            )]
+          ' <<< "$ASSOCIATED_PULLS")"
+          RELEASE_COUNT="$(jq 'length' <<< "$RELEASE_PULLS")"
+          if [ "$RELEASE_COUNT" -gt 1 ]; then
+            echo "::error::Merge commit $GITHUB_SHA is associated with multiple release pull requests."
+            exit 1
+          fi
+          if [ "$RELEASE_COUNT" -eq 1 ]; then
+            RELEASE_NUMBER="$(jq -r '.[0].number' <<< "$RELEASE_PULLS")"
+            echo "Verified release pull request #$RELEASE_NUMBER."
+            echo "release_merge=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "This is not a release pull request merge. Release preparation remains manual."
+            echo "release_merge=false" >> "$GITHUB_OUTPUT"
+          fi
+
   wait-for-required-checks:
     # The aggregate `quality` check already ran every test layer against this
     # exact merge commit, so the release path verifies that evidence instead of
     # re-running the same suites and doubling the time to publish.
     name: Wait for required merge gates
-    if: github.event_name == 'push'
+    needs: identify-release-merge
+    if: github.event_name == 'push' && needs.identify-release-merge.outputs.release_merge == 'true'
     runs-on: ubuntu-latest
     permissions:
       checks: read
@@ -88,16 +131,12 @@ jobs:
           done
 
   release:
-    name: Create release preparation
-    if: github.event_name == 'push'
-    needs: [wait-for-required-checks]
+    name: Create tagged release
+    needs: [identify-release-merge, wait-for-required-checks]
+    if: github.event_name == 'push' && needs.identify-release-merge.outputs.release_merge == 'true'
     runs-on: ubuntu-latest
-    # Only release preparation needs a lock, and only this job may be
-    # superseded. Release Please keeps a single open release pull request that
-    # covers every commit since the last release, so a newer run always
-    # subsumes an older pending one. Locking the whole workflow instead would
-    # put publication behind the same lock, where GitHub cancels the pending
-    # run when a newer one arrives and strands a tagged release unpublished.
+    # Release Please mutations share a lock with manual preparation. Publication
+    # stays outside it so another preparation cannot strand a tagged release.
     concurrency:
       group: release-please
       cancel-in-progress: false
@@ -118,6 +157,7 @@ jobs:
           token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
           config-file: .release-please-config.json
           manifest-file: .release-please-manifest.json
+          skip-github-pull-request: true
 
   resolve-publication:
     name: Resolve publication
@@ -218,7 +258,7 @@ jobs:
     # Main validation and release publication fail for different reasons and
     # require different recovery paths. Report both without making a maintainer
     # reconstruct the failing layer from several workflow runs.
-    needs: [wait-for-required-checks, release, resolve-publication, publish]
+    needs: [identify-release-merge, wait-for-required-checks, release, resolve-publication, publish]
     if: always() && contains(needs.*.result, 'failure')
     runs-on: ubuntu-latest
     permissions:
@@ -229,6 +269,7 @@ jobs:
     steps:
       - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
+          IDENTIFY_RESULT: ${{ needs.identify-release-merge.result }}
           WAIT_RESULT: ${{ needs.wait-for-required-checks.result }}
           RELEASE_RESULT: ${{ needs.release.result }}
           RESOLVE_RESULT: ${{ needs.resolve-publication.result }}
@@ -243,8 +284,9 @@ jobs:
             let body;
             if (validationFailed) {
               const releaseCheckNames = new Set([
+                'Identify release pull request merge',
                 'Wait for required merge gates',
-                'Create release preparation',
+                'Create tagged release',
                 'Resolve publication',
                 'Publish release',
                 'Report release failure',
@@ -309,7 +351,7 @@ jobs:
                 '| --- | --- |',
                 ...failedRows,
                 '',
-                'Release preparation did not start, so there is no release tag to publish.',
+                'Tagged release creation did not start, so there is no release tag to publish.',
                 '',
                 '### Recovery record',
                 '',
@@ -325,14 +367,15 @@ jobs:
                 '',
                 '| Stage | Result |',
                 '| --- | --- |',
+                `| Identify release pull request merge | ${process.env.IDENTIFY_RESULT} |`,
                 `| Wait for required merge gates | ${process.env.WAIT_RESULT} |`,
-                `| Create release preparation | ${process.env.RELEASE_RESULT} |`,
+                `| Create tagged release | ${process.env.RELEASE_RESULT} |`,
                 `| Resolve publication | ${process.env.RESOLVE_RESULT} |`,
                 `| Publish release | ${process.env.PUBLISH_RESULT} |`,
                 '',
-                'A tagged release that does not publish leaves the Marketplace behind this repository.',
-                'After fixing the cause, publish the existing tag with the `Publish to Visual Studio',
-                'Marketplace` workflow rather than cutting a new version.',
+                'After fixing the cause, check whether the expected release tag exists.',
+                'If it exists, publish the existing tag with the `Publish to Visual Studio Marketplace`',
+                'workflow rather than cutting a new version. If no tag exists, rerun this workflow.',
                 '',
                 `Run: ${runUrl}`,
               ].join('\n');

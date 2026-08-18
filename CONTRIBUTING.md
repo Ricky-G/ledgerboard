@@ -109,10 +109,11 @@ request checks and branch rules as every other change before merging.
 ### Automated lifecycle
 
 1. A merge to `main` runs the full CI pipeline against that exact merge commit. The release workflow
-   waits for those recorded check results rather than repeating the same suites.
-2. Release Please opens or updates a version and changelog pull request when eligible conventional
-   commits are present.
-3. After that protected pull request merges, Release Please creates the annotated `vX.Y.Z` tag and
+   ignores it unless it is a verified release pull request merge.
+2. When a release batch is ready, a maintainer manually runs the `Prepare release` workflow. Release
+   Please opens or updates a version and changelog pull request.
+3. After the required checks pass, the sole maintainer uses the repository's pull-request-only bypass
+   to confirm a squash merge. Release Please then creates the annotated `vX.Y.Z` tag and
    GitHub Release from the release commit. The workflow ensures the tag is annotated and points to
    that exact merge commit. Its generated notes clearly group breaking changes, additions, fixes,
    performance work, documentation, and linked contributors where available.

@@ -1,0 +1,56 @@
+name: Prepare release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  prepare:
+    name: Create release pull request
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release-please
+      cancel-in-progress: false
+    steps:
+      - name: Require release automation token
+        env:
+          RELEASE_PLEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+        run: |
+          test -n "$RELEASE_PLEASE_TOKEN" || {
+            echo "::error::Missing RELEASE_PLEASE_TOKEN. Configure the release-bot token before preparing a release."
+            exit 1
+          }
+      - id: release-please
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          config-file: .release-please-config.json
+          manifest-file: .release-please-manifest.json
+          skip-github-release: true
+      - name: Report release pull request
+        if: steps.release-please.outputs.prs_created == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          RELEASE_PR: ${{ steps.release-please.outputs.pr }}
+        run: |
+          PR_NUMBER="$(jq -er '.number' <<< "$RELEASE_PR")"
+          PR_URL="$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json url --jq .url)"
+          {
+            echo "## Release pull request"
+            echo
+            echo "[$PR_URL]($PR_URL) is ready for review."
+            echo "After required checks pass, use **Bypass rules and merge** with the squash method."
+            echo "Merging this pull request automatically tags and publishes the release."
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Report no releasable changes
+        if: steps.release-please.outputs.prs_created != 'true'
+        run: |
+          {
+            echo "## No release pull request"
+            echo
+            echo "No releasable changes were found since the previous release."
+          } >> "$GITHUB_STEP_SUMMARY"

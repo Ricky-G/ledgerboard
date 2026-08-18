@@ -69,6 +69,9 @@ and documentation, is public and permanent. Write for a reader who has no other 
   independently create a release. Do not disguise a user-visible change as a non-release type.
 - Do not manually change package versions, create tags or releases, publish a VSIX, or edit generated
   changelog entries. Release Please owns version preparation and the protected workflow owns publishing.
+- Prepare a release only through the manually dispatched `Prepare release` workflow. Its generated
+  pull request ships after required checks pass and the sole maintainer confirms a squash merge with
+  the repository's pull-request-only bypass.
 - Describe user-visible behavior clearly in the PR. Update user documentation when it changes.
 
 ### Writing the release notes
@@ -105,7 +108,9 @@ Write every entry for someone who uses the extension and has never seen this rep
 - Keep workflow permissions minimal. Do not use `pull_request_target` for untrusted pull request code.
 - Pin every GitHub Action to a full commit SHA with the version in a trailing comment. A mutable tag
   lets an upstream owner change what runs in CI.
-- Required checks and an independent approval protect `main`. Do not bypass them for routine work.
+- Required checks and an independent approval protect `main`. The generated release pull request is
+  the documented sole-maintainer exception: required checks remain mandatory, and the
+  pull-request-only bypass substitutes only for an impossible self-approval.
 - `quality` is the single required status check and aggregates every CI layer. Adding a layer means
   adding a job and listing it under the `quality` job's `needs:`. Never rename `quality`: the release
   workflow waits on that exact name.
