@@ -947,7 +947,8 @@
   function buildAnalytics(document, historyEvents, options = {}) {
     validateBoard(document);
     const columns = document.columns.map(({ id, label }) => ({ id, label }));
-    const doneColumnId = columns.some((column) => column.id === "done") ? "done" : null;
+    const completionColumn = columns.find((column) => column.id === "done") || null;
+    const doneColumnId = completionColumn?.id || null;
     const now = options.now ? new Date(options.now) : new Date();
     if (!Number.isFinite(now.valueOf())) {
       throw new Error("Analytics requires a valid current timestamp.");
@@ -968,10 +969,15 @@
       .filter((item) => eventMatchesFilters(item.record, cardsById, filters));
     const history = analyzeHistory(indexedEvents, cardsById, now, columns);
     const activeCards = cards.filter((card) => !card.checked);
+    const wipColumns = columns.filter((column) => column.id !== doneColumnId);
     const status = Object.fromEntries(columns.map((column) => [column.id, 0]));
     const priority = { P1: 0, P2: 0, P3: 0, P4: 0 };
     const labels = {};
     const assignees = {};
+    const wipStatus = Object.fromEntries(wipColumns.map((column) => [column.id, 0]));
+    const wipPriority = { P1: 0, P2: 0, P3: 0, P4: 0 };
+    const wipLabels = {};
+    const wipAssignees = {};
 
     cards.forEach((card) => {
       if (Object.hasOwn(status, card.columnId)) status[card.columnId] += 1;
@@ -979,6 +985,12 @@
       labels[card.area] = (labels[card.area] || 0) + 1;
       const key = card.assignee || "unassigned";
       assignees[key] = (assignees[key] || 0) + 1;
+      if (!card.checked) {
+        if (Object.hasOwn(wipStatus, card.columnId)) wipStatus[card.columnId] += 1;
+        wipPriority[card.priority] += 1;
+        wipLabels[card.area] = (wipLabels[card.area] || 0) + 1;
+        wipAssignees[key] = (wipAssignees[key] || 0) + 1;
+      }
     });
 
     const daily = range.dateKeys.map((date) => ({
@@ -1084,6 +1096,26 @@
       labels,
       entities: labels,
       assignees,
+      wip: {
+        total: activeCards.length,
+        columns: wipColumns,
+        status: wipStatus,
+        priority: wipPriority,
+        labels: wipLabels,
+        entities: wipLabels,
+        assignees: wipAssignees,
+        cards: activeCards.map((card) => analyticsCard(card)),
+      },
+      completedWork: {
+        column: completionColumn,
+        total: completedInRange,
+        throughput: aggregateAnalyticsBuckets(daily, options.aggregation),
+        comparison: {
+          current: completedInRange,
+          previous: previous.completed,
+          change: completedInRange - previous.completed,
+        },
+      },
       daily,
       throughput: aggregateAnalyticsBuckets(daily, options.aggregation),
       cumulativeFlow,
@@ -1111,8 +1143,14 @@
       },
       definitions: {
         completion: doneColumnId
-          ? "A completion is a created or moved event whose destination is the configured completion column."
+          ? `A completion is a created or moved event whose destination is ${completionColumn.label}, the configured completion column.`
           : "Completion metrics are unavailable until the board contains a completion column.",
+        workInProgress: doneColumnId
+          ? `Work in progress shows current tickets outside ${completionColumn.label}, the configured completion column.`
+          : "Work in progress shows all current tickets because the board has no configured completion column.",
+        completedWork: doneColumnId
+          ? "Completed work counts recorded arrivals in the configured completion column during the selected period."
+          : "Completed work is unavailable until the board contains a completion column.",
         leadTime: "Lead time runs from a recorded creation to the first recorded completion. Baselines are excluded.",
         cycleTime: "Cycle time runs from the first recorded move to the active column to the first recorded completion. Baselines are excluded.",
         aging: "Age runs from the latest recorded entry into the current status. A baseline is an observed lower bound, not a start date.",

@@ -110,6 +110,43 @@ test('status, priority, label, and assignee totals reflect the board', () => {
   assert.equal(result.assignees.unassigned, 2);
 });
 
+test('separates filtered WIP from selected-period completions in a renamed completion column', () => {
+  const board = model.reconfigureColumns(model.parseBoard(SAMPLE_BOARD), [
+    { id: 'inbox', name: 'Intake' },
+    { id: 'next', name: 'Ready' },
+    { id: 'doing', name: 'In delivery' },
+    { id: 'blocked', name: 'Waiting' },
+    { id: 'done', name: 'Accepted' },
+  ]);
+  const result = model.buildAnalytics(board, SAMPLE_EVENTS, {
+    now: NOW,
+    timeZone: 'Etc/UTC',
+    startDate: '2026-03-01',
+    endDate: '2026-03-10',
+    aggregation: 'week',
+    filters: { priorities: ['P2', 'P3'] },
+  });
+
+  assert.deepEqual(result.wip.columns.map((column) => column.label), [
+    'Intake',
+    'Ready',
+    'In delivery',
+    'Waiting',
+  ]);
+  assert.deepEqual(result.wip.cards.map((card) => card.id), ['AO-002']);
+  assert.deepEqual(result.wip.status, { inbox: 0, next: 0, doing: 1, blocked: 0 });
+  assert.deepEqual(result.wip.priority, { P1: 0, P2: 1, P3: 0, P4: 0 });
+  assert.deepEqual(result.completedWork.column, { id: 'done', label: 'Accepted' });
+  assert.equal(result.completedWork.total, 1);
+  assert.deepEqual(
+    result.completedWork.throughput
+      .filter((bucket) => bucket.completed > 0)
+      .map(({ key, completed, completedCardIds }) => ({ key, completed, completedCardIds })),
+    [{ key: '2026-03-02', completed: 1, completedCardIds: ['AO-003'] }],
+  );
+  assert.deepEqual(result.completedWork.comparison, { current: 1, previous: 0, change: 1 });
+});
+
 test('a status filter narrows both cards and their supporting history', () => {
   const result = analytics(SAMPLE_BOARD, SAMPLE_EVENTS, { filters: { statuses: ['doing'] } });
 

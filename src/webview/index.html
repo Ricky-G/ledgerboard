@@ -407,10 +407,10 @@
             <section class="analytics-panel status-panel" aria-labelledby="statusChartTitle">
               <div class="analytics-panel-heading">
                 <div>
-                  <p class="eyebrow">Current state</p>
-                  <h3 id="statusChartTitle">Work by status</h3>
+                  <p class="eyebrow">Work in progress</p>
+                  <h3 id="statusChartTitle">Work in progress by status</h3>
                 </div>
-                <strong id="statusTotal">0 tickets</strong>
+                <strong id="statusTotal">0 WIP tickets</strong>
               </div>
               <div id="statusChart" class="status-chart"></div>
             </section>
@@ -418,8 +418,8 @@
             <section class="analytics-panel priority-panel" aria-labelledby="priorityChartTitle">
               <div class="analytics-panel-heading">
                 <div>
-                  <p class="eyebrow">Current state</p>
-                  <h3 id="priorityChartTitle">Priority mix</h3>
+                  <p class="eyebrow">Work in progress</p>
+                  <h3 id="priorityChartTitle">WIP priority mix</h3>
                 </div>
               </div>
               <div id="priorityChart" class="priority-chart"></div>
@@ -428,19 +428,20 @@
             <section class="analytics-panel activity-panel" aria-labelledby="activityChartTitle">
               <div class="analytics-panel-heading">
                 <div>
-                  <p class="eyebrow">Flow over time</p>
-                  <h3 id="activityChartTitle">Recorded throughput</h3>
+                  <p class="eyebrow">Completed work</p>
+                  <h3 id="activityChartTitle">Completion throughput</h3>
+                  <p id="completedWorkComparison" class="analytics-panel-description">Matches the preceding equivalent period. Grouped by day.</p>
                 </div>
-                <span class="chart-key"><i></i> Activity <i></i> Completed</span>
+                <strong id="completedWorkTotal">0 completed</strong>
               </div>
-              <div id="throughputChart" class="activity-chart" aria-label="Recorded throughput chart"></div>
+              <div id="throughputChart" class="activity-chart" aria-label="Completed work throughput chart"></div>
             </section>
 
             <section class="analytics-panel entity-panel" aria-labelledby="entityChartTitle">
               <div class="analytics-panel-heading">
                 <div>
-                  <p class="eyebrow">Active portfolio</p>
-                  <h3 id="entityChartTitle">Work by label / category</h3>
+                  <p class="eyebrow">Work in progress</p>
+                  <h3 id="entityChartTitle">WIP by label / category</h3>
                 </div>
               </div>
               <div id="entityChart" class="entity-chart"></div>

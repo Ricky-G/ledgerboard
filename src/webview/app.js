@@ -57,7 +57,8 @@
       "analyticsExport", "analyticsForecastDate", "metricActive", "metricBlocked", "metricAging",
       "metricCompletedLabel", "metricCompletedRange", "metricNetWork", "metricRework", "metricCycle",
       "metricForecast", "metricForecastDetail", "analyticsHealthSummary", "analyticsDefinitions",
-      "statusTotal", "statusChart", "priorityChart", "throughputChart", "entityChart", "cumulativeFlow",
+      "statusTotal", "statusChart", "priorityChart", "throughputChart", "completedWorkTotal",
+      "completedWorkComparison", "entityChart", "cumulativeFlow",
       "agingWork", "workload", "timeInStatus", "qualityChecks", "insights", "forecast",
       "historyEventCount", "recentActivity", "analyticsDrilldown",
       "searchInput", "areaFilter", "assigneeFilter", "priorityFilter", "activeCount", "blockedCount",
@@ -1660,7 +1661,12 @@
     elements.metricForecastDetail.textContent = analytics.forecast.available
       ? "Historical throughput range"
       : "Needs more recorded history";
-    elements.statusTotal.textContent = `${analytics.total} tickets`;
+    elements.statusTotal.textContent = `${analytics.wip.total} WIP tickets`;
+    elements.completedWorkTotal.textContent = `${analytics.completedWork.total} completed`;
+    const completionChange = analytics.completedWork.comparison.change;
+    elements.completedWorkComparison.textContent = `${completionChange === 0
+      ? "Matches"
+      : `${Math.abs(completionChange)} ${completionChange > 0 ? "more" : "fewer"} than`} the preceding equivalent period. Grouped by ${elements.analyticsAggregation.value}.`;
     elements.historyEventCount.textContent = `${analytics.historyEvents} events`;
     elements.analyticsTimeZone.textContent = analytics.metadata.timeZone;
     elements.analyticsRangeSummary.textContent = `${formatShortDateKey(analytics.metadata.range.start)} to ${formatShortDateKey(analytics.metadata.range.end)}`;
@@ -1670,7 +1676,7 @@
 
     renderStatusChart(analytics);
     renderPriorityChart(analytics);
-    renderThroughputChart(analytics);
+    renderCompletedWorkChart(analytics);
     renderEntityChart(analytics);
     renderCumulativeFlow(analytics);
     renderAgingWork(analytics);
@@ -1912,34 +1918,36 @@
 
   function renderStatusChart(analytics) {
     elements.statusChart.replaceChildren();
-    if (analytics.total === 0) {
-      elements.statusChart.append(createAnalyticsEmpty("No current tickets match this filter."));
+    const wip = analytics.wip;
+    if (wip.total === 0) {
+      elements.statusChart.append(createAnalyticsEmpty("No work in progress matches this filter."));
       return;
     }
     const track = document.createElement("div");
     track.className = "status-track";
-    currentColumns().forEach((column) => {
-      const count = analytics.status[column.id];
+    wip.columns.forEach((column, index) => {
+      const count = wip.status[column.id];
       if (count === 0) return;
       const segment = createAnalyticsAction(
         `${column.label}: ${count} tickets`,
         "status-segment",
-        analytics.cards.filter((card) => card.columnId === column.id).map((card) => card.id),
+        wip.cards.filter((card) => card.columnId === column.id).map((card) => card.id),
       );
       segment.className = "status-segment";
       segment.dataset.status = column.id;
-      segment.style.flexBasis = `${(count / Math.max(1, analytics.total)) * 100}%`;
+      segment.style.setProperty("--status-color", columnColor(column.id, index));
+      segment.style.flexBasis = `${(count / Math.max(1, wip.total)) * 100}%`;
       segment.textContent = count;
       track.append(segment);
     });
 
     const legend = document.createElement("div");
     legend.className = "status-legend";
-    currentColumns().forEach((column, index) => {
+    wip.columns.forEach((column, index) => {
       const item = createAnalyticsAction(
-        `${column.label}: ${analytics.status[column.id]} tickets`,
+        `${column.label}: ${wip.status[column.id]} tickets`,
         "status-legend-item",
-        analytics.cards.filter((card) => card.columnId === column.id).map((card) => card.id),
+        wip.cards.filter((card) => card.columnId === column.id).map((card) => card.id),
       );
       item.className = "status-legend-item";
       item.style.setProperty("--legend-color", columnColor(column.id, index));
@@ -1947,7 +1955,7 @@
       const label = document.createElement("span");
       label.textContent = column.label;
       const count = document.createElement("strong");
-      count.textContent = String(analytics.status[column.id]);
+      count.textContent = String(wip.status[column.id]);
       item.append(swatch, label, count);
       legend.append(item);
     });
@@ -1956,26 +1964,28 @@
 
   function renderPriorityChart(analytics) {
     elements.priorityChart.replaceChildren();
-    if (analytics.total === 0) {
-      elements.priorityChart.append(createAnalyticsEmpty("No current tickets match this filter."));
+    const wip = analytics.wip;
+    if (wip.total === 0) {
+      elements.priorityChart.append(createAnalyticsEmpty("No work in progress matches this filter."));
       return;
     }
     const colors = { P1: "#b52f42", P2: "#c65d18", P3: "#2e6ea6", P4: "#617078" };
-    const maximum = Math.max(1, ...Object.values(analytics.priority));
-    Object.entries(analytics.priority).forEach(([priority, count]) => {
+    const maximum = Math.max(1, ...Object.values(wip.priority));
+    Object.entries(wip.priority).forEach(([priority, count]) => {
       elements.priorityChart.append(createAnalyticsBar(
         priority,
         count,
         maximum,
         colors[priority],
-        analytics.cards.filter((card) => card.priority === priority).map((card) => card.id),
+        wip.cards.filter((card) => card.priority === priority).map((card) => card.id),
       ));
     });
   }
 
   function renderEntityChart(analytics) {
     elements.entityChart.replaceChildren();
-    const entries = Object.entries(analytics.labels)
+    const wip = analytics.wip;
+    const entries = Object.entries(wip.labels)
       .sort((left, right) => right[1] - left[1] || getEntity(left[0]).name.localeCompare(getEntity(right[0]).name));
     if (entries.length === 0) {
       elements.entityChart.append(createAnalyticsEmpty("No active label work."));
@@ -1989,7 +1999,7 @@
         count,
         maximum,
         entity.color,
-        analytics.cards.filter((card) => card.area === area).map((card) => card.id),
+        wip.cards.filter((card) => card.area === area).map((card) => card.id),
       ));
     });
   }
@@ -2029,31 +2039,30 @@
     return button;
   }
 
-  function renderThroughputChart(analytics) {
+  function renderCompletedWorkChart(analytics) {
     elements.throughputChart.replaceChildren();
-    const activityTotal = analytics.throughput.reduce((sum, bucket) => sum + bucket.activity, 0);
-    if (activityTotal === 0) {
+    const { completedWork } = analytics;
+    if (completedWork.total === 0) {
       elements.throughputChart.append(createAnalyticsEmpty(
-        "No recorded activity matches this range and filter. Future saved changes will appear here.",
+        "No completed work matches this selected period and filter.",
       ));
       return;
     }
-    const maximum = Math.max(1, ...analytics.throughput.flatMap((bucket) => [bucket.activity, bucket.completed]));
-    const labelEvery = analytics.throughput.length <= 7 ? 1 : analytics.throughput.length <= 30 ? 5 : 15;
-    analytics.throughput.forEach((bucket, index) => {
+    const maximum = Math.max(1, ...completedWork.throughput.map((bucket) => bucket.completed));
+    const labelEvery = completedWork.throughput.length <= 7
+      ? 1
+      : completedWork.throughput.length <= 30 ? 5 : 15;
+    completedWork.throughput.forEach((bucket, index) => {
       const day = createAnalyticsAction(
-        `${bucket.key}: ${bucket.completed} completed and ${bucket.activity} recorded events`,
-        "activity-day",
-        bucket.completedCardIds.length > 0 ? bucket.completedCardIds : bucket.activityCardIds,
+        `${bucket.key}: ${bucket.completed} completed`,
+        "activity-day completed-work-period",
+        bucket.completedCardIds,
       );
-      day.className = "activity-day";
-      const activity = document.createElement("div");
-      activity.className = "activity-bar";
-      activity.style.height = `${(bucket.activity / maximum) * 100}%`;
+      day.className = "activity-day completed-work-period";
       const completed = document.createElement("div");
       completed.className = "completed-bar";
       completed.style.height = `${(bucket.completed / maximum) * 100}%`;
-      day.append(activity, completed);
+      day.append(completed);
       if (index % labelEvery === 0 || index === analytics.throughput.length - 1) {
         const label = document.createElement("span");
         label.className = "activity-day-label";

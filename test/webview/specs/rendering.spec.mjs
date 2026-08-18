@@ -42,7 +42,7 @@ test.describe('board rendering', () => {
   test('reports board statistics from the loaded bundle', async ({ page }) => {
     await openBoard(page);
 
-    await expect(page.locator('#statusTotal')).toHaveText('6 tickets');
+    await expect(page.locator('#statusTotal')).toHaveText('5 WIP tickets');
     await expect(page.locator('#historyEventCount')).toHaveText('3 events');
     await expect(page.locator('#activeCount')).toHaveText('5');
     await expect(page.locator('#doingCount')).toHaveText('1');

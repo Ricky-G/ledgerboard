@@ -13,7 +13,12 @@ test.describe('analytics view', () => {
     await expect(page.locator('#metricActive')).not.toBeEmpty();
     await expect(page.locator('#metricBlocked')).not.toBeEmpty();
     await expect(page.locator('#statusChart')).not.toBeEmpty();
+    await expect(page.locator('#statusChart')).not.toContainText('Done');
+    await expect(page.locator('#statusTotal')).toHaveText('5 WIP tickets');
     await expect(page.locator('#priorityChart')).not.toBeEmpty();
+    await expect(page.locator('#throughputChart')).not.toBeEmpty();
+    await expect(page.locator('#completedWorkTotal')).not.toBeEmpty();
+    await expect(page.locator('#completedWorkComparison')).toContainText('Grouped by day');
   });
 
   test('respects the selected reporting range', async ({ page }) => {
@@ -36,6 +41,26 @@ test.describe('analytics view', () => {
     await expect(page.locator('#analyticsHealthSummary')).toContainText('1 blocked');
   });
 
+  test('drills into separate WIP and completed-work chart data', async ({ page }) => {
+    await openBoard(page);
+    await page.locator('.view-tab[data-view="analytics"]').click();
+    await page.locator('#analyticsRange').selectOption('custom');
+    await page.locator('#analyticsStartDate').fill('2026-03-01');
+    await page.locator('#analyticsEndDate').fill('2026-03-10');
+    await page.locator('#analyticsEndDate').press('Tab');
+
+    await expect(page.locator('#completedWorkTotal')).toHaveText('1 completed');
+    await page.getByRole('button', { name: 'Doing: 1 tickets' }).first().click();
+    await expect(page.locator('#analyticsDrilldown')).toContainText('AO-004: Ship assignment history');
+
+    await page.getByRole('button', { name: '2026-03-05: 1 completed' }).click();
+    await expect(page.locator('#analyticsDrilldown')).toContainText('AO-006: Publish the validation standard');
+
+    await page.locator('#analyticsArea').selectOption('northstar');
+    await expect(page.locator('#statusTotal')).toHaveText('3 WIP tickets');
+    await expect(page.locator('#throughputChart')).toContainText('No completed work matches this selected period and filter.');
+  });
+
   test('handles a board with no history without erroring', async ({ page }) => {
     const errors = [];
     page.on('pageerror', (error) => errors.push(error.message));
@@ -45,6 +70,8 @@ test.describe('analytics view', () => {
 
     await expect(page.locator('#analyticsView')).toBeVisible();
     await expect(page.locator('#historyEventCount')).toHaveText('0 events');
+    await expect(page.locator('#statusChart')).toContainText('No work in progress matches this filter.');
+    await expect(page.locator('#throughputChart')).toContainText('No completed work matches this selected period and filter.');
     expect(errors).toEqual([]);
   });
 

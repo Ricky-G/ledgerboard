@@ -82,8 +82,8 @@ Reassign current cards before removing their label so every card keeps a valid a
 
 - A dedicated, local-only analytics workspace with date, search, status, priority, label, and assignee filters.
 - Board health metrics for open, blocked, aging, completed, reopened, and net-changing work, with comparison to the preceding equivalent period.
-- Status, priority, label, workload, and cumulative-flow views with keyboard-accessible drill-downs to the supporting current tickets.
-- Daily, weekly, or monthly recorded throughput; lead and cycle-time ranges; and time-in-status summaries that state their data coverage.
+- Separate work-in-progress status, priority, and label views from completed-work throughput, so historical completed volume does not obscure current work. Both have keyboard-accessible drill-downs to their supporting tickets.
+- Daily, weekly, or monthly completed-work throughput from recorded arrivals in the configured completion column, with preceding-period comparison, lead and cycle-time ranges, and time-in-status summaries that state their data coverage.
 - Aging, unassigned-work, duplicate-looking-title, missing-description, stale-activity, and inconsistent-history checks.
 - Cautious throughput forecasting after sufficient history, expressed as a range rather than a promised delivery date.
 - Locally saved filter settings and a local JSON export of filtered, non-sensitive aggregate data and metric definitions.
