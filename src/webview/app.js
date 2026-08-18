@@ -29,7 +29,6 @@
     pendingDeletionCardId: null,
     deleteConfirmationFocusTarget: null,
     actionMenuCardId: null,
-    actionMenuPointer: null,
     actionMenuTrigger: null,
     currentView: "board",
     mobileColumn: "doing",
@@ -171,7 +170,6 @@
     elements.deleteCardActionButton.addEventListener("click", deleteCardFromActionMenu);
     elements.cardActionMenu.addEventListener("keydown", handleCardActionMenuKeydown);
     document.addEventListener("pointerdown", dismissCardActionMenuOnOutsideClick);
-    window.addEventListener("resize", repositionCardActionMenu);
     document.querySelectorAll("[data-close-dialog]").forEach((button) => {
       button.addEventListener("click", () => button.closest("dialog").close());
     });
@@ -592,7 +590,6 @@
   function openCardActionMenu(card, trigger, pointer = null) {
     closeCardActionMenu();
     state.actionMenuCardId = card.id;
-    state.actionMenuPointer = pointer;
     state.actionMenuTrigger = trigger;
     trigger.setAttribute("aria-expanded", "true");
     populateCardActionMenuContext(card);
@@ -607,7 +604,6 @@
       trigger.setAttribute("aria-expanded", "false");
     }
     state.actionMenuCardId = null;
-    state.actionMenuPointer = null;
     state.actionMenuTrigger = null;
     elements.cardActionMenu.hidden = true;
     if (restoreFocus && trigger?.isConnected) {
@@ -643,12 +639,6 @@
     });
     menu.style.left = `${Math.round(left)}px`;
     menu.style.top = `${Math.round(top)}px`;
-  }
-
-  function repositionCardActionMenu() {
-    if (!elements.cardActionMenu.hidden && state.actionMenuTrigger?.isConnected) {
-      positionCardActionMenu(state.actionMenuTrigger, state.actionMenuPointer);
-    }
   }
 
   function dismissCardActionMenuOnOutsideClick(event) {

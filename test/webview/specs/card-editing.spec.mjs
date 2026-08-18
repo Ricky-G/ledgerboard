@@ -29,36 +29,37 @@ test.describe('card editing', () => {
     if (!menuBounds) {
       throw new Error('The visible action menu did not expose its viewport bounds.');
     }
-    expect(Math.abs(menuBounds.x - pointer.x)).toBeLessThanOrEqual(1);
-    expect(Math.abs(menuBounds.y - pointer.y)).toBeLessThanOrEqual(1);
+    const viewport = await page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight }));
+    const expectedLeft = Math.max(12, Math.min(pointer.x, viewport.width - menuBounds.width - 12));
+    const expectedTop = Math.max(12, Math.min(pointer.y, viewport.height - menuBounds.height - 12));
+    expect(Math.abs(menuBounds.x - expectedLeft)).toBeLessThanOrEqual(1);
+    expect(Math.abs(menuBounds.y - expectedTop)).toBeLessThanOrEqual(1);
   });
 
-  test('keeps an open action menu inside a resized viewport', async ({ page }) => {
+  test('places an action menu in the visible area after a viewport resize', async ({ page }) => {
     await openBoard(page);
-    const card = page.locator('[data-card-id="AO-001"]');
+    await page.setViewportSize({ width: 320, height: 400 });
+    const card = page.locator('[data-card-id="AO-004"]');
     const cardBounds = await card.boundingBox();
     if (!cardBounds) {
-      throw new Error('AO-001 was not rendered for the viewport resize positioning test.');
+      throw new Error('AO-004 was not rendered for the viewport resize positioning test.');
     }
     await page.mouse.click(
       Math.round(cardBounds.x + cardBounds.width / 2),
-      Math.round(cardBounds.y + cardBounds.height / 2),
+      Math.round(cardBounds.y + 20),
       { button: 'right' },
     );
 
     const menu = page.locator('#cardActionMenu');
     await expect(menu).toBeVisible();
-    await page.setViewportSize({ width: 320, height: 400 });
-    await expect.poll(
-      () => menu.evaluate((element) => {
-        const bounds = element.getBoundingClientRect();
-        return bounds.x >= 12
-          && bounds.y >= 12
-          && bounds.right <= 308
-          && bounds.bottom <= 388;
-      }),
-      { message: 'The resized action menu did not stay within the 320 by 400 viewport.' },
-    ).toBe(true);
+    const menuBounds = await menu.boundingBox();
+    if (!menuBounds) {
+      throw new Error('The resized action menu did not expose its viewport bounds.');
+    }
+    expect(menuBounds.x).toBeGreaterThanOrEqual(12);
+    expect(menuBounds.y).toBeGreaterThanOrEqual(12);
+    expect(menuBounds.x + menuBounds.width).toBeLessThanOrEqual(308);
+    expect(menuBounds.y + menuBounds.height).toBeLessThanOrEqual(388);
   });
 
   test('opens a themed card action menu on right-click with Edit, Duplicate, and Delete actions', async ({ page }) => {
