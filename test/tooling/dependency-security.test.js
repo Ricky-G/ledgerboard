@@ -30,9 +30,14 @@ test('dependency audit exceptions only allow the documented advisory IDs', () =>
     },
     transitive: {
       severity: 'high',
-      via: [{
-        url: 'https://github.com/advisories/GHSA-mh99-v99m-4gvg',
-      }],
+      via: [
+        {
+          url: 'https://github.com/advisories/GHSA-mh99-v99m-4gvg',
+        },
+        {
+          url: 'https://github.com/advisories/GHSA-rgw5-rvv9-x895',
+        },
+      ],
     },
     unknown: {
       severity: 'critical',
