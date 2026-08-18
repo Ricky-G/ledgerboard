@@ -93,6 +93,12 @@ The current policy deliberately does not require code-owner approval. An emergen
 routine merge path. It is reserved for urgent recovery, such as reverting a broken deployment when the
 normal checks cannot complete.
 
+Generated release pull requests are the sole routine exception. The release token creates them as the
+maintainer, so the maintainer cannot approve them independently. After every required check succeeds,
+the maintainer uses **Bypass rules and merge** in pull-request-only mode and confirms a squash merge.
+This bypass satisfies only the impossible review requirement; it must not be used while checks are
+pending or failing.
+
 If a pull request reaches `main` without a successful `quality` check, the release gate stops before it
 creates a tag and opens or updates `[Automation] Main validation failed`. That issue links the merged
 pull request and each failed check. The administrator who used the bypass must complete its recovery
@@ -107,7 +113,7 @@ push bypass remains disabled so every emergency change still has a reviewable pu
 
 ## Credential isolation
 
-PR workflows use the `pull_request` event, read-only permissions, and `persist-credentials: false` wherever repository contents are checked out. They never use `pull_request_target`, the protected `marketplace` environment, or `VSCE_PAT`. The CodeQL workflow receives the narrowly scoped `security-events: write` permission required to upload code-scanning results. Marketplace credentials remain available only to the release-driven publishing workflow, which reads them through the `marketplace` environment. That environment restricts deployments to `main`, and [the release process](releasing.md) explains why merging the release pull request, rather than a second environment approval, is the decision to ship.
+PR workflows use the `pull_request` event, read-only permissions, and `persist-credentials: false` wherever repository contents are checked out. They never use `pull_request_target`, the protected `marketplace` environment, or `VSCE_PAT`. The CodeQL workflow receives the narrowly scoped `security-events: write` permission required to upload code-scanning results. Marketplace credentials remain available only to the release-driven publishing workflow, which reads them through the `marketplace` environment. That environment restricts deployments to `main`, and [the release process](releasing.md) explains why manually merging the generated release pull request, rather than a second environment approval, is the decision to ship.
 
 Every GitHub Action is pinned to a full commit SHA with its version in a trailing comment, so an
 upstream tag move cannot change what runs against this repository. Each CI job declares a timeout,

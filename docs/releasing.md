@@ -1,46 +1,60 @@
 # Releasing
 
-LedgerBoard releases are automated. A maintainer decides *when* to ship by merging a release pull
-request. Everything after that is unattended.
+LedgerBoard releases are manually prepared and then automated. A maintainer dispatches the
+`Prepare release` workflow when a batch is ready. Release Please creates a release pull request and
+the maintainer merges it through the repository's normal pull-request bypass after required checks
+pass. That merge is the decision to ship; everything after it is unattended.
 
 ## The path from merge to Marketplace
 
 ```text
 merge a feature pull request
   -> CI validates the merge commit on main
-  -> Release Please opens or updates the release pull request
+  -> no release preparation runs
 
-merge the release pull request        <- this is the decision to ship
+Actions -> Prepare release -> Run workflow
+  -> Release Please creates or updates one cumulative release pull request
+
+required checks complete
+  -> maintainer selects Bypass rules and merge
+  -> maintainer confirms a squash merge
   -> CI validates that merge commit
   -> Release Please creates the tag and the GitHub Release
   -> the tag is verified against the merge commit
   -> the VSIX is built, verified, published, and attached to the release
 ```
 
-Two workflows own this:
+Three workflows own this:
 
 | Workflow | Trigger | Responsibility |
 | --- | --- | --- |
-| `Release` (`release.yml`) | push to `main` | Confirm the required checks passed on this exact commit, run Release Please, verify the tag, then call the publishing workflow. |
+| `Prepare release` (`prepare-release.yml`) | manual dispatch | Create or update the cumulative release pull request for maintainer review. |
+| `Release` (`release.yml`) | push to `main`, or manual recovery with a tag | Ignore ordinary merges. For a verified release pull request merge, confirm the required checks, create and verify the tag, then call the publishing workflow. |
 | `Publish to Visual Studio Marketplace` (`publish.yml`) | called by `Release`, or dispatched manually with a tag | Build and verify the VSIX, publish it, attach it to the GitHub Release. |
 
-## Release Please keeps one release pull request
+## Manual preparation creates one release pull request
 
-Release Please maintains a **single** open release pull request that covers every releasable commit
-since the last release. It does not open one per feature.
+Release Please creates a **single** release pull request that covers every releasable commit since
+the last release. It does not open one per feature, and ordinary feature merges do not create or
+update it.
 
 This means release velocity and release cadence are independent:
 
-- Merge as many feature pull requests as you like. Each one updates the same release pull request,
-  recalculating the version and the changelog.
-- Nothing publishes until you merge that release pull request.
+- Merge as many feature pull requests as needed.
+- When the batch is ready, open **Actions**, choose **Prepare release**, and select **Run workflow**.
+- Release Please calculates the version and changelog in the generated pull request.
+- Wait for its required checks to pass, select **Bypass rules and merge**, choose the squash method,
+  and confirm the merge. The bypass is needed because a pull request author cannot satisfy the
+  repository's independent-approval rule.
+- Nothing publishes until that manual merge is confirmed.
 - There is never a 0.6.0 release and a 0.7.0 release waiting at the same time, so there is no
-  situation where you skip one to get to another. If you merge five features and then merge the
-  release pull request once, you ship one version containing all five.
+  situation where you skip one to get to another. If five features are merged before preparation,
+  the generated release contains all five.
 
-If you merge the release pull request and then merge more features, Release Please opens a fresh
-release pull request for the next version. The already-merged release continues publishing on its
-own; it is not blocked by the new work.
+If more changes reach `main` while the release pull request is open, rerun **Prepare release** before
+merging. Release Please refreshes the same pull request so its version, changelog, and branch include
+the new commits. After a release pull request merges, later features wait for the next manual
+preparation. The release already in progress continues publishing on its own.
 
 ## Version selection
 
@@ -101,20 +115,21 @@ Publishing runs in the `marketplace` GitHub environment, which:
 - holds `VSCE_PAT`, the only credential that can publish, scoped so no other workflow can read it;
 - restricts deployments to `main`.
 
-It does **not** require a separate reviewer approval. Merging a pull request titled
-`chore(main): release X.Y.Z` is already an explicit, reviewed decision to ship, and a second
-approval on the same decision only delays publication. Approval gates and publication must not share
-a concurrency group in any case: GitHub cancels an already-pending run when a newer one joins the
-group, which can strand a tagged version unpublished.
+It does **not** require a separate environment approval. Dispatching **Prepare release** declares the
+batch ready, and manually bypass-merging the generated pull request after its required checks pass
+authorizes publication. Publication must not share the Release Please concurrency group: a newer
+preparation could otherwise strand a tagged version unpublished.
 
 `marketplace-credential-health.yml` checks the credential monthly and opens an issue before it
 expires.
 
 ## What is validated, and where
 
-The `quality` check runs every test layer against the exact commit that lands on `main`, and the
-release workflow refuses to proceed until it, `dependency-security`, `secret-scan`, and `analyze`
-have all succeeded on that commit. The tag is then asserted to point at that same commit.
+The `quality` check runs every test layer against the exact commit that lands on `main`. Ordinary
+merges stop after the release workflow confirms that they are not a Release Please pull request. For
+the release pull request merge, the workflow refuses to proceed until `quality`,
+`dependency-security`, `secret-scan`, and `analyze` have all succeeded on that commit. The tag is then
+asserted to point at that same commit.
 
 Publication therefore does not repeat those suites. It runs `npm run test:packaging`, which builds
 the VSIX through `vscode:prepublish` (privacy scan, type check, lint, production bundle), asserts the
@@ -123,15 +138,19 @@ itself, which is the one thing CI on a source tree cannot fully verify.
 
 ## When something fails
 
-A failure before release preparation and a failure after tagging need different recovery paths.
+A preparation failure, a failure before tagging, and a failure after tagging need different recovery
+paths.
 
-If a commit reaches `main` without all required checks succeeding, the release workflow stops before
-creating a tag and opens or updates `[Automation] Main validation failed`. The issue identifies the
-associated pull request, merger, failed CI layers, and direct job links. Fix those failures through a
-corrective pull request. If the administrator emergency bypass was used, record why it was necessary
-and link the corrective pull request on that issue.
+If **Prepare release** fails, no release tag exists. Fix the reported cause and rerun the manual
+workflow. If additional commits reached `main`, rerunning also refreshes the release pull request.
 
-If release preparation, tag resolution, or Marketplace publication fails, the workflow opens or
+If a release commit reaches `main` without all required checks succeeding, the release workflow stops
+before creating a tag and opens or updates `[Automation] Main validation failed`. The issue identifies
+the associated pull request, merger, failed CI layers, and direct job links. Fix those failures through
+a corrective pull request. If the administrator emergency bypass was used, record why it was
+necessary and link the corrective pull request on that issue.
+
+If tag creation, tag resolution, or Marketplace publication fails, the workflow opens or
 updates `[Automation] Release automation failed` with a per-stage result table and a link to the run.
 A tagged version that never published leaves the Marketplace behind this repository, and that is not
 visible unless something reports it.
