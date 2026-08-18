@@ -1405,11 +1405,17 @@
     color.value = item.color;
     color.title = `${item.name} color`;
     color.setAttribute("aria-label", `${item.name} color`);
-    color.addEventListener("input", (event) => {
-      item.color = event.target.value;
+    const updateColor = () => {
+      if (item.color === color.value) {
+        return;
+      }
+      item.color = color.value;
       markDirty("config");
       renderBoard();
-    });
+      renderAnalytics();
+    };
+    color.addEventListener("input", updateColor);
+    color.addEventListener("change", updateColor);
 
     const name = document.createElement("input");
     name.type = "text";

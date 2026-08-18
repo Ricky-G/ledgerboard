@@ -31,7 +31,7 @@ export default defineConfig({
     },
     {
       name: 'chromium-light',
-      testMatch: '**/rendering.spec.mjs',
+      testMatch: ['**/rendering.spec.mjs', '**/label-colors.spec.mjs'],
       use: { ...devices['Desktop Chrome'], colorScheme: 'light' },
     },
     {
