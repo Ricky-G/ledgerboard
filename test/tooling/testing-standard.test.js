@@ -61,6 +61,10 @@ test('the coverage ratchet is configured and enforced', () => {
   assert.ok(policy.thresholds.functions > 0);
   assert.ok(policy.suites.length > 0);
   assert.ok(policy.include.length > 0);
+  assert.ok(
+    policy.include.includes('src/webview/context-menu-position.js'),
+    'Coverage must include the ticket action menu positioning helper.',
+  );
   assert.equal(packageJson.scripts['test:coverage'], 'node scripts/run-coverage.mjs');
 });
 

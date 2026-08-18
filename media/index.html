@@ -2005,6 +2005,7 @@
       .card-action-menu {
         min-width: 264px;
         display: grid;
+        position: fixed;
         gap: 8px;
         padding: 8px;
         color: var(--ink);
@@ -5508,10 +5509,49 @@
       })();
     </script>
     <script nonce="bGVkZ2VyYm9hcmQ">
+      (function initContextMenuPosition(root, factory) {
+        const api = factory();
+
+        if (typeof module === "object" && module.exports) {
+          module.exports = api;
+        }
+
+        root.LedgerBoardMenuPosition = api;
+      })(globalThis, function createContextMenuPosition() {
+        "use strict";
+
+        const DEFAULT_MARGIN = 12;
+        const KEYBOARD_TRIGGER_OFFSET = 8;
+
+        function calculateContextMenuPosition({
+          pointer,
+          triggerBounds,
+          menuBounds,
+          viewport,
+          margin = DEFAULT_MARGIN,
+        }) {
+          const requestedLeft = pointer?.x ?? triggerBounds.left;
+          const requestedTop = pointer?.y ?? triggerBounds.bottom + KEYBOARD_TRIGGER_OFFSET;
+          return {
+            left: clampToViewport(requestedLeft, menuBounds.width, viewport.width, margin),
+            top: clampToViewport(requestedTop, menuBounds.height, viewport.height, margin),
+          };
+        }
+
+        function clampToViewport(requestedPosition, menuSize, viewportSize, margin) {
+          const maximum = Math.max(margin, viewportSize - menuSize - margin);
+          return Math.max(margin, Math.min(requestedPosition, maximum));
+        }
+
+        return { calculateContextMenuPosition };
+      });
+    </script>
+    <script nonce="bGVkZ2VyYm9hcmQ">
       (function startKanbanApp() {
         "use strict";
 
         const model = window.LedgerBoardModel;
+        const menuPosition = window.LedgerBoardMenuPosition;
         const vscode = acquireVsCodeApi();
         const standalone = vscode.mode === "standalone";
         const BOARD_FILE = "BOARD.md";
@@ -6139,16 +6179,15 @@
         }
 
         function positionCardActionMenu(trigger, pointer) {
-          const bounds = trigger.getBoundingClientRect();
           const menu = elements.cardActionMenu;
-          const margin = 12;
-          const requestedLeft = pointer?.x ?? bounds.left;
-          const requestedTop = pointer?.y ?? bounds.bottom + 8;
-          const left = Math.max(margin, Math.min(requestedLeft, window.innerWidth - menu.offsetWidth - margin));
-          const top = Math.max(margin, Math.min(requestedTop, window.innerHeight - menu.offsetHeight - margin));
+          const { left, top } = menuPosition.calculateContextMenuPosition({
+            pointer,
+            triggerBounds: trigger.getBoundingClientRect(),
+            menuBounds: menu.getBoundingClientRect(),
+            viewport: { width: window.innerWidth, height: window.innerHeight },
+          });
           menu.style.left = `${Math.round(left)}px`;
           menu.style.top = `${Math.round(top)}px`;
-          menu.style.position = "fixed";
         }
 
         function dismissCardActionMenuOnOutsideClick(event) {

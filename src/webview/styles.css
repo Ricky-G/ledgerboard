@@ -1994,6 +1994,7 @@ dialog::backdrop {
 .card-action-menu {
   min-width: 264px;
   display: grid;
+  position: fixed;
   gap: 8px;
   padding: 8px;
   color: var(--ink);

@@ -2,6 +2,7 @@
   "use strict";
 
   const model = window.LedgerBoardModel;
+  const menuPosition = window.LedgerBoardMenuPosition;
   const vscode = acquireVsCodeApi();
   const standalone = vscode.mode === "standalone";
   const BOARD_FILE = "BOARD.md";
@@ -629,16 +630,15 @@
   }
 
   function positionCardActionMenu(trigger, pointer) {
-    const bounds = trigger.getBoundingClientRect();
     const menu = elements.cardActionMenu;
-    const margin = 12;
-    const requestedLeft = pointer?.x ?? bounds.left;
-    const requestedTop = pointer?.y ?? bounds.bottom + 8;
-    const left = Math.max(margin, Math.min(requestedLeft, window.innerWidth - menu.offsetWidth - margin));
-    const top = Math.max(margin, Math.min(requestedTop, window.innerHeight - menu.offsetHeight - margin));
+    const { left, top } = menuPosition.calculateContextMenuPosition({
+      pointer,
+      triggerBounds: trigger.getBoundingClientRect(),
+      menuBounds: menu.getBoundingClientRect(),
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+    });
     menu.style.left = `${Math.round(left)}px`;
     menu.style.top = `${Math.round(top)}px`;
-    menu.style.position = "fixed";
   }
 
   function dismissCardActionMenuOnOutsideClick(event) {

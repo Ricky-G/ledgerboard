@@ -31,6 +31,7 @@ function buildWebviewHtml() {
     ['    <!-- LEDGERBOARD_STYLES -->', inlineStyle(readSource('styles.css'))],
     ['    <!-- LEDGERBOARD_MODEL -->', inlineScript(readSource('board-model.js'))],
     ['    <!-- LEDGERBOARD_STANDALONE -->', inlineScript(readSource('standalone.js'))],
+    ['    <!-- LEDGERBOARD_MENU_POSITION -->', inlineScript(readSource('context-menu-position.js'))],
     ['    <!-- LEDGERBOARD_APP -->', inlineScript(readSource('app.js'))],
   ]);
   let html = readSource('index.html');

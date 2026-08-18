@@ -3,6 +3,65 @@ import { expect, test } from '@playwright/test';
 import { boardSource, columnCardIds, historySource, openBoard, openCardDialog, saveNow } from './helpers.mjs';
 
 test.describe('card editing', () => {
+  test('places the first pointer-invoked action menu beside the pointer', async ({ page }) => {
+    await openBoard(page);
+    const scrollLeft = await page.locator('#boardCanvas').evaluate((canvas) => {
+      canvas.scrollLeft = canvas.scrollWidth;
+      return canvas.scrollLeft;
+    });
+    expect(scrollLeft).toBeGreaterThan(0);
+
+    const card = page.locator('[data-card-id="AO-006"]');
+    const cardBounds = await card.boundingBox();
+    if (!cardBounds) {
+      throw new Error('AO-006 was not rendered for the context-menu positioning test.');
+    }
+    const pointer = {
+      x: Math.round(cardBounds.x + cardBounds.width / 2),
+      y: Math.round(cardBounds.y + cardBounds.height / 2),
+    };
+
+    await page.mouse.click(pointer.x, pointer.y, { button: 'right' });
+
+    const menu = page.locator('#cardActionMenu');
+    await expect(menu).toBeVisible();
+    const menuBounds = await menu.boundingBox();
+    if (!menuBounds) {
+      throw new Error('The visible action menu did not expose its viewport bounds.');
+    }
+    const viewport = await page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight }));
+    const expectedLeft = Math.max(12, Math.min(pointer.x, viewport.width - menuBounds.width - 12));
+    const expectedTop = Math.max(12, Math.min(pointer.y, viewport.height - menuBounds.height - 12));
+    expect(Math.abs(menuBounds.x - expectedLeft)).toBeLessThanOrEqual(1);
+    expect(Math.abs(menuBounds.y - expectedTop)).toBeLessThanOrEqual(1);
+  });
+
+  test('places an action menu in the visible area after a viewport resize', async ({ page }) => {
+    await openBoard(page);
+    await page.setViewportSize({ width: 320, height: 400 });
+    const card = page.locator('[data-card-id="AO-004"]');
+    const cardBounds = await card.boundingBox();
+    if (!cardBounds) {
+      throw new Error('AO-004 was not rendered for the viewport resize positioning test.');
+    }
+    await page.mouse.click(
+      Math.round(cardBounds.x + cardBounds.width / 2),
+      Math.round(cardBounds.y + 20),
+      { button: 'right' },
+    );
+
+    const menu = page.locator('#cardActionMenu');
+    await expect(menu).toBeVisible();
+    const menuBounds = await menu.boundingBox();
+    if (!menuBounds) {
+      throw new Error('The resized action menu did not expose its viewport bounds.');
+    }
+    expect(menuBounds.x).toBeGreaterThanOrEqual(12);
+    expect(menuBounds.y).toBeGreaterThanOrEqual(12);
+    expect(menuBounds.x + menuBounds.width).toBeLessThanOrEqual(308);
+    expect(menuBounds.y + menuBounds.height).toBeLessThanOrEqual(388);
+  });
+
   test('opens a themed card action menu on right-click with Edit, Duplicate, and Delete actions', async ({ page }) => {
     await openBoard(page);
     const card = page.locator('[data-card-id="AO-005"]');
