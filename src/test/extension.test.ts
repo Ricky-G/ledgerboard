@@ -365,6 +365,25 @@ suite('Extension Test Suite', function () {
 		});
 	});
 
+	test('bundles fixed first-open positioning for ticket action menus', async () => {
+		const extension = vscode.extensions.getExtension('ricky-g.ledgerboard');
+		assert.ok(extension, 'LedgerBoard extension was not discovered by the test host.');
+		const html = new TextDecoder().decode(await vscode.workspace.fs.readFile(
+			vscode.Uri.joinPath(extension.extensionUri, 'media', 'index.html'),
+		));
+
+		assert.match(
+			html,
+			/\.card-action-menu\s*\{[^}]*\bposition:\s*fixed;/,
+			'The action menu must be fixed before its initial dimensions are measured.',
+		);
+		assert.match(
+			html,
+			/window\.LedgerBoardMenuPosition/,
+			'The generated webview must use the shared viewport positioning helper.',
+		);
+	});
+
 	test('initialization preserves files that already exist', async () => {
 		await withWorkspace('preserve', async (root) => {
 			const repository = new BoardRepository(root);

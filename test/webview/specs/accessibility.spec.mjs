@@ -50,8 +50,19 @@ test.describe('accessibility and keyboard use', () => {
     await openBoard(page);
     const card = page.locator('[data-card-id="AO-001"]');
     await card.focus();
+    const cardBounds = await card.boundingBox();
+    if (!cardBounds) {
+      throw new Error('AO-001 was not rendered for the keyboard context-menu test.');
+    }
     await page.keyboard.press('Shift+F10');
-    await expect(page.locator('#cardActionMenu')).toBeVisible();
+    const menu = page.locator('#cardActionMenu');
+    await expect(menu).toBeVisible();
+    const menuBounds = await menu.boundingBox();
+    if (!menuBounds) {
+      throw new Error('The visible keyboard action menu did not expose its viewport bounds.');
+    }
+    expect(Math.abs(menuBounds.x - cardBounds.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(menuBounds.y - (cardBounds.y + cardBounds.height + 8))).toBeLessThanOrEqual(1);
     await expect(page.locator('#editCardActionButton')).toBeFocused();
     await page.keyboard.press('ArrowDown');
     await expect(page.locator('#duplicateCardActionButton')).toBeFocused();
@@ -59,7 +70,7 @@ test.describe('accessibility and keyboard use', () => {
     await expect(page.locator('#editCardActionButton')).toBeFocused();
 
     await page.keyboard.press('Escape');
-    await expect(page.locator('#cardActionMenu')).toBeHidden();
+    await expect(menu).toBeHidden();
     await expect(card).toBeFocused();
   });
 
