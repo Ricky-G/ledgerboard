@@ -2,6 +2,26 @@
 
 All notable changes to LedgerBoard are documented here.
 
+## [0.9.0](https://github.com/Ricky-G/ledgerboard/compare/v0.8.0...v0.9.0) (2026-08-19)
+
+
+### Added
+
+* clarify ticket drop placement ([#100](https://github.com/Ricky-G/ledgerboard/issues/100)) ([86a3446](https://github.com/Ricky-G/ledgerboard/commit/86a3446a8dd6eb179054707c8835e109bcc49da2)), closes [#24](https://github.com/Ricky-G/ledgerboard/issues/24)
+* separate WIP and completed-work analytics ([#88](https://github.com/Ricky-G/ledgerboard/issues/88)) ([d50ad0d](https://github.com/Ricky-G/ledgerboard/commit/d50ad0d210da8f9adf3f4aeb2fbbc3790b4fee9f))
+
+
+### Fixed
+
+* persist committed label color changes ([#90](https://github.com/Ricky-G/ledgerboard/issues/90)) ([7db24d5](https://github.com/Ricky-G/ledgerboard/commit/7db24d50ab9949b9ab15ed0ca6cba32596e1f70d)), closes [#80](https://github.com/Ricky-G/ledgerboard/issues/80)
+* position first ticket action menu at its trigger ([#93](https://github.com/Ricky-G/ledgerboard/issues/93)) ([cd582dc](https://github.com/Ricky-G/ledgerboard/commit/cd582dc280e411070c52ad6e396323eab300d8f7))
+* prevent duplicate labels ([#97](https://github.com/Ricky-G/ledgerboard/issues/97)) ([270d335](https://github.com/Ricky-G/ledgerboard/commit/270d335ce3ba08cd24599f73c34bf81cf00bd0d6))
+* prevent internal label saves from triggering conflicts ([#98](https://github.com/Ricky-G/ledgerboard/issues/98)) ([3203a69](https://github.com/Ricky-G/ledgerboard/commit/3203a69da839f9dbdedb7f8e491801fc343a95d2)), closes [#76](https://github.com/Ricky-G/ledgerboard/issues/76)
+* refresh analytics for pending board changes ([#95](https://github.com/Ricky-G/ledgerboard/issues/95)) ([5ddd2eb](https://github.com/Ricky-G/ledgerboard/commit/5ddd2eb729efbd551bfa6c9c5e457f7cee7dc90a))
+* repair board errors safely ([#99](https://github.com/Ricky-G/ledgerboard/issues/99)) ([2ea79fc](https://github.com/Ricky-G/ledgerboard/commit/2ea79fcc3c73a366b9f0b0f2e9e7c23c53a16f34))
+* restore label removal controls ([#94](https://github.com/Ricky-G/ledgerboard/issues/94)) ([f99ac0a](https://github.com/Ricky-G/ledgerboard/commit/f99ac0a20f49dcad6d21dc8bae13b3854a62246a))
+* support multiline ticket descriptions ([#96](https://github.com/Ricky-G/ledgerboard/issues/96)) ([122beea](https://github.com/Ricky-G/ledgerboard/commit/122beea4d8f28cc65a8e0a5433bc0aa8900f7885))
+
 ## [0.8.0](https://github.com/Ricky-G/ledgerboard/compare/v0.7.0...v0.8.0) (2026-08-01)
 
 
