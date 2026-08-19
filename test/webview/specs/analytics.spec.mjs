@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 
-import { openBoard } from './helpers.mjs';
+import { dragCardTo, openBoard } from './helpers.mjs';
 
 test.describe('analytics view', () => {
   test('renders headline metrics from the fixture history', async ({ page }) => {
@@ -28,6 +28,21 @@ test.describe('analytics view', () => {
     const initial = await page.locator('#analyticsRangeSummary').textContent();
     await page.locator('#analyticsRange').selectOption('7');
     await expect(page.locator('#analyticsRangeSummary')).not.toHaveText(initial ?? '');
+  });
+
+  test('includes unsaved lifecycle movements when analytics is reopened', async ({ page }) => {
+    await openBoard(page);
+    await page.locator('.view-tab[data-view="analytics"]').click();
+    await expect(page.locator('#completedWorkTotal')).toHaveText('0 completed');
+    await expect(page.locator('#historyEventCount')).toHaveText('3 events');
+
+    await page.locator('.view-tab[data-view="board"]').click();
+    await dragCardTo(page, 'AO-001', 'done');
+    await page.locator('.view-tab[data-view="analytics"]').click();
+
+    await expect(page.locator('#completedWorkTotal')).toHaveText('1 completed');
+    await expect(page.locator('#historyEventCount')).toHaveText('4 events');
+    await expect(page.locator('#recentActivity')).toContainText('AO-001');
   });
 
   test('narrows analytics with the shared filters', async ({ page }) => {
