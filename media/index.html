@@ -7320,7 +7320,7 @@
           }
 
           syncAnalyticsFilterOptions();
-          const analytics = model.buildAnalytics(state.board, state.historyEvents, analyticsOptions());
+          const analytics = model.buildAnalytics(state.board, analyticsHistoryEvents(), analyticsOptions());
           state.analytics = analytics;
           elements.metricActive.textContent = String(analytics.active);
           elements.metricBlocked.textContent = String(analytics.blocked);
@@ -7382,6 +7382,21 @@
               search: elements.analyticsSearch.value,
             },
           };
+        }
+
+        function analyticsHistoryEvents() {
+          if (!state.dirtyBoard) {
+            return state.historyEvents;
+          }
+
+          const persistedBoard = model.parseBoard(state.boardSource);
+          const pendingEvents = model.diffBoardEvents(
+            persistedBoard,
+            state.board,
+            new Date().toISOString(),
+            state.duplicateSources,
+          );
+          return [...state.historyEvents, ...pendingEvents];
         }
 
         function syncAnalyticsFilterOptions() {
@@ -7494,7 +7509,8 @@
         }
 
         function exportAnalytics() {
-          if (!state.analytics) return;
+          if (!state.board) return;
+          renderAnalytics();
           const analytics = state.analytics;
           const includeAssignees = elements.analyticsShowAssignees.checked;
           const exportData = {
