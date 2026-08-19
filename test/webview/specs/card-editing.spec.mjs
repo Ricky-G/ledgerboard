@@ -143,6 +143,31 @@ test.describe('card editing', () => {
     expect(history).toContain('"event":"created"');
   });
 
+  test('persists multiline descriptions as canonical continuation lines', async ({ page }) => {
+    await openBoard(page);
+    await openCardDialog(page, null);
+
+    await page.locator('#cardTitle').fill('Capture release evidence');
+    await page.locator('#cardDescription').fill('Record the decision.\nKeep the supporting evidence.');
+    await page.locator('#cardArea').selectOption('internal');
+    await page.locator('#submitCardButton').click();
+
+    const created = page.locator('[data-card-id="AO-007"]');
+    await expect(created).toContainText('Keep the supporting evidence.');
+    await expect(created.locator('.card-description')).toHaveCSS('white-space', 'pre-line');
+    await saveNow(page);
+    const markdown = await boardSource(page);
+    expect(markdown).toContain(
+      '    - **Description:** Record the decision.\n      Keep the supporting evidence.',
+    );
+
+    await page.locator('#reloadButton').click();
+    await openCardDialog(page, 'AO-007');
+    await expect(page.locator('#cardDescription')).toHaveValue(
+      'Record the decision.\nKeep the supporting evidence.',
+    );
+  });
+
   test('edits an existing card and records the change', async ({ page }) => {
     await openBoard(page);
     await openCardDialog(page, 'AO-002');

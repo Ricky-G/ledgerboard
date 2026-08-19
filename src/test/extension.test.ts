@@ -96,7 +96,7 @@ suite('Extension Test Suite', function () {
 		}
 	});
 
-	test('repository normalization refuses multiline descriptions', async () => {
+	test('repository normalization retains multiline descriptions', async () => {
 		const root = vscode.Uri.file(path.join(os.tmpdir(), `ledgerboard-multiline-${Date.now()}`));
 		await vscode.workspace.fs.createDirectory(root);
 		try {
@@ -119,10 +119,11 @@ suite('Extension Test Suite', function () {
 			assert.equal(await vscode.workspace.applyEdit(edit), true);
 			assert.equal(await boardDocument.save(), true);
 
-			await assert.rejects(
-				repository.normalizeBoard(multiline),
-				/Description for AO-001 must stay on one physical line/,
-			);
+			const result = await repository.normalizeBoard(multiline);
+			const normalized = await repository.read();
+			assert.equal(result.changed, false);
+			assert.equal(normalized.boardSource, multiline);
+			assert.doesNotThrow(() => repository.validate(normalized));
 		} finally {
 			await removeFixture(root);
 		}

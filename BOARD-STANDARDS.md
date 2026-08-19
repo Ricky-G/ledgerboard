@@ -31,7 +31,8 @@ Do not rename the three board data files. The extension opens those fixed names.
 3. `KANBAN-HISTORY.md` is an append-only semantic event ledger used by Analytics.
 4. Define between 1 and 10 board columns in `KANBAN-CONFIG.md` and keep `BOARD.md` in that configured order.
 5. Use the exact one-line card grammar. Additional inline fields are invalid.
-6. Description and Assignee are the optional detail fields and must each stay on one physical Markdown line.
+6. Description and Assignee are the optional detail fields. Descriptions may continue with exactly six
+   leading spaces; Assignees must stay on one physical Markdown line.
 7. Every card's `area` must match a label ID in `KANBAN-CONFIG.md`.
 8. Every non-empty Assignee must match a person ID in `KANBAN-CONFIG.md`.
 9. Card IDs are unique, monotonic, and never reused.
@@ -214,14 +215,15 @@ Detail rules:
 
 - Indent the detail line with exactly four spaces.
 - Use the labels `**Description:**` and `**Assignee:**` exactly.
-- Keep each complete detail value on one physical Markdown line.
-- Replace source line breaks with spaces.
+- A Description can span multiple physical lines. Indent each continuation line with exactly six spaces.
+- Keep each Assignee value on one physical Markdown line.
 - The Assignee value is a person ID from `KANBAN-CONFIG.md`; omit the line for unassigned work.
 - Do not add `Next`, `Owner`, `Evidence`, `Artifact`, `Due`, or other detail fields.
 
-Keeping detail values on one physical line is required for byte-for-byte round-trip behavior.
+A description's continuation lines preserve the line breaks entered in the board. This keeps longer
+context readable in both Markdown and the visual editor.
 
-Incorrect: a description continued onto another physical line:
+Example: a multiline description:
 
 ```markdown
 - [ ] AO-001 — Prepare architecture review · P2 · area:client-a
@@ -229,8 +231,7 @@ Incorrect: a description continued onto another physical line:
       before recommending the next step.
 ```
 
-LedgerBoard refuses to normalize this automatically because joining arbitrary lines could change
-meaning. Replace the line break with a space, then validate again.
+LedgerBoard writes continuation lines with six spaces when a description contains line breaks.
 
 ### Line endings and normalization
 
@@ -514,9 +515,12 @@ PROCESS
    `<!-- ledgerboard-column:<id> -->` markers.
 7. Use exactly this card grammar:
    - [ ] AO-NNN — Ticket title · P1|P2|P3|P4 · area:<label-id>
-8. Description and Assignee are optional details and must each be one physical Markdown line:
-       - **Description:** Concise context.
-       - **Assignee:** <person-id>
+8. Description and Assignee are optional details:
+    - **Description:** Concise context.
+      Additional context on a continuation line.
+    - **Assignee:** <person-id>
+   Description continuations use exactly six leading spaces. Assignees must stay on one physical
+   Markdown line.
 9. Separate every pair of adjacent cards with exactly one blank physical line.
 10. Use checked boxes only in Done.
 11. Allocate monotonic IDs by scanning both current cards and history. Never reuse an ID.
@@ -560,7 +564,7 @@ Kanban bundle valid: <ticket-count> tickets, <label-count> labels, <person-count
 - Omitting a configured column, using a heading with a different name, or changing its stable marker ID.
 - Configuring no columns, more than ten columns, duplicate column names, or names longer than 40 characters.
 - Adding fields after `area:<label-id>` on the card line.
-- Using multiline detail values. Keep each Description and Assignee value on one physical line.
+- Indenting a Description continuation with anything other than six spaces, or using a multiline Assignee.
 - Omitting the one blank physical line required between adjacent cards.
 - Adding two or more blank physical lines between adjacent cards.
 - Mixing LF and CRLF line endings in one `BOARD.md`.

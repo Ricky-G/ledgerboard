@@ -748,6 +748,7 @@ main {
   display: -webkit-box;
   margin: -3px 0 0;
   overflow: hidden;
+  white-space: pre-line;
   color: var(--ink-soft);
   font-size: 12px;
   line-height: 1.42;
