@@ -3,7 +3,7 @@ import * as assert from 'node:assert/strict';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { discoverBoardRepositories } from '../boardDiscovery';
-import { BoardRepository } from '../boardRepository';
+import { BoardRepository, OwnWriteTracker } from '../boardRepository';
 import { boardModel } from '../model';
 import { BOARD_FILE, BUNDLE_FILES, CONFIG_FILE, HISTORY_FILE } from '../templates';
 
@@ -129,7 +129,7 @@ suite('Extension Test Suite', function () {
 		}
 	});
 
-	test('initializes, validates, saves, and rejects stale writes', async () => {
+	test('creates a label, preserves an external config edit, and retries from a reloaded base', async () => {
 		const root = vscode.Uri.file(path.join(os.tmpdir(), `ledgerboard-${Date.now()}`));
 		await vscode.workspace.fs.createDirectory(root);
 		try {
@@ -146,31 +146,75 @@ suite('Extension Test Suite', function () {
 			assert.equal(validation.config.entities.length, 1);
 			assert.equal(validation.config.people.length, 0);
 
-			const config = boardModel.parseConfig(base.configSource);
-			config.workspace.name = 'Integration Test';
-			const nextConfigSource = boardModel.serializeConfig(base.configSource, config);
-			const saved = await repository.save({
+			const withLabel = (source: string, id: string, name: string): string => {
+				const config = boardModel.parseConfig(source);
+				config.entities.push({ id, name, color: '#7257b5' });
+				return boardModel.serializeConfig(source, config);
+			};
+			const createdConfigSource = withLabel(base.configSource, 'release', 'Release');
+			const created = await repository.save({
 				base,
 				nextBoardSource: base.boardSource,
-				nextConfigSource,
+				nextConfigSource: createdConfigSource,
 				saveBoard: false,
 				saveConfig: true,
 			});
-			assert.equal(boardModel.parseConfig(saved.configSource).workspace.name, 'Integration Test');
+			assert.equal(boardModel.parseConfig(created.configSource).entities.at(-1)?.id, 'release');
+
+			const externalConfigSource = withLabel(created.configSource, 'external', 'External edit');
+			const configDocument = await vscode.workspace.openTextDocument(repository.uri(CONFIG_FILE));
+			const edit = new vscode.WorkspaceEdit();
+			edit.replace(
+				configDocument.uri,
+				new vscode.Range(configDocument.positionAt(0), configDocument.positionAt(configDocument.getText().length)),
+				externalConfigSource,
+			);
+			assert.equal(await vscode.workspace.applyEdit(edit), true);
+			assert.equal(await configDocument.save(), true);
 
 			await assert.rejects(
 				repository.save({
-					base,
-					nextBoardSource: base.boardSource,
-					nextConfigSource,
+					base: created,
+					nextBoardSource: created.boardSource,
+					nextConfigSource: withLabel(created.configSource, 'incident', 'Incident'),
 					saveBoard: false,
 					saveConfig: true,
 				}),
 				/changed outside LedgerBoard/,
 			);
+
+			const reloaded = await repository.read();
+			const retried = await repository.save({
+				base: reloaded,
+				nextBoardSource: reloaded.boardSource,
+				nextConfigSource: withLabel(reloaded.configSource, 'incident', 'Incident'),
+				saveBoard: false,
+				saveConfig: true,
+			});
+			assert.deepEqual(
+				boardModel.parseConfig(retried.configSource).entities.map((entity) => entity.id),
+				['meta', 'release', 'external', 'incident'],
+			);
+			assert.doesNotThrow(() => repository.validate(retried));
 		} finally {
 			await removeFixture(root);
 		}
+	});
+
+	test('self-write tracking suppresses delayed config notifications without hiding conflicts', () => {
+		const tracker = new OwnWriteTracker();
+		const internalSource = '# Config\n\n```json\n{"version":1}\n```\n';
+		const externalSource = '# Config\n\n```json\n{"version":2}\n```\n';
+		tracker.remember(new Map([[CONFIG_FILE, internalSource]]));
+
+		assert.equal(tracker.matches(CONFIG_FILE, internalSource), true);
+		assert.equal(
+			tracker.matches(CONFIG_FILE, internalSource),
+			true,
+			'Duplicate watcher events for a LedgerBoard save must stay suppressed.',
+		);
+		assert.equal(tracker.matches(CONFIG_FILE, externalSource), false);
+		assert.equal(tracker.isTracking(CONFIG_FILE), false);
 	});
 
 	test('persists assignment and unassignment history', async () => {

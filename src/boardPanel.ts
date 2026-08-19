@@ -11,7 +11,6 @@ export class BoardPanel implements vscode.Disposable {
   private watcher: vscode.Disposable | undefined;
   private ready = false;
   private openNewCardWhenReady = false;
-  private ignoreWatcherUntil = 0;
 
   private constructor(
     private readonly context: vscode.ExtensionContext,
@@ -100,7 +99,6 @@ export class BoardPanel implements vscode.Disposable {
           break;
         case 'save':
           if (!message.request) {throw new Error('The webview sent an empty save request.');}
-          this.ignoreWatcherUntil = Date.now() + 1500;
           await this.panel.webview.postMessage({
             type: 'saveResult',
             result: await this.repository.save(message.request),
@@ -143,7 +141,6 @@ export class BoardPanel implements vscode.Disposable {
   private startWatching(): void {
     this.watcher?.dispose();
     this.watcher = this.repository.watch((fileName) => {
-      if (Date.now() < this.ignoreWatcherUntil) {return;}
       void this.panel.webview.postMessage({ type: 'externalChange', fileName });
     });
   }

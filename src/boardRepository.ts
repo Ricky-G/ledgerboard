@@ -14,6 +14,7 @@ import {
 
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
+type BundleFileName = typeof BUNDLE_FILES[number];
 
 export interface BoardBundle {
   boardSource: string;
@@ -43,14 +44,57 @@ export interface SaveResult extends BoardBundle {
   events: HistoryEvent[];
 }
 
+/**
+ * Identifies file-watcher events caused by the sources LedgerBoard just saved.
+ * Expected sources remain tracked so delayed and duplicate provider events do
+ * not masquerade as external edits while the user continues editing.
+ */
+export class OwnWriteTracker {
+  private readonly expectedSources = new Map<BundleFileName, string>();
+
+  public remember(changes: ReadonlyMap<BundleFileName, string>): void {
+    for (const [fileName, source] of changes) {
+      this.expectedSources.set(fileName, source);
+    }
+  }
+
+  public isTracking(fileName: BundleFileName): boolean {
+    return this.expectedSources.has(fileName);
+  }
+
+  public matches(fileName: BundleFileName, source: string): boolean {
+    const expected = this.expectedSources.get(fileName);
+    if (expected === undefined) {
+      return false;
+    }
+    if (expected === source) {
+      return true;
+    }
+    this.expectedSources.delete(fileName);
+    return false;
+  }
+
+  public forget(fileName: BundleFileName): void {
+    this.expectedSources.delete(fileName);
+  }
+
+  public forgetAll(fileNames: Iterable<BundleFileName>): void {
+    for (const fileName of fileNames) {
+      this.expectedSources.delete(fileName);
+    }
+  }
+}
+
 export class BoardRepository {
+  private readonly ownWriteTracker = new OwnWriteTracker();
+
   public constructor(public readonly root: vscode.Uri) {}
 
   public get name(): string {
     return path.basename(this.root.fsPath) || this.root.fsPath;
   }
 
-  public uri(fileName: typeof BUNDLE_FILES[number]): vscode.Uri {
+  public uri(fileName: BundleFileName): vscode.Uri {
     return vscode.Uri.joinPath(this.root, fileName);
   }
 
@@ -117,7 +161,7 @@ export class BoardRepository {
       return { changed: false, diagnostics: normalized.diagnostics };
     }
 
-    await this.applyChanges(new Map([[BOARD_FILE, normalized.source]]));
+    await this.applyChanges(new Map<BundleFileName, string>([[BOARD_FILE, normalized.source]]));
     return { changed: true, diagnostics: normalized.diagnostics };
   }
 
@@ -155,7 +199,7 @@ export class BoardRepository {
     const nextBundle = { boardSource: nextBoardSource, configSource: nextConfigSource, historySource: nextHistorySource };
     this.validate(nextBundle);
 
-    const changes = new Map<string, string>();
+    const changes = new Map<BundleFileName, string>();
     if (request.saveBoard) {changes.set(BOARD_FILE, nextBoardSource);}
     if (request.saveConfig) {changes.set(CONFIG_FILE, nextConfigSource);}
     if (events.length > 0) {changes.set(HISTORY_FILE, nextHistorySource);}
@@ -166,36 +210,73 @@ export class BoardRepository {
 
   public watch(onChange: (fileName: string) => void): vscode.Disposable {
     const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(this.root, '*.md'));
-    const subscriptions = BUNDLE_FILES.flatMap((fileName) => {
-      const matches = (uri: vscode.Uri) => path.basename(uri.fsPath) === fileName;
-      return [
-        watcher.onDidChange((uri) => matches(uri) && onChange(fileName)),
-        watcher.onDidCreate((uri) => matches(uri) && onChange(fileName)),
-        watcher.onDidDelete((uri) => matches(uri) && onChange(fileName)),
-      ];
-    });
-    return vscode.Disposable.from(watcher, ...subscriptions);
+    const reportChange = (uri: vscode.Uri) => {
+      const fileName = bundleFileName(uri);
+      if (fileName && this.shouldReportChange(fileName, uri)) {
+        onChange(fileName);
+      }
+    };
+    const reportDeletion = (uri: vscode.Uri) => {
+      const fileName = bundleFileName(uri);
+      if (!fileName) {
+        return;
+      }
+      this.ownWriteTracker.forget(fileName);
+      onChange(fileName);
+    };
+    return vscode.Disposable.from(
+      watcher,
+      watcher.onDidChange(reportChange),
+      watcher.onDidCreate(reportChange),
+      watcher.onDidDelete(reportDeletion),
+    );
   }
 
-  private async applyChanges(changes: Map<string, string>): Promise<void> {
+  private shouldReportChange(fileName: BundleFileName, uri: vscode.Uri): boolean {
+    if (!this.ownWriteTracker.isTracking(fileName)) {
+      return true;
+    }
+    const document = vscode.workspace.textDocuments.find((item) => item.uri.toString() === uri.toString());
+    if (!document) {
+      this.ownWriteTracker.forget(fileName);
+      return true;
+    }
+    return !this.ownWriteTracker.matches(fileName, document.getText());
+  }
+
+  private async applyChanges(changes: ReadonlyMap<BundleFileName, string>): Promise<void> {
     if (changes.size === 0) {return;}
 
-    const edit = new vscode.WorkspaceEdit();
-    const documents: vscode.TextDocument[] = [];
-    for (const [fileName, content] of changes) {
-      const document = await vscode.workspace.openTextDocument(this.uri(fileName as typeof BUNDLE_FILES[number]));
-      documents.push(document);
-      edit.replace(document.uri, new vscode.Range(document.positionAt(0), document.positionAt(document.getText().length)), content);
-    }
+    this.ownWriteTracker.remember(changes);
+    let completed = false;
+    try {
+      const edit = new vscode.WorkspaceEdit();
+      const documents: vscode.TextDocument[] = [];
+      for (const [fileName, content] of changes) {
+        const document = await vscode.workspace.openTextDocument(this.uri(fileName));
+        documents.push(document);
+        edit.replace(document.uri, new vscode.Range(document.positionAt(0), document.positionAt(document.getText().length)), content);
+      }
 
-    if (!await vscode.workspace.applyEdit(edit)) {
-      throw new Error('VS Code rejected the Markdown workspace edit.');
-    }
-    const saved = await Promise.all(documents.map((document) => document.save()));
-    if (saved.some((result) => !result)) {
-      throw new Error('One or more Markdown files could not be saved.');
+      if (!await vscode.workspace.applyEdit(edit)) {
+        throw new Error('VS Code rejected the Markdown workspace edit.');
+      }
+      const saved = await Promise.all(documents.map((document) => document.save()));
+      if (saved.some((result) => !result)) {
+        throw new Error('One or more Markdown files could not be saved.');
+      }
+      completed = true;
+    } finally {
+      if (!completed) {
+        this.ownWriteTracker.forgetAll(changes.keys());
+      }
     }
   }
+}
+
+function bundleFileName(uri: vscode.Uri): BundleFileName | undefined {
+  const name = path.basename(uri.fsPath);
+  return BUNDLE_FILES.find((fileName) => fileName === name);
 }
 
 export async function readUtf8(uri: vscode.Uri): Promise<string> {
