@@ -21,7 +21,13 @@ test.describe('card editing', () => {
       y: Math.round(cardBounds.y + cardBounds.height / 2),
     };
 
-    await page.mouse.click(pointer.x, pointer.y, { button: 'right' });
+    await card.click({
+      button: 'right',
+      position: {
+        x: Math.round(cardBounds.width / 2),
+        y: Math.round(cardBounds.height / 2),
+      },
+    });
 
     const menu = page.locator('#cardActionMenu');
     await expect(menu).toBeVisible();

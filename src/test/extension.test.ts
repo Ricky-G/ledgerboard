@@ -141,7 +141,15 @@ suite('Extension Test Suite', function () {
 				'- [ ] AO-001 — Repaired ticket · P2 · area:missing-label\n'
 					+ '    - **Assignee:** missing-person',
 			);
-			await vscode.workspace.fs.writeFile(repository.uri(BOARD_FILE), new TextEncoder().encode(invalidBoard));
+			const boardDocument = await vscode.workspace.openTextDocument(repository.uri(BOARD_FILE));
+			const edit = new vscode.WorkspaceEdit();
+			edit.replace(
+				boardDocument.uri,
+				new vscode.Range(boardDocument.positionAt(0), boardDocument.positionAt(boardDocument.getText().length)),
+				invalidBoard,
+			);
+			assert.equal(await vscode.workspace.applyEdit(edit), true);
+			assert.equal(await boardDocument.save(), true);
 			const invalid = await repository.read();
 
 			assert.throws(() => repository.validate(invalid), /Missing label configuration: missing-label/);
