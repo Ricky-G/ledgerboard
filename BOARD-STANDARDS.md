@@ -239,6 +239,9 @@ LedgerBoard writes continuation lines with six spaces when a description contain
 - Mixed line endings produce a specific line-numbered diagnostic.
 - **Normalize BOARD.md Formatting** can safely standardize line endings and card separators.
 - Normalization never changes card IDs, titles, descriptions, assignees, priorities, areas, status, or history.
+- **Repair Board Bundle** previews safe formatting repairs and missing label or person directory entries,
+  writes a recoverable bundle snapshot before applying changes, and validates the result. Ambiguous
+  identifiers, configuration, and history are preserved for manual correction.
 - Unsupported custom detail fields are preserved and reported as warnings because the visual editor
   cannot edit them.
 

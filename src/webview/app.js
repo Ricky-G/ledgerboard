@@ -52,7 +52,7 @@
     const ids = [
       "appShell", "workspaceName", "boardTitle", "connectionState", "connectionLabel",
       "saveState", "saveStateIcon", "saveStateLabel", "saveStateDetail",
-      "reloadButton", "connectButton", "saveButton", "boardView", "settingsView",
+      "reloadButton", "repairButton", "connectButton", "saveButton", "boardView", "settingsView",
       "analyticsView", "analyticsCoverage", "analyticsTimeZone", "analyticsRangeSummary",
       "analyticsRange", "analyticsCustomRange", "analyticsStartDate", "analyticsEndDate",
       "analyticsSearch", "analyticsStatus", "analyticsPriority", "analyticsArea", "analyticsAssignee",
@@ -67,7 +67,7 @@
       "searchInput", "areaFilter", "assigneeFilter", "priorityFilter", "activeCount", "blockedCount",
       "doingCount", "addCardButton", "mobileColumnTabs", "boardCanvas", "welcomePanel",
       "welcomeTitle", "welcomeCopy",
-      "welcomeConnectButton", "welcomeNormalizeButton", "browserNote", "kanbanBoard", "settingsSaveButton",
+      "welcomeConnectButton", "welcomeNormalizeButton", "welcomeRepairButton", "browserNote", "kanbanBoard", "settingsSaveButton",
       "settingsContent", "configWorkspaceName", "configBoardTitle", "configTimezone",
       "configAccent", "configAccentValue", "peopleList", "addPersonButton", "entityList", "addEntityButton",
       "columnList", "addColumnButton", "discardColumnChangesButton", "columnsLimitMessage",
@@ -112,6 +112,8 @@
     elements.connectButton.addEventListener("click", connectRepository);
     elements.welcomeConnectButton.addEventListener("click", connectRepository);
     elements.welcomeNormalizeButton.addEventListener("click", () => vscode.postMessage({ type: "normalize" }));
+    elements.repairButton.addEventListener("click", () => vscode.postMessage({ type: "repair" }));
+    elements.welcomeRepairButton.addEventListener("click", () => vscode.postMessage({ type: "repair" }));
     elements.reloadButton.addEventListener("click", reloadRepository);
     elements.saveButton.addEventListener("click", () => persistChanges({ manual: true }));
     elements.settingsSaveButton.addEventListener("click", () => persistChanges({ manual: true }));
@@ -313,6 +315,8 @@
     elements.welcomeCopy.innerHTML = "Open a LedgerBoard bundle to load <strong>BOARD.md</strong>, <strong>KANBAN-CONFIG.md</strong>, and <strong>KANBAN-HISTORY.md</strong>.";
     elements.welcomeConnectButton.textContent = "Choose board folder";
     elements.welcomeNormalizeButton.hidden = true;
+    elements.welcomeRepairButton.hidden = true;
+    elements.repairButton.hidden = true;
     elements.browserNote.textContent = standalone
       ? "Changes save directly to the selected Markdown files. LedgerBoard makes no network requests."
       : "Files stay in your workspace and remain readable without this extension.";
@@ -371,7 +375,9 @@
     elements.welcomeCopy.textContent = message || "The Markdown bundle is invalid.";
     elements.welcomeConnectButton.textContent = "Choose another board";
     elements.welcomeNormalizeButton.hidden = !canNormalize;
-    elements.browserNote.textContent = "Fix the reported Markdown issue, then reload, or choose a different board folder.";
+    elements.welcomeRepairButton.hidden = false;
+    elements.repairButton.hidden = false;
+    elements.browserNote.textContent = "Review a safe repair plan before changing files, or fix the reported Markdown issue manually.";
     elements.reloadButton.disabled = false;
     elements.addCardButton.disabled = true;
     setView("board");
@@ -2715,6 +2721,7 @@
     state.saveInFlight = false;
     updateDirtyState();
     updateSaveState("error", "Save blocked", message || "Could not save");
+    elements.repairButton.hidden = false;
     showError(new Error(message || "Could not save"));
   }
 

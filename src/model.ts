@@ -102,6 +102,22 @@ export interface BoardSourceAnalysis {
   canNormalize: boolean;
 }
 
+export interface BoardRepairStep {
+  fileName: 'BOARD.md' | 'KANBAN-CONFIG.md' | 'KANBAN-HISTORY.md';
+  line: number | null;
+  diagnosis: string;
+  proposedFix: string;
+}
+
+export interface BoardRepairPlan {
+  boardSource: string;
+  configSource: string;
+  historySource: string;
+  repairs: BoardRepairStep[];
+  remainingIssues: BoardRepairStep[];
+  canApply: boolean;
+}
+
 export interface BundleValidationResult {
   board: BoardDocument;
   config: KanbanConfig;
@@ -117,7 +133,8 @@ interface BoardModelApi {
   MAX_COLUMNS: number;
   MAX_COLUMN_NAME_LENGTH: number;
   analyzeBoardSource(markdown: string): BoardSourceAnalysis;
-    normalizeBoardSource(markdown: string): { source: string; diagnostics: BoardDiagnostic[]; changed: boolean };
+  normalizeBoardSource(markdown: string): { source: string; diagnostics: BoardDiagnostic[]; changed: boolean };
+  planBundleRepair(boardSource: string, configSource: string, historySource: string): BoardRepairPlan;
   appendHistory(markdown: string, events: HistoryEvent[]): string;
   createCard(document: BoardDocument, values?: Partial<Card> & { historyEvents?: HistoryEvent[] }): Card;
   createBaselineEvents(document: BoardDocument, at: string): HistoryEvent[];

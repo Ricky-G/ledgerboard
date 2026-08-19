@@ -136,6 +136,18 @@ test('uses ticket terminology without changing the automation command identifier
   assert.equal(command.title, 'Add Ticket');
 });
 
+test('ships the repair and backup-recovery commands', () => {
+  const commands = manifest.contributes.commands;
+  assert.equal(
+    commands.find((entry) => entry.command === 'ledgerBoard.repairBoard')?.title,
+    'Repair Board Bundle',
+  );
+  assert.equal(
+    commands.find((entry) => entry.command === 'ledgerBoard.restoreRepairBackup')?.title,
+    'Restore Latest Board Repair Backup',
+  );
+});
+
 test('declares the engine range the CI matrix validates', () => {
   assert.ok(manifest.engines.vscode, 'The manifest must declare a VS Code engine range.');
   assert.match(manifest.engines.vscode, /^\^1\.\d+\.\d+$/);

@@ -1,7 +1,12 @@
 import * as vscode from 'vscode';
 import { discoverBoardRepositories } from './boardDiscovery';
 import { BoardPanel } from './boardPanel';
-import { BoardRepository } from './boardRepository';
+import {
+  BoardRepository,
+  REPAIR_BACKUP_FILE,
+  type BoardRepairPreview,
+  type BundleFileName,
+} from './boardRepository';
 import { boardModel } from './model';
 
 let recentRepository: BoardRepository | undefined;
@@ -21,6 +26,8 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('ledgerBoard.addOutcome', () => addTicket(context)),
     vscode.commands.registerCommand('ledgerBoard.validateBoard', () => validateBoard(context)),
     vscode.commands.registerCommand('ledgerBoard.normalizeBoard', () => normalizeBoard(context)),
+    vscode.commands.registerCommand('ledgerBoard.repairBoard', () => repairBoard(context)),
+    vscode.commands.registerCommand('ledgerBoard.restoreRepairBackup', () => restoreRepairBackup()),
     vscode.commands.registerCommand('ledgerBoard.openStandard', () => openStandard(context)),
   );
 }
@@ -48,7 +55,7 @@ async function initializeBoard(context: vscode.ExtensionContext, uri?: vscode.Ur
 
 async function openBoard(context: vscode.ExtensionContext): Promise<void> {
   try {
-    const repository = await chooseExistingBoard();
+    const repository = await chooseExistingBoard(context);
     if (!repository) {return;}
     recentRepository = repository;
     BoardPanel.show(context, repository);
@@ -59,7 +66,7 @@ async function openBoard(context: vscode.ExtensionContext): Promise<void> {
 
 async function addTicket(context: vscode.ExtensionContext): Promise<void> {
   try {
-    const repository = await recentOrChooseExistingBoard();
+    const repository = await recentOrChooseExistingBoard(context);
     if (!repository) {return;}
     BoardPanel.show(context, repository).openNewCard();
   } catch (error) {
@@ -78,13 +85,13 @@ async function validateBoard(context: vscode.ExtensionContext): Promise<void> {
       `LedgerBoard is valid: ${validation.cardCount} ticket${validation.cardCount === 1 ? '' : 's'}, ${validation.config.entities.length} label${validation.config.entities.length === 1 ? '' : 's'}, ${validation.config.people.length} people, ${validation.historyEvents.length} history events.${warningDetail}`,
     );
   } catch (error) {
-    const actions = errorCanNormalize(error) ? ['Normalize formatting', 'Open BOARD.md'] : ['Open BOARD.md'];
+    const actions = ['Review repair', 'Open BOARD.md'];
     const action = await vscode.window.showErrorMessage(
       `LedgerBoard validation failed: ${errorMessage(error)}`,
       ...actions,
     );
-    if (action === 'Normalize formatting') {
-      await normalizeRepository(context, repository);
+    if (action === 'Review repair') {
+      await repairRepository(context, repository);
     } else if (action === 'Open BOARD.md') {
       await openBoardMarkdown(repository, errorLine(error));
     }
@@ -95,6 +102,85 @@ async function normalizeBoard(context: vscode.ExtensionContext): Promise<void> {
   const repository = await recentOrChooseBoardForMaintenance();
   if (!repository) {return;}
   await normalizeRepository(context, repository);
+}
+
+async function repairBoard(context: vscode.ExtensionContext): Promise<void> {
+  const repository = await recentOrChooseBoardForMaintenance();
+  if (!repository) {return;}
+  await repairRepository(context, repository);
+}
+
+async function repairRepository(context: vscode.ExtensionContext, repository: BoardRepository): Promise<void> {
+  try {
+    const preview = await repository.previewRepair();
+    if (preview.repairs.length === 0 && preview.remainingIssues.length === 0) {
+      await vscode.window.showInformationMessage('LedgerBoard is already valid. No repair is needed.');
+      return;
+    }
+
+    if (!preview.canApply) {
+      const first = preview.remainingIssues[0] ?? preview.repairs[0];
+      const action = await vscode.window.showErrorMessage(
+        `LedgerBoard cannot safely complete this repair: ${first?.diagnosis ?? 'manual corrections are required.'}`,
+        { modal: true, detail: describeRepairSteps(preview.remainingIssues) },
+        'Open affected file',
+      );
+      if (action === 'Open affected file' && first) {
+        await openBundleMarkdown(repository, first.fileName, first.line);
+      }
+      return;
+    }
+
+    const confirmation = await vscode.window.showWarningMessage(
+      `Repair this board? LedgerBoard will apply ${preview.repairs.length} safe repair(s), create ${REPAIR_BACKUP_FILE}, and validate the result.`,
+      { modal: true, detail: describeRepairPreview(preview) },
+      'Repair and validate',
+    );
+    if (confirmation !== 'Repair and validate') {return;}
+
+    const result = await repository.applyRepair(preview);
+    const action = await vscode.window.showInformationMessage(
+      `LedgerBoard repaired and validated ${result.changedFiles.join(', ')}. The original bundle is saved in ${result.backupFile}.`,
+      'Open repaired board',
+      'Restore backup',
+    );
+    if (action === 'Open repaired board') {
+      BoardPanel.show(context, repository);
+    } else if (action === 'Restore backup') {
+      await restoreRepositoryBackup(repository);
+    }
+  } catch (error) {
+    const action = await vscode.window.showErrorMessage(
+      `LedgerBoard repair failed: ${errorMessage(error)}`,
+      'Open BOARD.md',
+    );
+    if (action === 'Open BOARD.md') {await openBoardMarkdown(repository, errorLine(error));}
+  }
+}
+
+async function restoreRepairBackup(): Promise<void> {
+  const repository = await recentOrChooseBoardForMaintenance();
+  if (!repository) {return;}
+
+  const confirmation = await vscode.window.showWarningMessage(
+    `Restore ${REPAIR_BACKUP_FILE}? This replaces the current board bundle with the state before the latest repair.`,
+    { modal: true },
+    'Restore backup',
+  );
+  if (confirmation !== 'Restore backup') {return;}
+  await restoreRepositoryBackup(repository);
+}
+
+async function restoreRepositoryBackup(repository: BoardRepository): Promise<void> {
+  try {
+    await repository.restoreLatestRepairBackup();
+    await BoardPanel.refreshAfterMaintenance();
+    await vscode.window.showInformationMessage(
+      `Restored ${REPAIR_BACKUP_FILE}. Run LedgerBoard: Validate Board Bundle to review the restored state.`,
+    );
+  } catch (error) {
+    await vscode.window.showErrorMessage(`LedgerBoard could not restore the repair backup: ${errorMessage(error)}`);
+  }
 }
 
 async function normalizeRepository(context: vscode.ExtensionContext, repository: BoardRepository): Promise<void> {
@@ -142,7 +228,7 @@ async function openStandard(context: vscode.ExtensionContext): Promise<void> {
   await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(uri), { preview: false });
 }
 
-async function chooseExistingBoard(): Promise<BoardRepository | undefined> {
+async function chooseExistingBoard(context: vscode.ExtensionContext): Promise<BoardRepository | undefined> {
   const discovery = await discoverWithProgress('Finding LedgerBoard bundles…');
   const repositories = discovery.valid.map((candidate) => candidate.repository);
 
@@ -161,16 +247,14 @@ async function chooseExistingBoard(): Promise<BoardRepository | undefined> {
 
   if (discovery.invalid.length > 0) {
     const invalid = discovery.invalid[0];
-    const actions = invalid.canNormalize
-      ? ['Normalize formatting', 'Open BOARD.md', 'Choose folder']
-      : ['Open BOARD.md', 'Choose folder'];
+    const actions = ['Review repair', 'Open BOARD.md', 'Choose folder'];
     const action = await vscode.window.showErrorMessage(
       `LedgerBoard found ${invalid.repository.name}, but it is invalid: ${invalid.message}`,
       ...actions,
     );
-    if (action === 'Normalize formatting') {
+    if (action === 'Review repair') {
       recentRepository = invalid.repository;
-      await vscode.commands.executeCommand('ledgerBoard.normalizeBoard');
+      await repairRepository(context, invalid.repository);
       return undefined;
     }
     if (action === 'Open BOARD.md') {
@@ -220,9 +304,9 @@ async function chooseBoardForMaintenance(): Promise<BoardRepository | undefined>
   return chooseBoardFolder(false);
 }
 
-async function recentOrChooseExistingBoard(): Promise<BoardRepository | undefined> {
+async function recentOrChooseExistingBoard(context: vscode.ExtensionContext): Promise<BoardRepository | undefined> {
   if (recentRepository && await recentRepository.exists()) {return recentRepository;}
-  return chooseExistingBoard();
+  return chooseExistingBoard(context);
 }
 
 async function recentOrChooseBoardForMaintenance(): Promise<BoardRepository | undefined> {
@@ -262,13 +346,31 @@ async function chooseBoardFolder(validate = true): Promise<BoardRepository | und
 }
 
 async function openBoardMarkdown(repository: BoardRepository, line?: number | null): Promise<void> {
-  const document = await vscode.workspace.openTextDocument(repository.uri('BOARD.md'));
+  await openBundleMarkdown(repository, 'BOARD.md', line);
+}
+
+async function openBundleMarkdown(
+  repository: BoardRepository,
+  fileName: BundleFileName,
+  line?: number | null,
+): Promise<void> {
+  const document = await vscode.workspace.openTextDocument(repository.uri(fileName));
   const editor = await vscode.window.showTextDocument(document, { preview: false });
   if (line && line > 0) {
     const position = new vscode.Position(Math.min(line - 1, document.lineCount - 1), 0);
     editor.selection = new vscode.Selection(position, position);
     editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenterIfOutsideViewport);
   }
+}
+
+function describeRepairPreview(preview: BoardRepairPreview): string {
+  return describeRepairSteps(preview.repairs);
+}
+
+function describeRepairSteps(repairs: readonly BoardRepairPreview['repairs'][number][]): string {
+  return repairs
+    .map((repair) => `${repair.fileName}${repair.line ? ` line ${repair.line}` : ''}: ${repair.diagnosis} Fix: ${repair.proposedFix}`)
+    .join('\n');
 }
 
 async function chooseTargetFolder(uri?: vscode.Uri): Promise<vscode.Uri | undefined> {
@@ -296,10 +398,6 @@ async function chooseTargetFolder(uri?: vscode.Uri): Promise<vscode.Uri | undefi
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-function errorCanNormalize(error: unknown): boolean {
-  return Boolean(error && typeof error === 'object' && 'canNormalize' in error && error.canNormalize);
 }
 
 function errorLine(error: unknown): number | null {

@@ -518,6 +518,97 @@ test('bundle validation reports missing labels', () => {
   );
 });
 
+test('plans a validated repair for missing label and person directory entries', () => {
+  const source = boardWith(
+    '- [ ] AO-001 — External ticket · P2 · area:missing-label\n'
+      + '    - **Assignee:** missing-person',
+  );
+  const plan = model.planBundleRepair(source, CONFIG, HISTORY);
+
+  assert.equal(plan.canApply, true);
+  assert.equal(plan.remainingIssues.length, 0);
+  assert.equal(plan.repairs.length, 2);
+  assert.equal(plan.boardSource, source);
+  assert.equal(plan.historySource, HISTORY);
+  assert.match(plan.repairs[0].proposedFix, /KANBAN-CONFIG\.md/);
+  assert.match(plan.configSource, /"id": "missing-label"/);
+  assert.match(plan.configSource, /"id": "missing-person"/);
+  assert.doesNotThrow(() => model.validateBundleSources(
+    plan.boardSource,
+    plan.configSource,
+    plan.historySource,
+  ));
+});
+
+test('leaves ambiguous duplicate identifiers untouched for manual repair', () => {
+  const source = boardWithTwoCards('\n\n').replace('AO-002', 'AO-001');
+  const plan = model.planBundleRepair(source, CONFIG, HISTORY);
+
+  assert.equal(plan.canApply, false);
+  assert.equal(plan.repairs.length, 0);
+  assert.equal(plan.boardSource, source);
+  assert.equal(plan.remainingIssues[0].fileName, 'BOARD.md');
+  assert.match(plan.remainingIssues[0].diagnosis, /Duplicate card ID AO-001/);
+  assert.throws(() => model.parseBoard(plan.boardSource), /Duplicate card ID AO-001/);
+});
+
+test('plans a formatting repair without modifying the original preview source', () => {
+  const source = boardWithTwoCards('\n');
+  const plan = model.planBundleRepair(source, CONFIG, HISTORY);
+
+  assert.equal(plan.canApply, true);
+  assert.equal(plan.repairs[0].fileName, 'BOARD.md');
+  assert.equal(plan.repairs[0].line, 9);
+  assert.equal(plan.boardSource, boardWithTwoCards('\n\n'));
+  assert.equal(source, boardWithTwoCards('\n'));
+  assert.doesNotThrow(() => model.validateBundleSources(
+    plan.boardSource,
+    plan.configSource,
+    plan.historySource,
+  ));
+});
+
+test('keeps malformed configuration and history entries manual', () => {
+  const board = boardWith('- [ ] AO-001 — Valid ticket · P2 · area:internal');
+  const malformedConfig = '# Kanban Configuration\n\n```json\n{"workspace":\n```\n';
+  const malformedHistory = `${HISTORY}    {not-json}\n`;
+  const configPlan = model.planBundleRepair(board, malformedConfig, HISTORY);
+  const historyPlan = model.planBundleRepair(board, CONFIG, malformedHistory);
+
+  assert.equal(configPlan.canApply, false);
+  assert.equal(configPlan.remainingIssues[0].fileName, 'KANBAN-CONFIG.md');
+  assert.match(configPlan.remainingIssues[0].diagnosis, /Unexpected end of JSON input/);
+  assert.equal(historyPlan.canApply, false);
+  assert.equal(historyPlan.remainingIssues[0].fileName, 'KANBAN-HISTORY.md');
+  assert.equal(historyPlan.remainingIssues[0].line, 4);
+  assert.match(historyPlan.remainingIssues[0].diagnosis, /Invalid history JSON on line 4/);
+});
+
+test('reports a configuration-column mismatch after preserving a no-op preview', () => {
+  const board = boardWith('- [ ] AO-001 — Valid ticket · P2 · area:internal');
+  const config = model.parseConfig(CONFIG);
+  config.columns[0].name = 'Intake';
+  const mismatchedConfig = model.serializeConfig(CONFIG, config);
+  const plan = model.planBundleRepair(board, mismatchedConfig, HISTORY);
+
+  assert.equal(plan.canApply, false);
+  assert.equal(plan.repairs.length, 0);
+  assert.equal(plan.remainingIssues[0].fileName, 'BOARD.md');
+  assert.match(plan.remainingIssues[0].diagnosis, /must be named Intake/);
+  assert.equal(plan.configSource, mismatchedConfig);
+});
+
+test('reports a valid bundle as a no-op repair preview', () => {
+  const plan = model.planBundleRepair(EMPTY_BOARD, CONFIG, HISTORY);
+
+  assert.equal(plan.canApply, false);
+  assert.deepEqual(plan.repairs, []);
+  assert.deepEqual(plan.remainingIssues, []);
+  assert.equal(plan.boardSource, EMPTY_BOARD);
+  assert.equal(plan.configSource, CONFIG);
+  assert.equal(plan.historySource, HISTORY);
+});
+
 test('duplicate label IDs are rejected', () => {
   const duplicate = CONFIG.replace(
     '"entities":[{"id":"internal","name":"Internal","color":"#167d74"}]',

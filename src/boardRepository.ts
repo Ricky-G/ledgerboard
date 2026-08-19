@@ -1,6 +1,13 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { boardModel, type BoardDiagnostic, type BoardDocument, type HistoryEvent, type KanbanConfig } from './model';
+import {
+  boardModel,
+  type BoardDiagnostic,
+  type BoardDocument,
+  type BoardRepairStep,
+  type HistoryEvent,
+  type KanbanConfig,
+} from './model';
 import {
   BOARD_FILE,
   BOARD_TEMPLATE,
@@ -14,7 +21,8 @@ import {
 
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
-type BundleFileName = typeof BUNDLE_FILES[number];
+export const REPAIR_BACKUP_FILE = '.ledgerboard-repair-backup.json';
+export type BundleFileName = typeof BUNDLE_FILES[number];
 
 export interface BoardBundle {
   boardSource: string;
@@ -42,6 +50,25 @@ export interface SaveRequest {
 
 export interface SaveResult extends BoardBundle {
   events: HistoryEvent[];
+}
+
+export interface BoardRepairPreview {
+  base: BoardBundle;
+  repaired: BoardBundle;
+  repairs: BoardRepairStep[];
+  remainingIssues: BoardRepairStep[];
+  canApply: boolean;
+}
+
+export interface BoardRepairResult {
+  backupFile: typeof REPAIR_BACKUP_FILE;
+  changedFiles: BundleFileName[];
+  validation: BundleValidation;
+}
+
+interface BoardRepairBackup {
+  version: 1;
+  bundle: BoardBundle;
 }
 
 /**
@@ -165,6 +192,92 @@ export class BoardRepository {
     return { changed: true, diagnostics: normalized.diagnostics };
   }
 
+  public async previewRepair(): Promise<BoardRepairPreview> {
+    const base = await this.read();
+    const plan = boardModel.planBundleRepair(base.boardSource, base.configSource, base.historySource);
+    return {
+      base,
+      repaired: {
+        boardSource: plan.boardSource,
+        configSource: plan.configSource,
+        historySource: plan.historySource,
+      },
+      repairs: plan.repairs,
+      remainingIssues: plan.remainingIssues,
+      canApply: plan.canApply,
+    };
+  }
+
+  public async applyRepair(preview: BoardRepairPreview): Promise<BoardRepairResult> {
+    const current = await this.read();
+    if (!bundlesMatch(current, preview.base)) {
+      throw new Error('A board file changed outside LedgerBoard. Review the repair plan again before applying it.');
+    }
+    if (!preview.canApply) {
+      throw new Error('LedgerBoard cannot apply a repair plan that still has unresolved issues.');
+    }
+
+    const validation = this.validate(preview.repaired);
+    const changes = changedBundleFiles(current, preview.repaired);
+    if (changes.size === 0) {
+      throw new Error('LedgerBoard repair plan does not change any board files.');
+    }
+
+    await this.writeRepairBackup(current);
+    try {
+      await this.applyChanges(changes);
+    } catch (error) {
+      try {
+        await this.restoreLatestRepairBackup();
+      } catch (restoreError) {
+        throw new Error(
+          `LedgerBoard could not apply the repair and could not restore the backup: ${errorMessage(error)} `
+          + `Restore error: ${errorMessage(restoreError)}`,
+        );
+      }
+      throw new Error(`LedgerBoard could not apply the repair. The original board files were restored: ${errorMessage(error)}`);
+    }
+
+    return {
+      backupFile: REPAIR_BACKUP_FILE,
+      changedFiles: [...changes.keys()],
+      validation,
+    };
+  }
+
+  public async restoreLatestRepairBackup(): Promise<BoardBundle> {
+    const backup = await this.readRepairBackup();
+    await this.applyChanges(new Map<BundleFileName, string>([
+      [BOARD_FILE, backup.boardSource],
+      [CONFIG_FILE, backup.configSource],
+      [HISTORY_FILE, backup.historySource],
+    ]));
+    return backup;
+  }
+
+  public async readRepairBackup(): Promise<BoardBundle> {
+    let source: string;
+    try {
+      source = decoder.decode(await vscode.workspace.fs.readFile(this.repairBackupUri()));
+    } catch (error) {
+      if (error instanceof vscode.FileSystemError && error.code === 'FileNotFound') {
+        throw new Error(`No ${REPAIR_BACKUP_FILE} file exists for this board.`);
+      }
+      throw error;
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(source);
+    } catch (error) {
+      throw new Error(`Cannot read ${REPAIR_BACKUP_FILE}: ${errorMessage(error)}`);
+    }
+    if (!isRepairBackup(parsed)) {
+      throw new Error(`Cannot read ${REPAIR_BACKUP_FILE}: it does not contain a board repair backup.`);
+    }
+    return parsed.bundle;
+  }
+
   public async save(request: SaveRequest): Promise<SaveResult> {
     const current = await this.read();
     if (request.saveBoard && current.boardSource !== request.base.boardSource) {
@@ -272,6 +385,51 @@ export class BoardRepository {
       }
     }
   }
+
+  private repairBackupUri(): vscode.Uri {
+    return vscode.Uri.joinPath(this.root, REPAIR_BACKUP_FILE);
+  }
+
+  private async writeRepairBackup(bundle: BoardBundle): Promise<void> {
+    const backup: BoardRepairBackup = { version: 1, bundle };
+    await vscode.workspace.fs.writeFile(
+      this.repairBackupUri(),
+      encoder.encode(`${JSON.stringify(backup, null, 2)}\n`),
+    );
+  }
+}
+
+function bundlesMatch(left: BoardBundle, right: BoardBundle): boolean {
+  return left.boardSource === right.boardSource
+    && left.configSource === right.configSource
+    && left.historySource === right.historySource;
+}
+
+function changedBundleFiles(current: BoardBundle, repaired: BoardBundle): Map<BundleFileName, string> {
+  const changes = new Map<BundleFileName, string>();
+  if (current.boardSource !== repaired.boardSource) {
+    changes.set(BOARD_FILE, repaired.boardSource);
+  }
+  if (current.configSource !== repaired.configSource) {
+    changes.set(CONFIG_FILE, repaired.configSource);
+  }
+  if (current.historySource !== repaired.historySource) {
+    changes.set(HISTORY_FILE, repaired.historySource);
+  }
+  return changes;
+}
+
+function isRepairBackup(value: unknown): value is BoardRepairBackup {
+  if (!value || typeof value !== 'object' || !('version' in value) || !('bundle' in value)) {
+    return false;
+  }
+  if (value.version !== 1 || !value.bundle || typeof value.bundle !== 'object') {
+    return false;
+  }
+  const bundle = value.bundle;
+  return 'boardSource' in bundle && typeof bundle.boardSource === 'string'
+    && 'configSource' in bundle && typeof bundle.configSource === 'string'
+    && 'historySource' in bundle && typeof bundle.historySource === 'string';
 }
 
 function bundleFileName(uri: vscode.Uri): BundleFileName | undefined {
@@ -281,6 +439,10 @@ function bundleFileName(uri: vscode.Uri): BundleFileName | undefined {
 
 export async function readUtf8(uri: vscode.Uri): Promise<string> {
   return decoder.decode(await vscode.workspace.fs.readFile(uri));
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 async function fileExists(uri: vscode.Uri, timeoutMs?: number): Promise<boolean> {
