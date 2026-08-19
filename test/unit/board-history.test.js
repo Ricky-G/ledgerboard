@@ -252,6 +252,19 @@ test('parseConfig requires a fenced JSON block', () => {
   assert.throws(() => model.parseConfig(undefined), TypeError);
 });
 
+test('parseConfig reports malformed label imports without changing ticket references', () => {
+  const malformed = '```json\n' + JSON.stringify({
+    workspace: { name: 'Malformed labels' },
+    entities: [null],
+  }) + '\n```\n';
+  const missing = '```json\n' + JSON.stringify({
+    workspace: { name: 'Missing labels' },
+  }) + '\n```\n';
+
+  assert.throws(() => model.parseConfig(malformed), /Invalid label entry/);
+  assert.throws(() => model.parseConfig(missing), /requires the stable entities array used to store labels/);
+});
+
 test('parseConfig migrates a legacy customers array to the stable entities field', () => {
   const legacy = '```json\n' + JSON.stringify({
     workspace: { name: 'Legacy' },
@@ -262,6 +275,21 @@ test('parseConfig migrates a legacy customers array to the stable entities field
   assert.equal(config.entities.length, 1);
   assert.deepEqual(config.people, []);
   assert.equal(config.customers, undefined);
+});
+
+test('legacy label imports reject names that differ only by case and whitespace', () => {
+  const legacy = '```json\n' + JSON.stringify({
+    workspace: { name: 'Legacy' },
+    customers: [
+      { id: 'planning', name: 'Planning', color: '#3b82f6' },
+      { id: 'delivery', name: '  planning  ', color: '#7257b5' },
+    ],
+  }) + '\n```\n';
+
+  assert.throws(
+    () => model.parseConfig(legacy),
+    /Duplicate label name "planning".*Rename one label in KANBAN-CONFIG\.md while keeping label IDs unchanged/,
+  );
 });
 
 test('validateConfig enforces identifier, name, and colour shapes', () => {
@@ -276,11 +304,21 @@ test('validateConfig enforces identifier, name, and colour shapes', () => {
     /Invalid label ID/,
   );
   assert.throws(
-    () => model.validateConfig({ ...base, entities: [{ id: 'meta', color: '#ffffff' }, { id: 'meta', color: '#ffffff' }] }),
-    /Duplicate label ID/,
+    () => model.validateConfig({
+      ...base,
+      entities: [
+        { id: 'meta', name: 'Meta', color: '#ffffff' },
+        { id: 'meta', name: 'Meta duplicate', color: '#ffffff' },
+      ],
+    }),
+    /Label ID "meta" is used by more than one label/,
   );
   assert.throws(
-    () => model.validateConfig({ ...base, entities: [{ id: 'meta', color: 'blue' }] }),
+    () => model.validateConfig({ ...base, entities: [{ id: 'meta', name: '  ', color: '#ffffff' }] }),
+    /Label names cannot be blank/,
+  );
+  assert.throws(
+    () => model.validateConfig({ ...base, entities: [{ id: 'meta', name: 'Meta', color: 'blue' }] }),
     /Invalid color/,
   );
   assert.throws(
@@ -299,6 +337,7 @@ test('serializeConfig replaces an existing block and creates a missing one', () 
 
   const created = model.serializeConfig('# Kanban Configuration\n', config);
   assert.equal(model.parseConfig(created).workspace.name, 'Renamed workspace');
+  assert.throws(() => model.serializeConfig('', null), /Kanban configuration must be an object/);
 });
 
 test('createDefaultConfig produces a configuration that round trips', () => {

@@ -64,6 +64,65 @@ test.describe('settings view', () => {
     await expect(page.locator('[data-card-id="AO-001"]')).toContainText('Northstar updated');
   });
 
+  test('keeps generated label names and IDs unique', async ({ page }) => {
+    await openBoard(page, { scenario: 'label-id-collision' });
+    await page.locator('.view-tab[data-view="settings"]').click();
+    await page.locator('#addEntityButton').click();
+    await page.locator('#addEntityButton').click();
+
+    const labelRows = page.locator('#entityList > *');
+    await expect(labelRows).toHaveCount(6);
+    await expect(labelRows.nth(4).locator('.entity-id-input')).toHaveValue('label-5');
+    await expect(labelRows.nth(4).getByLabel('Label name')).toHaveValue('New label');
+    await expect(labelRows.nth(5).locator('.entity-id-input')).toHaveValue('label-6');
+    await expect(labelRows.nth(5).getByLabel('Label name')).toHaveValue('New label 2');
+  });
+
+  test('rejects a duplicate label name before persistence', async ({ page }) => {
+    await openBoard(page);
+    await page.locator('.view-tab[data-view="settings"]').click();
+
+    const labelName = page.locator('#entityList input[aria-label="Label name"]').first();
+    await labelName.fill('  NORTHSTAR LAUNCH  ');
+    await labelName.blur();
+
+    await expect(page.locator('.toast[data-tone="error"]')).toHaveText(
+      'A label named "Northstar launch" already exists. Enter a different label name.',
+    );
+    await expect(labelName).toHaveValue('LedgerBoard');
+    await expect(page.locator('#unsavedIndicator')).toBeHidden();
+    expect(await configSource(page)).toContain('"name": "LedgerBoard"');
+  });
+
+  test('normalizes and persists a distinct label name', async ({ page }) => {
+    await openBoard(page);
+    await page.locator('.view-tab[data-view="settings"]').click();
+
+    const labelName = page.locator('#entityList input[aria-label="Label name"]').first();
+    await labelName.fill('  Product planning  ');
+    await labelName.blur();
+
+    await expect(labelName).toHaveValue('Product planning');
+    await expect(page.locator('#unsavedIndicator')).toBeVisible();
+    await saveNow(page);
+    expect(await configSource(page)).toContain('"name": "Product planning"');
+  });
+
+  test('uses label terminology when rejecting a duplicate label ID', async ({ page }) => {
+    await openBoard(page);
+    await page.locator('.view-tab[data-view="settings"]').click();
+
+    const labelId = page.locator('#entityList .entity-id-input').first();
+    await labelId.fill('northstar');
+    await labelId.blur();
+
+    await expect(page.locator('.toast[data-tone="error"]')).toHaveText(
+      'The label ID "northstar" is already used. Enter a unique label ID.',
+    );
+    await expect(labelId).toHaveValue('ledgerboard');
+    await expect(page.locator('#unsavedIndicator')).toBeHidden();
+  });
+
   test('removes an unreferenced label from card options and saved configuration', async ({ page }) => {
     await openBoard(page);
     await page.locator('#addCardButton').click();

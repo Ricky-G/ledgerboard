@@ -25,6 +25,7 @@
 
   const CARD_PATTERN = /^- \[([ xX])\] (AO-\d{3,}) — (.+) · (P[1-4]) · area:([a-z0-9][a-z0-9-]*)$/;
   const DETAIL_PATTERN = /^\s{4}- \*\*([^*]+):\*\*\s*(.*)$/;
+  const DESCRIPTION_CONTINUATION_PATTERN = /^ {6}(?! )(.*)$/;
   const DETAIL_FIELDS = [
     { key: "description", label: "Description" },
     { key: "assignee", label: "Assignee" },
@@ -231,16 +232,22 @@
 
   function inspectCardDetails(lines, cardStart, nextCardStart, cardId, diagnostics) {
     let previousDetailLabel = "";
+    let previousDetailKey = "";
     for (let lineIndex = cardStart + 1; lineIndex < nextCardStart; lineIndex += 1) {
       const line = lines[lineIndex];
+      if (previousDetailKey === "description" && DESCRIPTION_CONTINUATION_PATTERN.test(line)) {
+        continue;
+      }
       if (line.trim() === "") {
         previousDetailLabel = "";
+        previousDetailKey = "";
         continue;
       }
       const detailMatch = line.match(DETAIL_PATTERN);
       if (detailMatch) {
         const label = detailMatch[1].trim();
         previousDetailLabel = label;
+        previousDetailKey = DETAIL_KEY_BY_LABEL.get(label.toLowerCase()) || "";
         if (!DETAIL_KEY_BY_LABEL.has(label.toLowerCase())) {
           diagnostics.push(createDiagnostic(
             "unsupported-detail",
@@ -254,6 +261,18 @@
       }
       if (/^\s+\S/.test(line)) {
         const field = previousDetailLabel || "Detail";
+        if (previousDetailKey === "description") {
+          diagnostics.push(createDiagnostic(
+            "description-continuation",
+            "error",
+            `Description for ${cardId} must use exactly six spaces before its continuation on line ${lineIndex + 1}.`,
+            lineIndex + 1,
+            { card: cardId, field },
+          ));
+          previousDetailLabel = "";
+          previousDetailKey = "";
+          continue;
+        }
         diagnostics.push(createDiagnostic(
           `multiline-${field.toLowerCase()}`,
           "error",
@@ -271,6 +290,7 @@
         ));
       }
       previousDetailLabel = "";
+      previousDetailKey = "";
     }
   }
 
@@ -471,14 +491,24 @@
 
     const detailValues = emptyDetailValues();
     const rawDetailLines = cardLines.slice(1);
+    let previousDetailKey = "";
 
     rawDetailLines.forEach((line) => {
       const detailMatch = line.match(DETAIL_PATTERN);
       if (!detailMatch) {
+        const continuation = previousDetailKey === "description"
+          ? line.match(DESCRIPTION_CONTINUATION_PATTERN)
+          : null;
+        if (continuation) {
+          detailValues.description += `\n${continuation[1]}`;
+          return;
+        }
+        previousDetailKey = "";
         return;
       }
 
       const key = DETAIL_KEY_BY_LABEL.get(detailMatch[1].trim().toLowerCase());
+      previousDetailKey = key || "";
       if (key) {
         detailValues[key] = detailMatch[2].trim();
       }
@@ -585,36 +615,55 @@
       `- [${checkbox}] ${card.id} — ${card.title} · ${card.priority} · area:${card.area}`,
     ];
     const emittedFields = new Set();
+    let previousDetailKey = "";
 
     card.rawDetailLines.forEach((line) => {
       const detailMatch = line.match(DETAIL_PATTERN);
       if (!detailMatch) {
+        if (previousDetailKey === "description" && DESCRIPTION_CONTINUATION_PATTERN.test(line)) {
+          return;
+        }
         lines.push(line);
+        previousDetailKey = "";
         return;
       }
 
       const key = DETAIL_KEY_BY_LABEL.get(detailMatch[1].trim().toLowerCase());
       if (!key) {
         lines.push(line);
+        previousDetailKey = "";
         return;
       }
 
       emittedFields.add(key);
       const field = DETAIL_FIELDS.find((item) => item.key === key);
-      const value = String(card.detailValues[key] ?? "").trim();
-      if (value) {
-        lines.push(`    - **${field.label}:** ${value}`);
-      }
+      lines.push(...serializeDetailValue(field, card.detailValues[key]));
+      previousDetailKey = key;
     });
 
     DETAIL_FIELDS.forEach((field) => {
-      const value = String(card.detailValues[field.key] ?? "").trim();
-      if (value && !emittedFields.has(field.key)) {
-        lines.push(`    - **${field.label}:** ${value}`);
+      if (!emittedFields.has(field.key)) {
+        lines.push(...serializeDetailValue(field, card.detailValues[field.key]));
       }
     });
 
     return lines;
+  }
+
+  function serializeDetailValue(field, value) {
+    const normalized = String(value ?? "").trim().replace(/\r\n|\r|\n/g, "\n");
+    if (!normalized) {
+      return [];
+    }
+    if (field.key !== "description") {
+      return [`    - **${field.label}:** ${normalized}`];
+    }
+
+    const [firstLine, ...continuationLines] = normalized.split("\n");
+    return [
+      `    - **${field.label}:** ${firstLine}`,
+      ...continuationLines.map((line) => `      ${line}`),
+    ];
   }
 
   function validateBoard(document) {
@@ -1756,7 +1805,7 @@
       throw new Error("Configuration requires a columns array.");
     }
 
-    validateDirectory(config.entities, "label", false);
+    validateDirectory(config.entities, "label", true);
     validateDirectory(config.people, "person", true);
     validateColumns(config.columns);
     return true;
@@ -1805,15 +1854,39 @@
 
   function validateDirectory(items, type, requireName) {
     const ids = new Set();
+    const names = new Set();
     items.forEach((item) => {
+      if (!item || typeof item !== "object") {
+        throw new Error(`Invalid ${type} entry.`);
+      }
       if (!/^[a-z0-9][a-z0-9-]*$/.test(item.id || "")) {
         throw new Error(`Invalid ${type} ID: ${item.id || "empty"}.`);
       }
       if (ids.has(item.id)) {
+        if (type === "label") {
+          throw new Error(
+            `Label ID "${item.id}" is used by more than one label. `
+            + "Give one label a different ID and update tickets that use it.",
+          );
+        }
         throw new Error(`Duplicate ${type} ID: ${item.id}.`);
       }
-      if (requireName && (typeof item.name !== "string" || !item.name.trim())) {
+      const name = typeof item.name === "string" ? item.name.trim() : "";
+      if (requireName && !name) {
+        if (type === "label") {
+          throw new Error("Label names cannot be blank. Enter a label name.");
+        }
         throw new Error(`Invalid name for ${item.id}.`);
+      }
+      if (type === "label") {
+        const nameKey = name.toLocaleLowerCase();
+        if (names.has(nameKey)) {
+          throw new Error(
+            `Duplicate label name "${name}". Labels are matched without regard to case or surrounding whitespace. `
+            + "Rename one label in KANBAN-CONFIG.md while keeping label IDs unchanged so ticket references remain valid.",
+          );
+        }
+        names.add(nameKey);
       }
       if (!/^#[0-9a-f]{6}$/i.test(item.color || "")) {
         throw new Error(`Invalid color for ${item.id}.`);
@@ -1834,9 +1907,25 @@
     if (!Array.isArray(normalized.people)) {
       normalized.people = [];
     }
+    normalized.entities = normalizeDirectory(normalized.entities);
     normalized.columns = normalizeColumns(normalized.columns);
     delete normalized.customers;
     return normalized;
+  }
+
+  function normalizeDirectory(items) {
+    if (!Array.isArray(items)) {
+      return items;
+    }
+    return items.map((item) => {
+      if (!item || typeof item !== "object") {
+        return item;
+      }
+      return {
+        ...item,
+        name: typeof item.name === "string" ? item.name.trim() : item.name,
+      };
+    });
   }
 
   function normalizeColumns(columns) {

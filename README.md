@@ -11,7 +11,7 @@ or proprietary export.
 
 ## Highlights
 
-- Exact, line-numbered diagnostics for card separators, multiline descriptions, mixed line endings,
+- Exact, line-numbered diagnostics for card separators, malformed description continuations, mixed line endings,
   missing labels, malformed checkboxes, and first source/serialized differences.
 - Safe **Normalize BOARD.md Formatting** workflow in the Command Palette and load-error screen.
 - Faster initialization and multi-root discovery with parallel direct file reads, bounded probes,
@@ -132,16 +132,22 @@ Adjacent cards require exactly one blank physical line:
     - **Description:** Second description.
 ```
 
-Descriptions remain one physical line. LedgerBoard reports exact card IDs and line numbers for
-separator, multiline-description, mixed-line-ending, and first-difference errors.
+Descriptions can span multiple lines. LedgerBoard stores each continuation with six spaces in
+Markdown and preserves the same line breaks in the card editor. It reports exact card IDs and line
+numbers for separator, description-continuation, mixed-line-ending, and first-difference errors.
+
+```markdown
+    - **Description:** First line of context.
+      Additional context on the next line.
+```
 
 ## Troubleshooting
 
 ### Board does not open
 
 Run **LedgerBoard: Validate Board Bundle**. The error identifies the first actionable issue. If the
-issue is formatting-only, choose **Normalize formatting**. Semantic problems such as missing labels,
-duplicate IDs, or multiline descriptions must be corrected in Markdown.
+issue is formatting-only, choose **Normalize formatting**. Semantic problems such as missing labels
+or duplicate IDs must be corrected in Markdown.
 
 ### Formatting normalization
 
@@ -157,8 +163,8 @@ rescanning the workspace.
 
 ## Intentional limitations
 
-LedgerBoard deliberately does not provide subtasks, due dates, estimates, multiline
-descriptions, cloud synchronization, or a mobile client. Those constraints keep the Markdown contract
+LedgerBoard deliberately does not provide subtasks, due dates, estimates, cloud synchronization, or
+a mobile client. Those constraints keep the Markdown contract
 small, deterministic, reviewable in Git, and durable without the extension.
 
 ## Privacy and Trust

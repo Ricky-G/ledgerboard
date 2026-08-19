@@ -1433,18 +1433,17 @@
     name.value = item.name;
     name.maxLength = 80;
     name.setAttribute("aria-label", isPerson ? "Person name" : "Label name");
-    name.addEventListener("input", (event) => {
-      item.name = event.target.value;
-      markDirty("config");
-      if (isPerson) {
+    if (isPerson) {
+      name.addEventListener("input", (event) => {
+        item.name = event.target.value;
+        markDirty("config");
         populateAssigneeFilter();
         populatePersonOptions();
-      } else {
-        populateAreaFilter();
-        populateEntityOptions();
-      }
-      renderBoard();
-    });
+        renderBoard();
+      });
+    } else {
+      name.addEventListener("change", (event) => changeEntityName(item, event.target));
+    }
 
     const id = document.createElement("input");
     id.type = "text";
@@ -1552,12 +1551,12 @@
     const next = input.value.trim().toLowerCase();
     if (!/^[a-z0-9][a-z0-9-]*$/.test(next)) {
       input.value = previous;
-      showError(new Error("Area IDs use lowercase letters, numbers, and hyphens."));
+      showError(new Error("Label IDs use lowercase letters, numbers, and hyphens."));
       return;
     }
-    if (state.config.entities.some((item) => item !== entity && item.id === next)) {
+    if (state.config.entities.some((item) => item !== entity && normalizeDirectoryId(item.id) === next)) {
       input.value = previous;
-      showError(new Error(`The area ID ${next} already exists.`));
+      showError(new Error(`The label ID "${next}" is already used. Enter a unique label ID.`));
       return;
     }
     entity.id = next;
@@ -1579,14 +1578,63 @@
     renderBoard();
   }
 
-  function addEntity() {
+  function changeEntityName(entity, input) {
+    const previous = entity.name;
+    const next = input.value.trim();
+    if (!next) {
+      input.value = previous;
+      showError(new Error("Label names cannot be blank. Enter a label name."));
+      return;
+    }
+    const conflict = state.config.entities.find(
+      (item) => item !== entity && normalizeLabelName(item.name) === normalizeLabelName(next),
+    );
+    if (conflict) {
+      input.value = previous;
+      showError(new Error(`A label named "${conflict.name}" already exists. Enter a different label name.`));
+      return;
+    }
+    input.value = next;
+    entity.name = next;
+    markDirty("config");
+    populateAreaFilter();
+    populateEntityOptions();
+    renderBoard();
+    renderAnalytics();
+  }
+
+  function normalizeLabelName(name) {
+    return typeof name === "string" ? name.trim().toLocaleLowerCase() : "";
+  }
+
+  function normalizeDirectoryId(id) {
+    return typeof id === "string" ? id.trim().toLocaleLowerCase() : "";
+  }
+
+  function nextAvailableLabelName() {
+    const names = new Set(state.config.entities.map((entity) => normalizeLabelName(entity.name)));
+    let suffix = 1;
+    let name = "New label";
+    while (names.has(normalizeLabelName(name))) {
+      suffix += 1;
+      name = `New label ${suffix}`;
+    }
+    return name;
+  }
+
+  function nextAvailableLabelId() {
+    const ids = new Set(state.config.entities.map((entity) => normalizeDirectoryId(entity.id)));
     let suffix = state.config.entities.length + 1;
-    while (state.config.entities.some((entity) => entity.id === `label-${suffix}`)) {
+    while (ids.has(`label-${suffix}`)) {
       suffix += 1;
     }
+    return `label-${suffix}`;
+  }
+
+  function addEntity() {
     state.config.entities.push({
-      id: `label-${suffix}`,
-      name: "New label",
+      id: nextAvailableLabelId(),
+      name: nextAvailableLabelName(),
       color: "#2e6ea6",
     });
     markDirty("config");

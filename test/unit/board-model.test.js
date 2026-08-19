@@ -453,18 +453,38 @@ test('mixed line endings produce a specific normalizable error', () => {
   assert.equal(model.normalizeBoardSource(source).source.includes('\r\n'), false);
 });
 
-test('multiline descriptions produce a specific non-normalizable error', () => {
+test('multiline descriptions normalize mixed input line endings before serializing', () => {
+  const board = model.parseBoard(
+    boardWith('- [ ] AO-001 — First ticket · P1 · area:internal'),
+  );
+  board.columns[0].cards[0].detailValues.description = 'First line.\r\nSecond line.\n\nFourth line.';
+
+  const serialized = model.serializeBoard(board);
+  const report = model.analyzeBoardSource(serialized);
+
+  assert.match(
+    serialized,
+    /    - \*\*Description:\*\* First line\.\n      Second line\.\n      \n      Fourth line\./,
+  );
+  assert.equal(serialized.includes('\r'), false);
+  assert.deepEqual(report.errors, []);
+  assert.equal(
+    model.parseBoard(serialized).columns[0].cards[0].detailValues.description,
+    'First line.\nSecond line.\n\nFourth line.',
+  );
+});
+
+test('rejects description continuations without six-space indentation', () => {
   const source = boardWith(
     '- [ ] AO-001 — First ticket · P1 · area:internal\n'
       + '    - **Description:** First line.\n'
-      + '      Second physical line.',
+      + '     Second physical line.',
   );
   const report = model.analyzeBoardSource(source);
 
-  assert.equal(report.errors[0].code, 'multiline-description');
-  assert.match(report.errors[0].message, /Description for AO-001 must stay on one physical line/);
+  assert.equal(report.errors[0].code, 'description-continuation');
+  assert.match(report.errors[0].message, /must use exactly six spaces/);
   assert.equal(report.canNormalize, false);
-  assert.throws(() => model.normalizeBoardSource(source), /must stay on one physical line/);
 });
 
 test('unsupported detail fields are preserved and warned', () => {
@@ -503,7 +523,22 @@ test('duplicate label IDs are rejected', () => {
     '"entities":[{"id":"internal","name":"Internal","color":"#167d74"}]',
     '"entities":[{"id":"internal","name":"Internal","color":"#167d74"},{"id":"internal","name":"Duplicate","color":"#7257b5"}]',
   );
-  assert.throws(() => model.parseConfig(duplicate), /Duplicate label ID: internal/);
+  assert.throws(
+    () => model.parseConfig(duplicate),
+    /Label ID "internal" is used by more than one label.*update tickets that use it/,
+  );
+});
+
+test('imported labels reject duplicate names after case and whitespace normalization', () => {
+  const duplicate = CONFIG.replace(
+    '"entities":[{"id":"internal","name":"Internal","color":"#167d74"}]',
+    '"entities":[{"id":"internal","name":"Internal","color":"#167d74"},{"id":"operations","name":"  internal  ","color":"#7257b5"}]',
+  );
+
+  assert.throws(
+    () => model.parseConfig(duplicate),
+    /Duplicate label name "internal".*without regard to case or surrounding whitespace/,
+  );
 });
 
 test('duplicate person IDs are rejected', () => {
