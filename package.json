@@ -81,6 +81,18 @@
         "icon": "$(wand)"
       },
       {
+        "command": "ledgerBoard.repairBoard",
+        "title": "Repair Board Bundle",
+        "category": "LedgerBoard",
+        "icon": "$(tools)"
+      },
+      {
+        "command": "ledgerBoard.restoreRepairBackup",
+        "title": "Restore Latest Board Repair Backup",
+        "category": "LedgerBoard",
+        "icon": "$(discard)"
+      },
+      {
         "command": "ledgerBoard.openStandard",
         "title": "Open Board Standard",
         "category": "LedgerBoard",

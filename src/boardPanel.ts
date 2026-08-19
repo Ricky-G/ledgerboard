@@ -53,6 +53,19 @@ export class BoardPanel implements vscode.Disposable {
     }
   }
 
+  public static async refreshAfterMaintenance(): Promise<void> {
+    if (!BoardPanel.current) {return;}
+    try {
+      await BoardPanel.current.load();
+    } catch (error) {
+      await BoardPanel.current.panel.webview.postMessage({
+        type: 'loadError',
+        message: errorMessage(error),
+        canNormalize: Boolean(error && typeof error === 'object' && 'canNormalize' in error && error.canNormalize),
+      });
+    }
+  }
+
   public async setRepository(repository: BoardRepository): Promise<void> {
     const bundle = await repository.read();
     repository.validate(bundle);
@@ -109,6 +122,9 @@ export class BoardPanel implements vscode.Disposable {
           break;
         case 'normalize':
           await vscode.commands.executeCommand('ledgerBoard.normalizeBoard');
+          break;
+        case 'repair':
+          await vscode.commands.executeCommand('ledgerBoard.repairBoard');
           break;
       }
     } catch (error) {

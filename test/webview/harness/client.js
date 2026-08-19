@@ -90,6 +90,27 @@
         }
         return;
       }
+      if (message.type === "repair") {
+        const repair = window.LedgerBoardModel.planBundleRepair(
+          state.boardSource,
+          state.configSource,
+          state.historySource,
+        );
+        if (!repair.canApply) {
+          const issue = repair.remainingIssues[0];
+          dispatch({
+            type: "loadError",
+            message: issue?.diagnosis || "LedgerBoard cannot safely repair this bundle.",
+            canNormalize: false,
+          });
+          return;
+        }
+        state.boardSource = repair.boardSource;
+        state.configSource = repair.configSource;
+        state.historySource = repair.historySource;
+        load();
+        return;
+      }
       if (message.type === "save") {
         try {
           dispatch({ type: "saveResult", result: save(message.request) });

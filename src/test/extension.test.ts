@@ -48,6 +48,8 @@ suite('Extension Test Suite', function () {
 		assert.ok(commands.includes('ledgerBoard.addOutcome'));
 		assert.ok(commands.includes('ledgerBoard.validateBoard'));
 		assert.ok(commands.includes('ledgerBoard.normalizeBoard'));
+		assert.ok(commands.includes('ledgerBoard.repairBoard'));
+		assert.ok(commands.includes('ledgerBoard.restoreRepairBackup'));
 		assert.ok(commands.includes('ledgerBoard.openStandard'));
 	});
 
@@ -127,6 +129,41 @@ suite('Extension Test Suite', function () {
 		} finally {
 			await removeFixture(root);
 		}
+	});
+
+	test('repairs missing directories only after previewing and restores the original bundle from backup', async () => {
+		await withWorkspace('repair-backup', async (root) => {
+			const repository = new BoardRepository(root);
+			await repository.initialize();
+			const initial = await repository.read();
+			const invalidBoard = initial.boardSource.replace(
+				'<!-- empty -->',
+				'- [ ] AO-001 — Repaired ticket · P2 · area:missing-label\n'
+					+ '    - **Assignee:** missing-person',
+			);
+			await vscode.workspace.fs.writeFile(repository.uri(BOARD_FILE), new TextEncoder().encode(invalidBoard));
+			const invalid = await repository.read();
+
+			assert.throws(() => repository.validate(invalid), /Missing label configuration: missing-label/);
+			const preview = await repository.previewRepair();
+			assert.equal(preview.canApply, true);
+			assert.equal(preview.repairs.length, 2);
+			assert.equal(preview.repaired.boardSource, invalid.boardSource);
+			assert.equal((await repository.readFromDisk()).configSource, invalid.configSource);
+
+			const result = await repository.applyRepair(preview);
+			assert.deepEqual(result.changedFiles, [CONFIG_FILE]);
+			assert.equal(result.backupFile, '.ledgerboard-repair-backup.json');
+			const repaired = await repository.read();
+			assert.doesNotThrow(() => repository.validate(repaired));
+			assert.match(repaired.configSource, /"id": "missing-label"/);
+			assert.equal(repaired.historySource, invalid.historySource);
+
+			const backup = await repository.readRepairBackup();
+			assert.deepEqual(backup, invalid);
+			await repository.restoreLatestRepairBackup();
+			assert.deepEqual(await repository.readFromDisk(), invalid);
+		});
 	});
 
 	test('creates a label, preserves an external config edit, and retries from a reloaded base', async () => {

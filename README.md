@@ -13,7 +13,7 @@ or proprietary export.
 
 - Exact, line-numbered diagnostics for card separators, malformed description continuations, mixed line endings,
   missing labels, malformed checkboxes, and first source/serialized differences.
-- Safe **Normalize BOARD.md Formatting** workflow in the Command Palette and load-error screen.
+- Guided **Repair Board Bundle** workflow that previews safe changes, validates the result, and keeps a restore point.
 - Faster initialization and multi-root discovery with parallel direct file reads, bounded probes,
   active-board reuse, and visible progress.
 
@@ -101,6 +101,8 @@ lead-time, cycle-time, and time-in-status calculations.
 | **LedgerBoard: Add Ticket** | Open the board directly in the new-ticket dialog |
 | **LedgerBoard: Validate Board Bundle** | Validate syntax, labels, history, and round-trip safety |
 | **LedgerBoard: Normalize BOARD.md Formatting** | Safely fix card separators and mixed line endings |
+| **LedgerBoard: Repair Board Bundle** | Preview and apply safe repairs for formatting and missing label or person entries |
+| **LedgerBoard: Restore Latest Board Repair Backup** | Restore the bundle saved before the most recent repair |
 | **LedgerBoard: Open Board Standard** | Open the complete format and agent-generation contract |
 
 You can also right-click a folder in Explorer and choose **Initialize Board in Folder**.
@@ -146,8 +148,14 @@ numbers for separator, description-continuation, mixed-line-ending, and first-di
 ### Board does not open
 
 Run **LedgerBoard: Validate Board Bundle**. The error identifies the first actionable issue. If the
-issue is formatting-only, choose **Normalize formatting**. Semantic problems such as missing labels
-or duplicate IDs must be corrected in Markdown.
+issue is formatting-only or a ticket references a missing label or person, choose **Review repair**.
+LedgerBoard shows every proposed change before writing, saves the original three-file bundle in
+`.ledgerboard-repair-backup.json`, and validates the repaired result. Restore that snapshot with
+**LedgerBoard: Restore Latest Board Repair Backup** if the repaired board is unexpected.
+
+Ambiguous data such as duplicate identifiers, duplicate directory entries, malformed configuration,
+or malformed history is never changed automatically. The repair view identifies the affected file
+and explains the manual correction that is still required.
 
 ### Formatting normalization
 
