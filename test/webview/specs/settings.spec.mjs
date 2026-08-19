@@ -44,6 +44,26 @@ test.describe('settings view', () => {
     expect(config).toContain('"name": "New label"');
   });
 
+  test('updates a label name and ID without breaking its card references', async ({ page }) => {
+    await openBoard(page);
+    await page.locator('.view-tab[data-view="settings"]').click();
+    const label = page.locator('#entityList .entity-row').filter({
+      has: page.locator('.entity-id-input[value="northstar"]'),
+    });
+
+    await label.getByLabel('Label name').fill('Northstar updated');
+    await label.getByLabel('Label ID').fill('northstar-updated');
+    await label.getByLabel('Label ID').blur();
+    await saveNow(page);
+
+    const config = await configSource(page);
+    expect(config).toContain('"id": "northstar-updated"');
+    expect(config).toContain('"name": "Northstar updated"');
+    expect(config).not.toContain('"id": "northstar"');
+    await expect(page.locator('#areaFilter option[value="northstar-updated"]')).toHaveCount(1);
+    await expect(page.locator('[data-card-id="AO-001"]')).toContainText('Northstar updated');
+  });
+
   test('removes an unreferenced label from card options and saved configuration', async ({ page }) => {
     await openBoard(page);
     await page.locator('#addCardButton').click();
