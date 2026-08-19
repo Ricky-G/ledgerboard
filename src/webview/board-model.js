@@ -39,6 +39,7 @@
     "mixed-line-endings",
     "noncanonical-formatting",
   ]);
+  const REPAIR_ENTRY_COLOR = "#64748b";
 
   function parseBoard(markdown) {
     if (typeof markdown !== "string") {
@@ -151,6 +152,148 @@
       diagnostics: analysis.diagnostics,
       changed: analysis.canonicalSource !== markdown,
     };
+  }
+
+  function planBundleRepair(boardSource, configSource, historySource) {
+    const repairs = [];
+    const remainingIssues = [];
+    const analysis = analyzeBoardSource(boardSource);
+    let nextBoardSource = boardSource;
+    let nextConfigSource = configSource;
+
+    if (analysis.errors.length > 0) {
+      if (!analysis.canNormalize) {
+        remainingIssues.push(...analysis.errors.map((diagnostic) => repairIssue(
+          "BOARD.md",
+          diagnostic.line,
+          diagnostic.message,
+          "Correct this Markdown manually because LedgerBoard cannot determine a lossless change.",
+        )));
+        return repairPlan(nextBoardSource, nextConfigSource, historySource, repairs, remainingIssues);
+      }
+
+      nextBoardSource = analysis.canonicalSource;
+      repairs.push(...analysis.errors.map((diagnostic) => repairIssue(
+        "BOARD.md",
+        diagnostic.line,
+        diagnostic.message,
+        "Restore canonical formatting without changing ticket fields or history.",
+      )));
+    }
+
+    const board = analysis.board;
+
+    let config;
+    try {
+      config = parseConfig(nextConfigSource);
+    } catch (error) {
+      remainingIssues.push(repairIssue(
+        "KANBAN-CONFIG.md",
+        sourceErrorLine(error),
+        error.message || String(error),
+        "Correct the configuration entry manually because its intended value is ambiguous.",
+      ));
+      return repairPlan(nextBoardSource, nextConfigSource, historySource, repairs, remainingIssues);
+    }
+
+    try {
+      parseHistory(historySource);
+    } catch (error) {
+      remainingIssues.push(repairIssue(
+        "KANBAN-HISTORY.md",
+        sourceErrorLine(error),
+        error.message || String(error),
+        "Correct the history entry manually to preserve the append-only ledger.",
+      ));
+      return repairPlan(nextBoardSource, nextConfigSource, historySource, repairs, remainingIssues);
+    }
+
+    const cards = board.columns.flatMap((column) => column.cards);
+    const labels = new Set(config.entities.map((entity) => entity.id));
+    const people = new Set(config.people.map((person) => person.id));
+    const missingLabels = [...new Set(cards.map((card) => card.area).filter((area) => !labels.has(area)))];
+    const missingPeople = [...new Set(cards
+      .map((card) => card.detailValues.assignee)
+      .filter((assignee) => assignee && !people.has(assignee)))];
+
+    if (missingLabels.length > 0 || missingPeople.length > 0) {
+      config = {
+        ...config,
+        entities: [
+          ...config.entities,
+          ...missingLabels.map((id) => ({ id, name: id, color: REPAIR_ENTRY_COLOR })),
+        ],
+        people: [
+          ...config.people,
+          ...missingPeople.map((id) => ({ id, name: id, color: REPAIR_ENTRY_COLOR })),
+        ],
+      };
+      nextConfigSource = serializeConfig(nextConfigSource, config);
+
+      missingLabels.forEach((id) => {
+        repairs.push(repairIssue(
+          "BOARD.md",
+          sourceLineForCard(nextBoardSource, cards.find((card) => card.area === id)?.id),
+          `Ticket references missing label "${id}".`,
+          `Add "${id}" to KANBAN-CONFIG.md without changing the ticket reference.`,
+        ));
+      });
+      missingPeople.forEach((id) => {
+        repairs.push(repairIssue(
+          "BOARD.md",
+          sourceLineForCard(nextBoardSource, cards.find((card) => card.detailValues.assignee === id)?.id),
+          `Ticket references missing person "${id}".`,
+          `Add "${id}" to KANBAN-CONFIG.md without changing the ticket reference.`,
+        ));
+      });
+    }
+
+    try {
+      validateBundleSources(nextBoardSource, nextConfigSource, historySource);
+    } catch (error) {
+      remainingIssues.push(repairIssue(
+        "BOARD.md",
+        sourceErrorLine(error),
+        error.message || String(error),
+        "Correct this ambiguous data manually, then review the repair plan again.",
+      ));
+    }
+
+    return repairPlan(nextBoardSource, nextConfigSource, historySource, repairs, remainingIssues);
+  }
+
+  function repairPlan(boardSource, configSource, historySource, repairs, remainingIssues) {
+    return {
+      boardSource,
+      configSource,
+      historySource,
+      repairs,
+      remainingIssues,
+      canApply: repairs.length > 0 && remainingIssues.length === 0,
+    };
+  }
+
+  function repairIssue(fileName, line, diagnosis, proposedFix) {
+    return {
+      fileName,
+      line: line || null,
+      diagnosis,
+      proposedFix,
+    };
+  }
+
+  function sourceLineForCard(source, cardId) {
+    if (!cardId) {
+      return null;
+    }
+    const lineIndex = source.split(/\r?\n/).findIndex((line) => line.includes(`] ${cardId} — `));
+    return lineIndex === -1 ? null : lineIndex + 1;
+  }
+
+  function sourceErrorLine(error) {
+    const message = error?.message || String(error);
+    const match = message.match(/\b(?:on|near) line (\d+)\b/i);
+    return match ? Number(match[1]) : null;
   }
 
   function inspectLineEndings(markdown) {
@@ -1980,6 +2123,7 @@
     moveCard,
     nextCardId,
     normalizeBoardSource,
+    planBundleRepair,
     parseBoard,
     parseConfig,
     parseHistory,

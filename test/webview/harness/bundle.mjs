@@ -159,7 +159,7 @@ const EVENTS = [
 
 const HISTORY_HEADER = '# Kanban History\n\nAppend-only fixture ledger.\n\n## Events\n';
 
-export const SCENARIOS = ['default', 'empty', 'invalid', 'label-id-collision', 'duplicate-labels'];
+export const SCENARIOS = ['default', 'empty', 'invalid', 'label-id-collision', 'duplicate-labels', 'missing-directory'];
 
 /** Build the bundle a scenario should serve, validating it through the model. */
 export function createBundle(model, scenario = 'default') {
@@ -182,6 +182,15 @@ export function createBundle(model, scenario = 'default') {
     return {
       rootName: 'harness',
       boardSource: INVALID_BOARD_SOURCE,
+      configSource,
+      historySource: HISTORY_HEADER,
+    };
+  }
+
+  if (scenario === 'missing-directory') {
+    return {
+      rootName: 'harness',
+      boardSource: BOARD_SOURCE.replace('area:northstar', 'area:missing-label'),
       configSource,
       historySource: HISTORY_HEADER,
     };

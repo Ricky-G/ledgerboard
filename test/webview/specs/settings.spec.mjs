@@ -48,7 +48,7 @@ test.describe('settings view', () => {
     await openBoard(page);
     await page.locator('.view-tab[data-view="settings"]').click();
     const label = page.locator('#entityList .entity-row').filter({
-      has: page.locator('.entity-id-input[value="northstar"]'),
+      has: page.getByRole('button', { name: 'Remove Northstar launch' }),
     });
 
     await label.getByLabel('Label name').fill('Northstar updated');

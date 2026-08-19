@@ -32,6 +32,19 @@ test.describe('load, save, and recovery states', () => {
     await expect(page.locator('#welcomeCopy')).toHaveText('Formatting drifted.');
   });
 
+  test('repairs missing directory entries from the load error without changing ticket references', async ({ page }) => {
+    await openBoard(page, { scenario: 'missing-directory' });
+
+    await expect(page.locator('#welcomeRepairButton')).toBeVisible();
+    await expect(page.locator('#welcomeCopy')).toContainText('Missing label configuration: missing-label');
+    await page.locator('#welcomeRepairButton').click();
+
+    await expect(page.locator('#welcomePanel')).toBeHidden();
+    await expect(page.locator('[data-card-id="AO-001"]')).toContainText('Confirm research themes');
+    expect(await page.evaluate(() => window.ledgerboardHarness.configSource())).toContain('"id": "missing-label"');
+    expect(await page.evaluate(() => window.ledgerboardHarness.lastPosted('repair'))).not.toBeNull();
+  });
+
   test('marks the board dirty after an edit and clean after a save', async ({ page }) => {
     await openBoard(page);
     await expect(page.locator('#unsavedIndicator')).toBeHidden();
@@ -73,6 +86,7 @@ test.describe('load, save, and recovery states', () => {
 
     await expect(page.locator('#saveState')).toHaveAttribute('data-state', 'error');
     await expect(page.locator('#toastRegion')).toContainText('Reload before saving');
+    await expect(page.locator('#repairButton')).toBeVisible();
     await expect(page.locator('[data-card-id="AO-001"]')).toContainText('Conflicting edit');
   });
 
