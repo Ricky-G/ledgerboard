@@ -4,7 +4,7 @@ import { expect } from '@playwright/test';
 export async function openBoard(page, { scenario = 'default' } = {}) {
   const query = scenario === 'default' ? '' : `?scenario=${scenario}`;
   await page.goto(`/${query}`);
-  if (scenario === 'invalid') {
+  if (scenario === 'invalid' || scenario === 'duplicate-labels') {
     await expect(page.locator('#welcomePanel')).toHaveAttribute('data-state', 'error');
     return;
   }

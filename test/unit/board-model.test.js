@@ -503,7 +503,22 @@ test('duplicate label IDs are rejected', () => {
     '"entities":[{"id":"internal","name":"Internal","color":"#167d74"}]',
     '"entities":[{"id":"internal","name":"Internal","color":"#167d74"},{"id":"internal","name":"Duplicate","color":"#7257b5"}]',
   );
-  assert.throws(() => model.parseConfig(duplicate), /Duplicate label ID: internal/);
+  assert.throws(
+    () => model.parseConfig(duplicate),
+    /Label ID "internal" is used by more than one label.*update tickets that use it/,
+  );
+});
+
+test('imported labels reject duplicate names after case and whitespace normalization', () => {
+  const duplicate = CONFIG.replace(
+    '"entities":[{"id":"internal","name":"Internal","color":"#167d74"}]',
+    '"entities":[{"id":"internal","name":"Internal","color":"#167d74"},{"id":"operations","name":"  internal  ","color":"#7257b5"}]',
+  );
+
+  assert.throws(
+    () => model.parseConfig(duplicate),
+    /Duplicate label name "internal".*without regard to case or surrounding whitespace/,
+  );
 });
 
 test('duplicate person IDs are rejected', () => {

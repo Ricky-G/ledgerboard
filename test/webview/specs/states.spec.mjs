@@ -13,6 +13,16 @@ test.describe('load, save, and recovery states', () => {
     await expect(page.locator('.kanban-card')).toHaveCount(0);
   });
 
+  test('guides users to repair persisted duplicate labels without changing ticket references', async ({ page }) => {
+    await openBoard(page, { scenario: 'duplicate-labels' });
+
+    await expect(page.locator('#welcomeCopy')).toHaveText(
+      'Duplicate label name "northstar launch". Labels are matched without regard to case or surrounding whitespace. '
+      + 'Rename one label in KANBAN-CONFIG.md while keeping label IDs unchanged so ticket references remain valid.',
+    );
+    await expect(page.locator('#addCardButton')).toBeDisabled();
+  });
+
   test('offers normalization only when the model says it is safe', async ({ page }) => {
     await openBoard(page, { scenario: 'invalid' });
     await expect(page.locator('#welcomeNormalizeButton')).toBeHidden();
