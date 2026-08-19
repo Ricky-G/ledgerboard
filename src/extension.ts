@@ -55,7 +55,7 @@ async function initializeBoard(context: vscode.ExtensionContext, uri?: vscode.Ur
 
 async function openBoard(context: vscode.ExtensionContext): Promise<void> {
   try {
-    const repository = await chooseExistingBoard();
+    const repository = await chooseExistingBoard(context);
     if (!repository) {return;}
     recentRepository = repository;
     BoardPanel.show(context, repository);
@@ -66,7 +66,7 @@ async function openBoard(context: vscode.ExtensionContext): Promise<void> {
 
 async function addTicket(context: vscode.ExtensionContext): Promise<void> {
   try {
-    const repository = await recentOrChooseExistingBoard();
+    const repository = await recentOrChooseExistingBoard(context);
     if (!repository) {return;}
     BoardPanel.show(context, repository).openNewCard();
   } catch (error) {
@@ -228,7 +228,7 @@ async function openStandard(context: vscode.ExtensionContext): Promise<void> {
   await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(uri), { preview: false });
 }
 
-async function chooseExistingBoard(): Promise<BoardRepository | undefined> {
+async function chooseExistingBoard(context: vscode.ExtensionContext): Promise<BoardRepository | undefined> {
   const discovery = await discoverWithProgress('Finding LedgerBoard bundles…');
   const repositories = discovery.valid.map((candidate) => candidate.repository);
 
@@ -304,9 +304,9 @@ async function chooseBoardForMaintenance(): Promise<BoardRepository | undefined>
   return chooseBoardFolder(false);
 }
 
-async function recentOrChooseExistingBoard(): Promise<BoardRepository | undefined> {
+async function recentOrChooseExistingBoard(context: vscode.ExtensionContext): Promise<BoardRepository | undefined> {
   if (recentRepository && await recentRepository.exists()) {return recentRepository;}
-  return chooseExistingBoard();
+  return chooseExistingBoard(context);
 }
 
 async function recentOrChooseBoardForMaintenance(): Promise<BoardRepository | undefined> {
