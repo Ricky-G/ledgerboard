@@ -40,6 +40,8 @@
     columnEditBaseline: null,
     pendingColumnRemoval: null,
     columnRemovalFocusTarget: null,
+    pendingLabelRemovalId: null,
+    labelRemovalFocusTarget: null,
   };
 
   const elements = collectElements();
@@ -71,6 +73,7 @@
       "columnList", "addColumnButton", "discardColumnChangesButton", "columnsLimitMessage",
       "columnValidationMessage", "columnRemovalDialog", "columnRemovalMessage", "columnRemovalTargetField",
       "columnRemovalTarget", "cancelColumnRemovalButton", "confirmColumnRemovalButton",
+      "labelRemovalDialog", "labelRemovalMessage", "cancelLabelRemovalButton", "confirmLabelRemovalButton",
       "statusMessage", "unsavedIndicator", "lastLoadedLabel", "cardDialog", "cardForm",
       "cardDialogEyebrow", "cardDialogTitle", "cardId", "cardTitle", "cardDescription",
       "cardArea", "cardAssignee", "cardColumn", "cardPriority", "deleteCardButton", "submitCardButton",
@@ -151,6 +154,12 @@
     elements.columnRemovalDialog.addEventListener("cancel", (event) => {
       event.preventDefault();
       cancelColumnRemoval();
+    });
+    elements.cancelLabelRemovalButton.addEventListener("click", cancelLabelRemoval);
+    elements.confirmLabelRemovalButton.addEventListener("click", confirmLabelRemoval);
+    elements.labelRemovalDialog.addEventListener("cancel", (event) => {
+      event.preventDefault();
+      cancelLabelRemoval();
     });
 
     document.querySelectorAll(".view-tab").forEach((button) => {
@@ -290,6 +299,8 @@
     state.duplicateSources = {};
     state.columnEditBaseline = null;
     state.pendingColumnRemoval = null;
+    state.pendingLabelRemovalId = null;
+    state.labelRemovalFocusTarget = null;
     state.mobileColumn = board.columns.some((column) => column.id === state.mobileColumn)
       ? state.mobileColumn
       : board.columns[0].id;
@@ -1460,7 +1471,7 @@
       if (isPerson) {
         removePerson(index);
       } else {
-        removeEntity(index);
+        requestLabelRemoval(item.id, remove);
       }
     });
 
@@ -1586,8 +1597,12 @@
     lastRow?.querySelector("input[type='text']")?.select();
   }
 
-  function removeEntity(index) {
-    const entity = state.config.entities[index];
+  function requestLabelRemoval(id, focusTarget) {
+    const entity = state.config.entities.find((item) => item.id === id);
+    if (!entity) {
+      showError(new Error("Could not find the selected label. Reload the board and try again."));
+      return;
+    }
     const usage = state.board
       ? state.board.columns.flatMap((column) => column.cards).filter((card) => card.area === entity.id)
       : [];
@@ -1595,17 +1610,59 @@
       showError(new Error(`${entity.name} is assigned to ${usage.length} ticket(s). Reassign them before removing it.`));
       return;
     }
-    if (!window.confirm(`Remove ${entity.name} from the label palette?`)) {
+    state.pendingLabelRemovalId = entity.id;
+    state.labelRemovalFocusTarget = focusTarget;
+    elements.labelRemovalMessage.textContent = `Remove ${entity.name} from the label palette? This does not change any tickets.`;
+    elements.labelRemovalDialog.showModal();
+  }
+
+  function cancelLabelRemoval() {
+    const focusTarget = state.labelRemovalFocusTarget;
+    state.pendingLabelRemovalId = null;
+    state.labelRemovalFocusTarget = null;
+    if (elements.labelRemovalDialog.open) {
+      elements.labelRemovalDialog.close();
+    }
+    if (focusTarget?.isConnected) {
+      focusTarget.focus();
+    }
+  }
+
+  function confirmLabelRemoval() {
+    const id = state.pendingLabelRemovalId;
+    const entity = state.config.entities.find((item) => item.id === id);
+    if (!entity) {
+      cancelLabelRemoval();
+      showError(new Error("Could not find the selected label. Reload the board and try again."));
       return;
     }
+    const usage = state.board
+      ? state.board.columns.flatMap((column) => column.cards).filter((card) => card.area === entity.id)
+      : [];
+    if (usage.length > 0) {
+      cancelLabelRemoval();
+      showError(new Error(`${entity.name} is assigned to ${usage.length} ticket(s). Reassign them before removing it.`));
+      return;
+    }
+    const index = state.config.entities.indexOf(entity);
     state.config.entities.splice(index, 1);
     if (elements.cardArea.value === entity.id) {
       elements.cardArea.value = "";
     }
+    state.pendingLabelRemovalId = null;
+    state.labelRemovalFocusTarget = null;
+    elements.labelRemovalDialog.close();
     markDirty("config");
     renderSettings();
     populateAreaFilter();
     populateEntityOptions();
+    renderBoard();
+    renderAnalytics();
+    const nextRemoveButton = elements.entityList.children[
+      Math.min(index, elements.entityList.children.length - 1)
+    ]?.querySelector(".remove-entity-button");
+    (nextRemoveButton || elements.addEntityButton).focus();
+    showToast(`${entity.name} removed from the label palette.`, "success");
   }
 
   function applyConfig() {

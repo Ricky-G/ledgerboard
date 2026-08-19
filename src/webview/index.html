@@ -647,6 +647,19 @@
       </div>
     </dialog>
 
+    <dialog class="confirmation-dialog" id="labelRemovalDialog" aria-labelledby="labelRemovalTitle" aria-describedby="labelRemovalMessage">
+      <div class="confirmation-body">
+        <p class="eyebrow">Label removal</p>
+        <h2 id="labelRemovalTitle">Remove label?</h2>
+        <p id="labelRemovalMessage"></p>
+      </div>
+      <div class="dialog-footer">
+        <span class="dialog-spacer"></span>
+        <button class="secondary-button" id="cancelLabelRemovalButton" type="button" autofocus>Cancel</button>
+        <button class="danger-button" id="confirmLabelRemovalButton" type="button">Remove label</button>
+      </div>
+    </dialog>
+
     <div class="card-action-menu" id="cardActionMenu" role="menu" aria-label="Ticket actions" hidden>
       <div class="card-action-menu-context" aria-hidden="true">
         <div class="card-action-menu-heading">

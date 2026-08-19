@@ -50,14 +50,22 @@ test.describe('settings view', () => {
     await page.locator('#cardArea').selectOption('internal');
     await page.locator('#cardDialog .close-dialog-button').click();
     await expect(page.locator('#cardDialog')).toBeHidden();
+    await page.locator('.view-tab[data-view="analytics"]').click();
+    await page.locator('#analyticsArea').selectOption('internal');
     await page.locator('.view-tab[data-view="settings"]').click();
 
-    page.once('dialog', (dialog) => dialog.accept());
     await page.getByRole('button', { name: 'Remove Internal' }).click();
+    await expect(page.locator('#labelRemovalDialog')).toBeVisible();
+    await expect(page.locator('#labelRemovalMessage')).toHaveText(
+      'Remove Internal from the label palette? This does not change any tickets.',
+    );
+    await page.locator('#confirmLabelRemovalButton').click();
 
     await expect(page.locator('#entityList > *')).toHaveCount(2);
     await expect(page.locator('#cardArea option[value="internal"]')).toHaveCount(0);
     await expect(page.locator('#cardArea')).toHaveValue('ledgerboard');
+    await expect(page.locator('#analyticsArea option[value="internal"]')).toHaveCount(0);
+    await expect(page.locator('#analyticsArea')).toHaveValue('');
     await saveNow(page);
     expect(await configSource(page)).not.toContain('"id": "internal"');
 
@@ -70,12 +78,14 @@ test.describe('settings view', () => {
     await openBoard(page);
     await page.locator('.view-tab[data-view="settings"]').click();
 
-    page.once('dialog', (dialog) => dialog.dismiss());
     await page.getByRole('button', { name: 'Remove Internal' }).click();
+    await expect(page.locator('#labelRemovalDialog')).toBeVisible();
+    await page.locator('#cancelLabelRemovalButton').click();
 
     await expect(page.locator('#entityList > *')).toHaveCount(3);
     await expect(page.locator('#cardArea option[value="internal"]')).toHaveCount(1);
     await expect(page.locator('#unsavedIndicator')).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Remove Internal' })).toBeFocused();
     expect(await configSource(page)).toContain('"id": "internal"');
   });
 
@@ -85,6 +95,7 @@ test.describe('settings view', () => {
 
     await page.getByRole('button', { name: 'Remove Northstar launch' }).click();
 
+    await expect(page.locator('#labelRemovalDialog')).toBeHidden();
     await expect(page.locator('.toast[data-tone="error"]')).toHaveText(
       'Northstar launch is assigned to 3 ticket(s). Reassign them before removing it.',
     );
