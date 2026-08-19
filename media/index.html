@@ -577,8 +577,9 @@
       .kanban-column[data-column="done"] { --column-color: #167d74; }
 
       .kanban-column.is-drag-target {
-        background: color-mix(in srgb, var(--column-color) 8%, var(--surface-muted));
-        border-color: color-mix(in srgb, var(--column-color) 40%, var(--line));
+        background: color-mix(in srgb, var(--column-color) 14%, var(--surface-muted));
+        border-color: color-mix(in srgb, var(--column-color) 68%, var(--line));
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--column-color) 28%, transparent);
       }
 
       .column-header {
@@ -702,6 +703,75 @@
 
       .kanban-card.is-filtered-out {
         display: none;
+      }
+
+      .drop-indicator {
+        min-height: 42px;
+        display: grid;
+        grid-template-columns: minmax(18px, 1fr) auto minmax(18px, 1fr);
+        align-items: center;
+        gap: 10px;
+        padding: 0;
+      }
+
+      .drop-indicator::before,
+      .drop-indicator::after {
+        content: "";
+        height: 2px;
+        background: color-mix(in srgb, var(--column-color) 72%, var(--line-strong));
+        border-radius: 999px;
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--column-color) 12%, transparent);
+      }
+
+      .drop-indicator::before {
+        background: linear-gradient(
+          90deg,
+          transparent,
+          color-mix(in srgb, var(--column-color) 72%, var(--line-strong))
+        );
+      }
+
+      .drop-indicator::after {
+        background: linear-gradient(
+          90deg,
+          color-mix(in srgb, var(--column-color) 72%, var(--line-strong)),
+          transparent
+        );
+      }
+
+      .drop-indicator-label {
+        display: inline-flex;
+        align-items: center;
+        min-height: 26px;
+        padding: 4px 10px;
+        color: color-mix(in srgb, var(--column-color) 80%, var(--ink));
+        background: color-mix(in srgb, var(--column-color) 14%, var(--surface));
+        border: 1px solid color-mix(in srgb, var(--column-color) 78%, var(--line-strong));
+        border-radius: 999px;
+        box-shadow: 0 2px 5px color-mix(in srgb, var(--column-color) 18%, transparent);
+        font-family: Bahnschrift, "Arial Narrow", sans-serif;
+        font-size: 10px;
+        font-weight: 750;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      @media (prefers-reduced-motion: no-preference) {
+        .drop-indicator {
+          animation: reveal-drop-indicator 140ms ease-out;
+        }
+      }
+
+      @keyframes reveal-drop-indicator {
+        from {
+          opacity: 0;
+          transform: scaleY(0.65);
+        }
+
+        to {
+          opacity: 1;
+          transform: scaleY(1);
+        }
       }
 
       .card-topline,
@@ -840,6 +910,32 @@
         color: var(--ink-soft);
         font-family: Bahnschrift, "Arial Narrow", sans-serif;
         font-size: 12px;
+      }
+
+      .empty-column.is-drop-target {
+        color: color-mix(in srgb, var(--column-color) 80%, var(--ink));
+        background: color-mix(in srgb, var(--column-color) 14%, var(--surface));
+        border: 2px dashed color-mix(in srgb, var(--column-color) 78%, var(--line-strong));
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--column-color) 24%, transparent);
+      }
+
+      .empty-column.is-drop-target::after {
+        content: "Drop ticket here";
+        display: inline-flex;
+        align-items: center;
+        min-height: 26px;
+        padding: 4px 10px;
+        margin-top: 7px;
+        color: color-mix(in srgb, var(--column-color) 80%, var(--ink));
+        background: color-mix(in srgb, var(--column-color) 14%, var(--surface));
+        border: 1px solid color-mix(in srgb, var(--column-color) 78%, var(--line-strong));
+        border-radius: 999px;
+        box-shadow: 0 2px 5px color-mix(in srgb, var(--column-color) 18%, transparent);
+        font-family: Bahnschrift, "Arial Narrow", sans-serif;
+        font-size: 10px;
+        font-weight: 750;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
       }
 
       .welcome-panel {
@@ -6234,6 +6330,7 @@
             }
           });
           button.addEventListener("dragstart", (event) => {
+            clearDropFeedback();
             state.draggedCardId = card.id;
             state.suppressCardClick = true;
             button.classList.add("is-dragging");
@@ -6243,7 +6340,7 @@
           button.addEventListener("dragend", () => {
             state.draggedCardId = null;
             button.classList.remove("is-dragging");
-            document.querySelectorAll(".kanban-column").forEach((column) => column.classList.remove("is-drag-target"));
+            clearDropFeedback();
             window.setTimeout(() => { state.suppressCardClick = false; }, 0);
           });
 
@@ -6402,31 +6499,77 @@
 
         function bindDropZone(cardList, column) {
           cardList.addEventListener("dragover", (event) => {
+            if (!state.draggedCardId) {
+              return;
+            }
             event.preventDefault();
             event.dataTransfer.dropEffect = "move";
-            cardList.closest(".kanban-column").classList.add("is-drag-target");
+            updateDropFeedback(cardList, column, event.clientY);
           });
           cardList.addEventListener("dragleave", (event) => {
-            if (!cardList.contains(event.relatedTarget)) {
-              cardList.closest(".kanban-column").classList.remove("is-drag-target");
+            if (!(event.relatedTarget instanceof Node) || !cardList.contains(event.relatedTarget)) {
+              clearDropFeedback();
             }
           });
           cardList.addEventListener("drop", (event) => {
             event.preventDefault();
             const cardId = event.dataTransfer.getData("text/plain") || state.draggedCardId;
-            const visibleCards = [...cardList.querySelectorAll(".kanban-card:not(.is-filtered-out)")];
-            const targetCard = visibleCards.find((card) => event.clientY < card.getBoundingClientRect().top + card.offsetHeight / 2);
-            const targetIndex = targetCard
-              ? column.cards.findIndex((card) => card.id === targetCard.dataset.cardId)
-              : column.cards.length;
+            const targetIndex = updateDropFeedback(cardList, column, event.clientY);
             try {
               model.moveCard(state.board, cardId, column.id, targetIndex);
+              clearDropFeedback();
               markDirty("board");
               renderBoard();
             } catch (error) {
+              clearDropFeedback();
               showError(error);
             }
           });
+        }
+
+        function updateDropFeedback(cardList, column, clientY) {
+          const visibleCards = [...cardList.querySelectorAll(".kanban-card:not(.is-filtered-out)")];
+          const targetCard = visibleCards.find(
+            (card) => clientY < card.getBoundingClientRect().top + card.offsetHeight / 2,
+          );
+          const targetIndex = targetCard
+            ? column.cards.findIndex((card) => card.id === targetCard.dataset.cardId)
+            : column.cards.length;
+          const columnElement = cardList.closest(".kanban-column");
+          const currentIndicator = cardList.querySelector(".drop-indicator");
+          const hasCurrentFeedback = columnElement.classList.contains("is-drag-target")
+            && (
+              column.cards.length === 0
+                ? cardList.querySelector(".empty-column")?.classList.contains("is-drop-target")
+                : currentIndicator?.dataset.dropIndex === String(targetIndex)
+            );
+          if (hasCurrentFeedback) {
+            return targetIndex;
+          }
+
+          clearDropFeedback();
+          columnElement.classList.add("is-drag-target");
+          if (column.cards.length === 0) {
+            cardList.querySelector(".empty-column")?.classList.add("is-drop-target");
+            return targetIndex;
+          }
+
+          const indicator = document.createElement("div");
+          indicator.className = "drop-indicator";
+          indicator.dataset.dropIndex = String(targetIndex);
+          indicator.setAttribute("aria-hidden", "true");
+          const label = document.createElement("span");
+          label.className = "drop-indicator-label";
+          label.textContent = "Drop ticket here";
+          indicator.append(label);
+          cardList.insertBefore(indicator, targetCard || cardList.querySelector(".empty-column"));
+          return targetIndex;
+        }
+
+        function clearDropFeedback() {
+          document.querySelectorAll(".kanban-column").forEach((column) => column.classList.remove("is-drag-target"));
+          document.querySelectorAll(".drop-indicator").forEach((indicator) => indicator.remove());
+          document.querySelectorAll(".empty-column").forEach((emptyColumn) => emptyColumn.classList.remove("is-drop-target"));
         }
 
         function cardMatches(card, query, area, assignee, priority) {

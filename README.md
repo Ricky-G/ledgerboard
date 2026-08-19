@@ -63,6 +63,7 @@ compatible option for browsers that do not provide it.
 - P1-P4 priorities
 - Search and label, assignee, and priority filters
 - Responsive desktop and narrow-editor layouts
+- Clear destination and insertion indicators while dragging tickets
 - One-second autosave with visible pending, saving, saved, and blocked states
 - Left-click card editing and a right-click action menu for contextual edit and confirmed delete actions
 - Append-only deletion history that remains visible in analytics activity without affecting current board totals

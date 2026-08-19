@@ -91,15 +91,59 @@ export async function dragCardTo(page, cardId, targetColumn, { position = 'end' 
 }
 
 /** Begin a drag without dropping, so hover feedback can be asserted. */
-export async function startDrag(page, cardId, targetColumn) {
+export async function startDrag(page, cardId, targetColumn, { position = 'end', beforeCardId = null } = {}) {
+  await page.evaluate(
+    ({
+      cardId: id, targetColumn: column, position: where, beforeCardId: beforeId,
+    }) => {
+      const card = document.querySelector(`[data-card-id="${id}"]`);
+      const list = document.querySelector(`.card-list[data-column="${column}"]`);
+      if (!card || !list) {
+        throw new Error(`Missing drag source ${id} or drop target ${column}.`);
+      }
+      const transfer = new DataTransfer();
+      window.__harnessTransfer = transfer;
+      const cards = [...list.querySelectorAll('.kanban-card:not(.is-filtered-out)')];
+      const beforeCard = beforeId
+        ? cards.find((candidate) => candidate.dataset.cardId === beforeId)
+        : null;
+      if (beforeId && !beforeCard) {
+        throw new Error(`Missing insertion anchor ${beforeId}.`);
+      }
+      const bounds = list.getBoundingClientRect();
+      window.__harnessDragClientY = beforeCard
+        ? beforeCard.getBoundingClientRect().top + 1
+        : (where === 'start' && cards[0] ? cards[0].getBoundingClientRect().top + 1 : bounds.bottom + 1000);
+      card.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: transfer }));
+      list.dispatchEvent(new DragEvent('dragover', {
+        bubbles: true,
+        clientY: window.__harnessDragClientY,
+        dataTransfer: transfer,
+      }));
+    },
+    {
+      cardId, targetColumn, position, beforeCardId,
+    },
+  );
+}
+
+/** Complete the in-flight drag at the same position used to show its indicator. */
+export async function finishDrag(page, cardId, targetColumn) {
   await page.evaluate(
     ({ cardId: id, targetColumn: column }) => {
       const card = document.querySelector(`[data-card-id="${id}"]`);
       const list = document.querySelector(`.card-list[data-column="${column}"]`);
-      const transfer = new DataTransfer();
-      window.__harnessTransfer = transfer;
-      card.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: transfer }));
-      list.dispatchEvent(new DragEvent('dragover', { bubbles: true, dataTransfer: transfer }));
+      const clientY = window.__harnessDragClientY;
+      if (!card || !list || typeof clientY !== 'number') {
+        throw new Error(`Cannot finish drag for ${id} into ${column}.`);
+      }
+      const transfer = window.__harnessTransfer ?? new DataTransfer();
+      list.dispatchEvent(new DragEvent('drop', {
+        bubbles: true,
+        clientY,
+        dataTransfer: transfer,
+      }));
+      card.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer: transfer }));
     },
     { cardId, targetColumn },
   );

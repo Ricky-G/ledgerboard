@@ -5,6 +5,7 @@ import {
   cancelDrag,
   columnCardIds,
   dragCardTo,
+  finishDrag,
   historySource,
   openBoard,
   saveNow,
@@ -30,7 +31,10 @@ test.describe('drag and drop', () => {
     await openBoard(page);
     expect(await columnCardIds(page, 'inbox')).toEqual(['AO-001', 'AO-002']);
 
-    await dragCardTo(page, 'AO-001', 'inbox');
+    await startDrag(page, 'AO-001', 'inbox', { position: 'end' });
+    await expect(page.locator('.card-list[data-column="inbox"] .drop-indicator'))
+      .toHaveAttribute('data-drop-index', '2');
+    await finishDrag(page, 'AO-001', 'inbox');
     expect(await columnCardIds(page, 'inbox')).toEqual(['AO-002', 'AO-001']);
 
     await saveNow(page);
@@ -44,7 +48,9 @@ test.describe('drag and drop', () => {
     await dragCardTo(page, 'AO-003', 'inbox');
     expect(await columnCardIds(page, 'doing')).toEqual([]);
 
-    await dragCardTo(page, 'AO-005', 'doing');
+    await startDrag(page, 'AO-005', 'doing');
+    await expect(page.locator('.card-list[data-column="doing"] .empty-column')).toHaveClass(/is-drop-target/);
+    await finishDrag(page, 'AO-005', 'doing');
     expect(await columnCardIds(page, 'doing')).toEqual(['AO-005']);
     await expect(page.locator('.card-list[data-column="doing"] .empty-column')).toHaveCount(0);
   });
@@ -66,13 +72,43 @@ test.describe('drag and drop', () => {
 
     await expect(page.locator('.kanban-column[data-column="done"]')).toHaveClass(/is-drag-target/);
     await expect(page.locator('[data-card-id="AO-001"]')).toHaveClass(/is-dragging/);
+    await expect(page.locator('.card-list[data-column="done"] .drop-indicator')).toHaveCount(1);
 
     await cancelDrag(page, 'AO-001');
 
     await expect(page.locator('.kanban-column[data-column="done"]')).not.toHaveClass(/is-drag-target/);
     await expect(page.locator('[data-card-id="AO-001"]')).not.toHaveClass(/is-dragging/);
+    await expect(page.locator('.drop-indicator')).toHaveCount(0);
     expect(await columnCardIds(page, 'inbox')).toEqual(['AO-001', 'AO-002']);
     await expect(page.locator('#unsavedIndicator')).toBeHidden();
+  });
+
+  test('shows the displayed insertion slot for first, middle, and last placements', async ({ page }) => {
+    await openBoard(page);
+
+    await startDrag(page, 'AO-003', 'inbox', { position: 'start' });
+    await expect(page.locator('.kanban-column[data-column="inbox"]')).toHaveClass(/is-drag-target/);
+    await expect(page.locator('.card-list[data-column="inbox"] .drop-indicator'))
+      .toHaveAttribute('data-drop-index', '0');
+    await expect(page.locator('.card-list[data-column="inbox"] .drop-indicator'))
+      .toHaveCSS('min-height', '42px');
+    await expect(page.locator('.card-list[data-column="inbox"] .drop-indicator-label'))
+      .toHaveText('Drop ticket here');
+    await expect(page.locator('.card-list[data-column="inbox"] .drop-indicator'))
+      .toHaveAttribute('aria-hidden', 'true');
+    await cancelDrag(page, 'AO-003');
+
+    await startDrag(page, 'AO-004', 'inbox', { beforeCardId: 'AO-002' });
+    await expect(page.locator('.card-list[data-column="inbox"] .drop-indicator'))
+      .toHaveAttribute('data-drop-index', '1');
+    await finishDrag(page, 'AO-004', 'inbox');
+    expect(await columnCardIds(page, 'inbox')).toEqual(['AO-001', 'AO-004', 'AO-002']);
+
+    await startDrag(page, 'AO-003', 'inbox', { position: 'end' });
+    await expect(page.locator('.card-list[data-column="inbox"] .drop-indicator'))
+      .toHaveAttribute('data-drop-index', '3');
+    await finishDrag(page, 'AO-003', 'inbox');
+    expect(await columnCardIds(page, 'inbox')).toEqual(['AO-001', 'AO-004', 'AO-002', 'AO-003']);
   });
 
   test('keeps a long column stable across repeated moves', async ({ page }) => {

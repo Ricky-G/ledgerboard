@@ -582,6 +582,7 @@
       }
     });
     button.addEventListener("dragstart", (event) => {
+      clearDropFeedback();
       state.draggedCardId = card.id;
       state.suppressCardClick = true;
       button.classList.add("is-dragging");
@@ -591,7 +592,7 @@
     button.addEventListener("dragend", () => {
       state.draggedCardId = null;
       button.classList.remove("is-dragging");
-      document.querySelectorAll(".kanban-column").forEach((column) => column.classList.remove("is-drag-target"));
+      clearDropFeedback();
       window.setTimeout(() => { state.suppressCardClick = false; }, 0);
     });
 
@@ -750,31 +751,77 @@
 
   function bindDropZone(cardList, column) {
     cardList.addEventListener("dragover", (event) => {
+      if (!state.draggedCardId) {
+        return;
+      }
       event.preventDefault();
       event.dataTransfer.dropEffect = "move";
-      cardList.closest(".kanban-column").classList.add("is-drag-target");
+      updateDropFeedback(cardList, column, event.clientY);
     });
     cardList.addEventListener("dragleave", (event) => {
-      if (!cardList.contains(event.relatedTarget)) {
-        cardList.closest(".kanban-column").classList.remove("is-drag-target");
+      if (!(event.relatedTarget instanceof Node) || !cardList.contains(event.relatedTarget)) {
+        clearDropFeedback();
       }
     });
     cardList.addEventListener("drop", (event) => {
       event.preventDefault();
       const cardId = event.dataTransfer.getData("text/plain") || state.draggedCardId;
-      const visibleCards = [...cardList.querySelectorAll(".kanban-card:not(.is-filtered-out)")];
-      const targetCard = visibleCards.find((card) => event.clientY < card.getBoundingClientRect().top + card.offsetHeight / 2);
-      const targetIndex = targetCard
-        ? column.cards.findIndex((card) => card.id === targetCard.dataset.cardId)
-        : column.cards.length;
+      const targetIndex = updateDropFeedback(cardList, column, event.clientY);
       try {
         model.moveCard(state.board, cardId, column.id, targetIndex);
+        clearDropFeedback();
         markDirty("board");
         renderBoard();
       } catch (error) {
+        clearDropFeedback();
         showError(error);
       }
     });
+  }
+
+  function updateDropFeedback(cardList, column, clientY) {
+    const visibleCards = [...cardList.querySelectorAll(".kanban-card:not(.is-filtered-out)")];
+    const targetCard = visibleCards.find(
+      (card) => clientY < card.getBoundingClientRect().top + card.offsetHeight / 2,
+    );
+    const targetIndex = targetCard
+      ? column.cards.findIndex((card) => card.id === targetCard.dataset.cardId)
+      : column.cards.length;
+    const columnElement = cardList.closest(".kanban-column");
+    const currentIndicator = cardList.querySelector(".drop-indicator");
+    const hasCurrentFeedback = columnElement.classList.contains("is-drag-target")
+      && (
+        column.cards.length === 0
+          ? cardList.querySelector(".empty-column")?.classList.contains("is-drop-target")
+          : currentIndicator?.dataset.dropIndex === String(targetIndex)
+      );
+    if (hasCurrentFeedback) {
+      return targetIndex;
+    }
+
+    clearDropFeedback();
+    columnElement.classList.add("is-drag-target");
+    if (column.cards.length === 0) {
+      cardList.querySelector(".empty-column")?.classList.add("is-drop-target");
+      return targetIndex;
+    }
+
+    const indicator = document.createElement("div");
+    indicator.className = "drop-indicator";
+    indicator.dataset.dropIndex = String(targetIndex);
+    indicator.setAttribute("aria-hidden", "true");
+    const label = document.createElement("span");
+    label.className = "drop-indicator-label";
+    label.textContent = "Drop ticket here";
+    indicator.append(label);
+    cardList.insertBefore(indicator, targetCard || cardList.querySelector(".empty-column"));
+    return targetIndex;
+  }
+
+  function clearDropFeedback() {
+    document.querySelectorAll(".kanban-column").forEach((column) => column.classList.remove("is-drag-target"));
+    document.querySelectorAll(".drop-indicator").forEach((indicator) => indicator.remove());
+    document.querySelectorAll(".empty-column").forEach((emptyColumn) => emptyColumn.classList.remove("is-drop-target"));
   }
 
   function cardMatches(card, query, area, assignee, priority) {
