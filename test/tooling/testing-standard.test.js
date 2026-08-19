@@ -56,6 +56,7 @@ test('preflight runs every layer so one command matches CI', () => {
 
 test('the coverage ratchet is configured and enforced', () => {
   const policy = JSON.parse(read('scripts', 'coverage-policy.json'));
+  assert.equal(policy.thresholds.lines, 97.20, 'Line coverage must retain the board-repair baseline.');
   assert.ok(policy.thresholds.lines > 0);
   assert.ok(policy.thresholds.branches > 0);
   assert.ok(policy.thresholds.functions > 0);
