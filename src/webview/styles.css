@@ -566,8 +566,9 @@ main {
 .kanban-column[data-column="done"] { --column-color: #167d74; }
 
 .kanban-column.is-drag-target {
-  background: color-mix(in srgb, var(--column-color) 8%, var(--surface-muted));
-  border-color: color-mix(in srgb, var(--column-color) 40%, var(--line));
+  background: color-mix(in srgb, var(--column-color) 14%, var(--surface-muted));
+  border-color: color-mix(in srgb, var(--column-color) 68%, var(--line));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--column-color) 28%, transparent);
 }
 
 .column-header {
@@ -691,6 +692,75 @@ main {
 
 .kanban-card.is-filtered-out {
   display: none;
+}
+
+.drop-indicator {
+  min-height: 42px;
+  display: grid;
+  grid-template-columns: minmax(18px, 1fr) auto minmax(18px, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+}
+
+.drop-indicator::before,
+.drop-indicator::after {
+  content: "";
+  height: 2px;
+  background: color-mix(in srgb, var(--column-color) 72%, var(--line-strong));
+  border-radius: 999px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--column-color) 12%, transparent);
+}
+
+.drop-indicator::before {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--column-color) 72%, var(--line-strong))
+  );
+}
+
+.drop-indicator::after {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--column-color) 72%, var(--line-strong)),
+    transparent
+  );
+}
+
+.drop-indicator-label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 4px 10px;
+  color: color-mix(in srgb, var(--column-color) 80%, var(--ink));
+  background: color-mix(in srgb, var(--column-color) 14%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--column-color) 78%, var(--line-strong));
+  border-radius: 999px;
+  box-shadow: 0 2px 5px color-mix(in srgb, var(--column-color) 18%, transparent);
+  font-family: Bahnschrift, "Arial Narrow", sans-serif;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .drop-indicator {
+    animation: reveal-drop-indicator 140ms ease-out;
+  }
+}
+
+@keyframes reveal-drop-indicator {
+  from {
+    opacity: 0;
+    transform: scaleY(0.65);
+  }
+
+  to {
+    opacity: 1;
+    transform: scaleY(1);
+  }
 }
 
 .card-topline,
@@ -829,6 +899,32 @@ main {
   color: var(--ink-soft);
   font-family: Bahnschrift, "Arial Narrow", sans-serif;
   font-size: 12px;
+}
+
+.empty-column.is-drop-target {
+  color: color-mix(in srgb, var(--column-color) 80%, var(--ink));
+  background: color-mix(in srgb, var(--column-color) 14%, var(--surface));
+  border: 2px dashed color-mix(in srgb, var(--column-color) 78%, var(--line-strong));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--column-color) 24%, transparent);
+}
+
+.empty-column.is-drop-target::after {
+  content: "Drop ticket here";
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 4px 10px;
+  margin-top: 7px;
+  color: color-mix(in srgb, var(--column-color) 80%, var(--ink));
+  background: color-mix(in srgb, var(--column-color) 14%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--column-color) 78%, var(--line-strong));
+  border-radius: 999px;
+  box-shadow: 0 2px 5px color-mix(in srgb, var(--column-color) 18%, transparent);
+  font-family: Bahnschrift, "Arial Narrow", sans-serif;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .welcome-panel {
