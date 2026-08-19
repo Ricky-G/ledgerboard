@@ -159,11 +159,24 @@ const EVENTS = [
 
 const HISTORY_HEADER = '# Kanban History\n\nAppend-only fixture ledger.\n\n## Events\n';
 
-export const SCENARIOS = ['default', 'empty', 'invalid'];
+export const SCENARIOS = ['default', 'empty', 'invalid', 'label-id-collision', 'duplicate-labels'];
 
 /** Build the bundle a scenario should serve, validating it through the model. */
 export function createBundle(model, scenario = 'default') {
-  const configSource = model.serializeConfig('', structuredClone(CONFIG));
+  const config = structuredClone(CONFIG);
+  if (scenario === 'label-id-collision') {
+    config.entities.push({ id: 'label-4', name: 'Release planning', color: '#b52f42' });
+  }
+  if (scenario === 'duplicate-labels') {
+    config.entities.push({ id: 'release', name: '  northstar launch  ', color: '#b52f42' });
+    return {
+      rootName: 'harness',
+      boardSource: BOARD_SOURCE,
+      configSource: `# Kanban Configuration\n\n\`\`\`json\n${JSON.stringify(config, null, 2)}\n\`\`\`\n`,
+      historySource: HISTORY_HEADER,
+    };
+  }
+  const configSource = model.serializeConfig('', config);
 
   if (scenario === 'invalid') {
     return {

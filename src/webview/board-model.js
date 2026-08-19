@@ -1805,7 +1805,7 @@
       throw new Error("Configuration requires a columns array.");
     }
 
-    validateDirectory(config.entities, "label", false);
+    validateDirectory(config.entities, "label", true);
     validateDirectory(config.people, "person", true);
     validateColumns(config.columns);
     return true;
@@ -1854,15 +1854,39 @@
 
   function validateDirectory(items, type, requireName) {
     const ids = new Set();
+    const names = new Set();
     items.forEach((item) => {
+      if (!item || typeof item !== "object") {
+        throw new Error(`Invalid ${type} entry.`);
+      }
       if (!/^[a-z0-9][a-z0-9-]*$/.test(item.id || "")) {
         throw new Error(`Invalid ${type} ID: ${item.id || "empty"}.`);
       }
       if (ids.has(item.id)) {
+        if (type === "label") {
+          throw new Error(
+            `Label ID "${item.id}" is used by more than one label. `
+            + "Give one label a different ID and update tickets that use it.",
+          );
+        }
         throw new Error(`Duplicate ${type} ID: ${item.id}.`);
       }
-      if (requireName && (typeof item.name !== "string" || !item.name.trim())) {
+      const name = typeof item.name === "string" ? item.name.trim() : "";
+      if (requireName && !name) {
+        if (type === "label") {
+          throw new Error("Label names cannot be blank. Enter a label name.");
+        }
         throw new Error(`Invalid name for ${item.id}.`);
+      }
+      if (type === "label") {
+        const nameKey = name.toLocaleLowerCase();
+        if (names.has(nameKey)) {
+          throw new Error(
+            `Duplicate label name "${name}". Labels are matched without regard to case or surrounding whitespace. `
+            + "Rename one label in KANBAN-CONFIG.md while keeping label IDs unchanged so ticket references remain valid.",
+          );
+        }
+        names.add(nameKey);
       }
       if (!/^#[0-9a-f]{6}$/i.test(item.color || "")) {
         throw new Error(`Invalid color for ${item.id}.`);
@@ -1883,9 +1907,25 @@
     if (!Array.isArray(normalized.people)) {
       normalized.people = [];
     }
+    normalized.entities = normalizeDirectory(normalized.entities);
     normalized.columns = normalizeColumns(normalized.columns);
     delete normalized.customers;
     return normalized;
+  }
+
+  function normalizeDirectory(items) {
+    if (!Array.isArray(items)) {
+      return items;
+    }
+    return items.map((item) => {
+      if (!item || typeof item !== "object") {
+        return item;
+      }
+      return {
+        ...item,
+        name: typeof item.name === "string" ? item.name.trim() : item.name,
+      };
+    });
   }
 
   function normalizeColumns(columns) {
